@@ -11,7 +11,7 @@ export function CardView({ card, onClick, inCombat = false, selected = false, di
   const cls = ['card', rar, (def.unplayable || dim) ? 'unplayable' : '', selected ? 'selected' : '']
     .filter(Boolean).join(' ');
   return (
-    <div className={cls} onClick={onClick} data-ctype={def.type} data-glyph={TYPE_GLYPHS[def.type] || '◆'}>
+    <div className={cls} onClick={onClick} data-ctype={def.type} data-cclass={def.cls || 'neutral'} data-glyph={TYPE_GLYPHS[def.type] || '◆'}>
       <div className="top">
         {cost == null
           ? <div className="cost free">—</div>

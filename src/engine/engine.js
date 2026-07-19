@@ -99,6 +99,12 @@ export function loadRun(slot) {
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
       if (run.combat.picks == null) run.combat.picks = PICKS_PER_TURN;
+      run.combat.powers = {
+        powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
+        blastDividend: false, blastDividendUsed: false, stonechoir: false,
+        ...run.combat.powers,
+      };
+      run.combat.classState = { passiveUsed: false, scanCount: 0, ...run.combat.classState };
     }
     _cardId = Math.max(_cardId, ...run.deck.map(c => c.id || 0));
     ui.screen = payload.screen || 'map';
@@ -143,10 +149,8 @@ function dailySeed(date) {
 
 export function newRun(clsKey, options = {}) {
   const cls = CLASSES[clsKey];
-  const deck = [];
-  for (let i = 0; i < 5; i++) deck.push(mkCard('probe'));
-  for (let i = 0; i < 4; i++) deck.push(mkCard('brace'));
-  deck.push(mkCard(cls.sig));
+  const deck = (cls.deck || ['probe', 'probe', 'probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'brace', cls.sig])
+    .map(key => mkCard(key));
   run = {
     cls: clsKey, hp: cls.hp, maxHp: cls.hp, gold: 50,
     deck, trinkets: [cls.trinket], gadgets: [],
@@ -613,8 +617,19 @@ export function detonateForCards(i) {
   sfx('boom');
   log('💥 Controlled detonation.');
   triggerPowderKeg();
+  if (run.combat && run.cls === 'sapper' && !c.classState.passiveUsed) {
+    c.classState.passiveUsed = true;
+    hitAll(4, { noNitro: true });
+    toast('Breachcraft: 4 damage to all enemies');
+  }
+  if (run.combat && c.powers.blastDividend && !c.powers.blastDividendUsed) {
+    c.powers.blastDividendUsed = true;
+    gainEnergy(1); drawCards(1);
+    toast('Blast Dividend: +1⚡, draw 1');
+  }
+  if (!run.combat) return true;
   if (!c.over) lairMineHit(i);
-  checkFullClear();
+  if (!c.over) checkFullClear();
   return true;
 }
 
@@ -626,8 +641,17 @@ function triggerPowderKeg() {
 export function scanTile(i) {
   const cell = board().cells[i];
   if (!isHiddenUsable(i)) return;
+  const fresh = !cell.scan;
   cell.scan = cell.mine ? 'mine' : 'safe';
   sfx('scan');
+  const c = cbt();
+  if (fresh && !c.setup && run.cls === 'surveyor') {
+    c.classState.scanCount++;
+    if (c.classState.scanCount % 4 === 0) {
+      gainEnergy(1); gainInsight(1);
+      toast('Field Method: fourth scan grants +1⚡ and Insight');
+    }
+  }
 }
 
 export function defuseTile(i) {
@@ -697,7 +721,12 @@ export function addConstruct(i, kind, opts = {}) {
   const cell = board().cells[i];
   if (!cell || !cell.revealed || cell.void || cell.construct) return;
   cell.construct = { kind, ...opts };
-  log(`🏗 ${kind === 'sentry' ? 'Sentry' : 'Bulwark'} built.`);
+  const names = { sentry: 'Sentry', bulwark: 'Bulwark', relay: 'Survey Relay' };
+  log(`🏗 ${names[kind] || kind} built.`);
+  if (run.cls === 'terraformer') {
+    gainPlating(2);
+    toast('Master Builder: +2 Plating');
+  }
 }
 
 /* Full Clear is a payoff, not a win condition: the collapse deals heavy damage to
@@ -1093,7 +1122,11 @@ export function startCombat(kind) {
     energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0),
     block: 0, plating: 0, insight: 0, turn: 0,
     revealedThisTurn: 0, sumThisTurn: 0, chordedThisTurn: false, minesDetonated: 0,
-    powers: { powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0 },
+    powers: {
+      powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
+      blastDividend: false, blastDividendUsed: false, stonechoir: false,
+    },
+    classState: { passiveUsed: false, scanCount: 0 },
     instinctUsed: false, gogglesUsed: false, compassUsed: false, canaryUsed: false, keystoneUsed: false,
     nitro: 0, nitroBoost: 0, lie: null, primed: null, targetIdx: 0,
     fullCleared: false, over: false, setup: true, log: [],
@@ -1147,6 +1180,8 @@ function startTurn() {
   c.picks = PICKS_PER_TURN;
   c.revealedThisTurn = 0; c.sumThisTurn = 0; c.chordedThisTurn = false;
   c.powers.sixthUsed = false;
+  c.classState.passiveUsed = false;
+  c.powers.blastDividendUsed = false;
   drawCards(5);
   updateGlow();
   notify();
@@ -1198,8 +1233,17 @@ export function endTurn() {
   for (let i = 0; i < b.cells.length; i++) {
     const con = b.cells[i].construct;
     if (!con || c.over) continue;
-    if (con.kind === 'sentry') { log('🗼 Sentry fires.'); hitRandom(con.dmg); }
-    else if (con.kind === 'bulwark') { gainPlating(con.plating); gainBlock(con.block); }
+    const repeats = c.powers.stonechoir ? 2 : 1;
+    for (let n = 0; n < repeats && !c.over; n++) {
+      if (con.kind === 'sentry') { log('🗼 Sentry fires.'); hitRandom(con.dmg); }
+      else if (con.kind === 'bulwark') { gainPlating(con.plating); gainBlock(con.block); }
+      else if (con.kind === 'relay') {
+        const target = randPick(hiddenIdx());
+        if (target != null) scanTile(target);
+        gainBlock(con.block);
+        log('⌁ Survey Relay reads the stone.');
+      }
+    }
   }
   for (const e of c.enemies) {
     if (e.hp <= 0 || c.over) continue;

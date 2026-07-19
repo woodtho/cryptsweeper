@@ -11,9 +11,13 @@ import {
 import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
 import { BoardView } from './BoardView.jsx';
+import sapperPortrait from '../assets/delvers/sapper.webp';
+import surveyorPortrait from '../assets/delvers/surveyor.webp';
+import terraformerPortrait from '../assets/delvers/terraformer.webp';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = { play: 'Choose your Delver', how: 'How to play', saves: 'Saved descents', settings: 'Settings', daily: 'Daily challenge' };
+const DELVER_PORTRAITS = { sapper: sapperPortrait, surveyor: surveyorPortrait, terraformer: terraformerPortrait };
 
 function localDateKey() {
   const d = new Date();
@@ -25,10 +29,14 @@ function DelverPicker({ daily = null }) {
     <div className="classgrid">
       {Object.entries(CLASSES).map(([k, c]) => (
         <button type="button" key={k} className="classcard" onClick={() => newRun(k, daily ? { daily } : {})}>
-          <h3>{c.name}</h3>
-          <div className="role">{c.role}</div>
-          <div className="hp">❤ {c.hp} HP</div>
-          <p>{c.blurb}</p>
+          <div className="delver-art"><img src={DELVER_PORTRAITS[k]} alt={`${c.name} portrait`} /></div>
+          <div className="delver-body">
+            <h3>{c.name}</h3>
+            <div className="role">{c.role}</div>
+            <div className="hp">❤ {c.hp} HP</div>
+            <p>{c.blurb}</p>
+            <div className="passive" dangerouslySetInnerHTML={{ __html: c.passive }} />
+          </div>
           <div className="trink">
             Starts with: {TRINKETS[c.trinket].emoji} <b>{TRINKETS[c.trinket].name}</b> — {TRINKETS[c.trinket].desc}
           </div>
@@ -147,7 +155,7 @@ function HowToPlay() {
 }
 
 /* ---------------- map ---------------- */
-const NODE_ICONS = { dig: '⚔️', elite: '💀', camp: '🔥', shop: '💰', treasure: '🎁', event: '❓', boss: '☠️' };
+const NODE_ICONS = { dig: '⚔︎', elite: '☠︎', camp: '▲', shop: '◈', treasure: '◆', event: '?', boss: '♛' };
 
 export function MapScreen() {
   const m = run.map;
@@ -158,17 +166,17 @@ export function MapScreen() {
     const [r, c] = key.split(',').map(Number);
     for (const nc of set) {
       if (m.nodes[r + 1][nc] === undefined) continue;
-      lines.push(
-        <line key={`${key}-${nc}`} x1={(c + 0.5) * 20} y1={r + 0.5} x2={(nc + 0.5) * 20} y2={r + 1.5}
-          stroke="var(--line)" strokeWidth="0.25" />,
-      );
+      lines.push(<g key={`${key}-${nc}`}>
+        <line className="mapline-shadow" x1={(c + 0.5) * 20} y1={r + 0.5} x2={(nc + 0.5) * 20} y2={r + 1.5} />
+        <line className="mapline" x1={(c + 0.5) * 20} y1={r + 0.5} x2={(nc + 0.5) * 20} y2={r + 1.5} />
+      </g>);
     }
   }
   return (
     <>
       <TopBar />
       <p className="eyebrow" style={{ textAlign: 'center' }}>Tunnel map — choose your descent</p>
-      <div className="mapwrap" style={{ height: MAP_ROWS * 64 }}>
+      <div className="mapwrap" style={{ height: `calc(var(--map-row) * ${MAP_ROWS})` }}>
         <svg viewBox={`0 0 100 ${MAP_ROWS}`} preserveAspectRatio="none">{lines}</svg>
         {m.nodes.map((row, r) => (
           <div key={r} className="maprow">
@@ -183,16 +191,16 @@ export function MapScreen() {
               ].filter(Boolean).join(' ');
               return (
                 <div key={c} className={cls} title={type}
-                  style={{ position: 'absolute', left: `calc(${(c + 0.5) * 20}% - 23px)` }}
+                  style={{ position: 'absolute', left: `${(c + 0.5) * 20}%` }}
                   onClick={() => isReach(r, c) && enterNode(r, c)}>
-                  {NODE_ICONS[type]}
+                  <span className="mapicon" aria-hidden="true">{NODE_ICONS[type]}</span>
                 </div>
               );
             })}
           </div>
         ))}
       </div>
-      <p className="maplegend">⚔️ dig · 💀 elite · ❓ event · 💰 shop · 🎁 treasure · 🔥 camp · ☠️ boss</p>
+      <p className="maplegend">⚔︎ dig · ☠︎ elite · ? event · ◈ shop · ◆ treasure · ▲ camp · ♛ boss</p>
     </>
   );
 }

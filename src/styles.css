@@ -213,10 +213,14 @@ h1.logo .flag {
 .home-panel { margin: 10px auto 0; padding: 22px; }
 .home-panel-head { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--etch); padding-bottom: 14px; margin-bottom: 18px; }
 .home-panel-head .eyebrow { margin: 0; }
-.classgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 14px; margin: 18px 0; }
-.classcard { --cut: 12px; padding: 18px 18px 16px; cursor: pointer; color: var(--bone); text-align: left; font-family: var(--display); }
+.classgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(275px, 1fr)); gap: 14px; margin: 18px 0; }
+.classcard { --cut: 12px; padding: 0 0 16px; cursor: pointer; color: var(--bone); text-align: left; font-family: var(--display); overflow: hidden; }
 .classcard:hover { --edge: var(--candle); }
 .classcard:hover h3 { color: var(--candle); }
+.delver-art { height: 176px; overflow: hidden; border-bottom: 1px solid var(--etch); background: var(--abyss-0); }
+.delver-art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 28%; filter: saturate(.86) contrast(1.05); transition: transform .2s ease, filter .2s ease; }
+.classcard:hover .delver-art img { transform: scale(1.025); filter: saturate(1) contrast(1.08); }
+.delver-body { padding: 15px 17px 0; }
 .classcard h3 {
   font-family: var(--display); margin: 0 0 2px; font-size: 17px;
   letter-spacing: .18em; text-transform: uppercase;
@@ -224,7 +228,8 @@ h1.logo .flag {
 .classcard .role { font-family: var(--mono); font-size: 11px; color: var(--bone-dim); margin-bottom: 8px; letter-spacing: .04em; }
 .classcard p { font-size: 13.5px; margin: 8px 0 0; color: var(--bone); line-height: 1.55; }
 .classcard .hp { color: var(--moss); font-family: var(--mono); font-size: 13px; }
-.classcard .trink { font-size: 12.5px; color: var(--bone-dim); margin-top: 10px; border-top: 1px solid var(--etch); padding-top: 8px; }
+.classcard .passive { font-size: 12px; color: var(--candle); margin-top: 11px; padding: 8px 10px; border-left: 2px solid var(--candle); background: rgba(201,151,59,.06); }
+.classcard .trink { font-size: 12.5px; color: var(--bone-dim); margin: 12px 17px 0; border-top: 1px solid var(--etch); padding-top: 9px; }
 .daily-brief { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; padding: 10px 8px 4px; }
 .daily-brief h2 { margin: 0; color: var(--candle); letter-spacing: .12em; }
 .daily-brief p { margin: 5px 0 0; color: var(--bone-dim); }
@@ -252,6 +257,10 @@ kbd { border: 1px solid var(--etch-hi); background: var(--stone-2); padding: 3px
   font-family: var(--mono); font-size: 13.5px;
 }
 .top-home { margin-left: auto; min-height: 30px; padding: 5px 11px; }
+.classsig { font-size: 10px; letter-spacing: .14em; padding-left: 8px; border-left: 2px solid currentColor; }
+.classsig.sapper { color: var(--blood-hi); }
+.classsig.surveyor { color: var(--n1); }
+.classsig.terraformer { color: var(--moss); }
 
 html.high-contrast {
   --bone: #fff9e8;
@@ -300,10 +309,12 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .pile { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 
 /* ================= map ================= */
-.mapwrap { position: relative; margin: 10px auto; width: min(680px, 100%); }
+.mapwrap { --map-row: 64px; position: relative; margin: 10px auto; width: min(680px, 100%); }
 .mapwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.mapwrap svg line { vector-effect: non-scaling-stroke; stroke-width: 1.4px; stroke-dasharray: 3 6; opacity: .9; }
-.maprow { display: flex; justify-content: space-around; align-items: center; height: 64px; position: relative; }
+.mapwrap svg line { vector-effect: non-scaling-stroke; }
+.mapline-shadow { stroke: rgba(0,0,0,.85); stroke-width: 5px; }
+.mapline { stroke: #657188; stroke-width: 2.2px; opacity: .95; }
+.maprow { display: flex; justify-content: space-around; align-items: center; height: var(--map-row); position: relative; }
 .mapnode {
   width: 50px; height: 44px;
   clip-path: var(--hexa);
@@ -312,15 +323,17 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
   font-size: 19px;
   position: relative; z-index: 2;
   color: var(--bone-dim);
-  transition: transform .12s ease;
+  transform: translateX(-50%);
+  transition: transform .12s ease, filter .12s ease;
 }
+.mapicon { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; line-height: 1; font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", var(--display); font-weight: 700; }
 .mapnode.reachable {
   background: var(--stone-3);
   color: var(--bone);
   cursor: pointer;
   animation: beckon 2.6s ease-in-out infinite;
 }
-.mapnode.reachable:hover { transform: scale(1.14); animation-play-state: paused; filter: drop-shadow(0 0 10px rgba(201,151,59,.7)); }
+.mapnode.reachable:hover { transform: translateX(-50%) scale(1.14); animation-play-state: paused; filter: drop-shadow(0 0 10px rgba(201,151,59,.7)); }
 .mapnode.current {
   background: #2c1310;
   color: var(--blood-hi);
@@ -509,7 +522,7 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .card {
   --cut: 9px;
   padding: 10px 12px 12px;
-  width: 172px;
+  width: 184px;
   display: flex; flex-direction: column; gap: 5px;
   cursor: pointer;
   transition: transform .1s ease;
@@ -535,7 +548,11 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 }
 .card .cost.free { background: var(--moss); }
 .card .cname { font-family: var(--display); font-weight: 700; font-size: 12.5px; line-height: 1.2; letter-spacing: .06em; text-transform: uppercase; }
-.card .typeline { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--bone-dim); }
+.card { --class-accent: var(--bone-dim); }
+.card[data-cclass="sapper"] { --class-accent: var(--blood-hi); }
+.card[data-cclass="surveyor"] { --class-accent: var(--n1); }
+.card[data-cclass="terraformer"] { --class-accent: var(--moss); }
+.card .typeline { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--bone-dim); border-left: 3px solid var(--class-accent); padding-left: 6px; }
 .card .rules { font-size: 12.5px; line-height: 1.42; }
 .card .upg, .upg { color: var(--moss); }
 .kw { font-family: var(--mono); font-weight: 700; font-size: .92em; }
@@ -667,7 +684,7 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 
 /* ================= cards look & behave like cards ================= */
 /* card proportions + big faint type-glyph watermark */
-.card { min-height: 206px; }
+.card { min-height: 218px; }
 .card .rules { flex: 1; }
 /* watermark glyph + inner etched frame share the ::after layer
    (kept at z 0 — real card content is lifted to z 1 by the plate rules) */
@@ -876,8 +893,9 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 
   .screenpanel { padding: 16px 14px; margin: 12px auto; }
   .modal { padding: 16px 14px; }
-  .maprow { height: 58px; }
+  .mapwrap { --map-row: 58px; }
   .mapnode { width: 46px; height: 40px; font-size: 17px; }
   .mapnode.boss { width: 56px; height: 50px; font-size: 22px; }
-  .classcard { padding: 14px; }
+  .classcard { padding-bottom: 14px; }
+  .delver-art { height: 190px; }
 }

@@ -34,7 +34,12 @@ function Tile({ i, mode, hiliteLair }) {
   else if (cell.revealed) {
     cls.push('open');
     if (cell.crater) { cls.push('crater'); content = '✸'; title.push('Crater — a mine detonated here'); }
-    else if (cell.construct) { cls.push('construct'); content = cell.construct.kind === 'sentry' ? '🗼' : '🛡️'; title.push(cell.construct.kind === 'sentry' ? 'Sentry — fires at end of turn' : 'Bulwark — Plating + Block at end of turn'); }
+    else if (cell.construct) {
+      cls.push('construct');
+      const icons = { sentry: '🗼', bulwark: '🛡️', relay: '⌁' };
+      const labels = { sentry: 'Sentry — fires at end of turn', bulwark: 'Bulwark — Plating + Block at end of turn', relay: 'Survey Relay — scans and grants Block at end of turn' };
+      content = icons[cell.construct.kind] || '◆'; title.push(labels[cell.construct.kind] || 'Construct');
+    }
     else if (num > 0) {
       let shown = num;
       if (mode !== 'puzzle' && cbt().lie && cbt().lie.tile === i) {

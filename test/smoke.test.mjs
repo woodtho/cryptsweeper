@@ -8,6 +8,7 @@ import {
   detonateForCards, fleeCombat,
   SHAPES, annexTiles, addMineAt, clickTile, PICKS_PER_TURN,
   saveRun, listSaves, loadRun, deleteSave,
+  scanTile, addConstruct,
 } from '../src/engine/engine.js';
 import { CARDS } from '../src/engine/data.js';
 
@@ -289,6 +290,31 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   const first = signature();
   newRun('surveyor', { daily: '2026-07-19' });
   T('same daily seed generates the same map', signature() === first);
+}
+
+/* 15 — Delver identities: unique decks, passives, and expanded pools */
+{
+  T('each Delver has an expanded reward pool', ['sapper', 'surveyor', 'terraformer'].every(cls =>
+    Object.values(CARDS).filter(card => card.cls === cls && ['common', 'uncommon', 'rare'].includes(card.rarity)).length >= 10));
+
+  newRun('sapper');
+  T('Sapper starter deck is specialized', R().deck.filter(c => c.key === 'shortfuse').length === 2 && R().deck.some(c => c.key === 'seedcharge'));
+  startCombat('dig');
+  cbt().enemies.forEach(e => { e.hp += 100; e.maxHp += 100; });
+  const sapMine = hiddenIdx().find(i => board().cells[i].mine);
+  detonateForCards(sapMine);
+  T('Sapper Breachcraft triggers on first controlled detonation', cbt().classState.passiveUsed === true);
+
+  newRun('surveyor'); startCombat('dig');
+  const energy0 = cbt().energy, insight0b = cbt().insight;
+  hiddenIdx().slice(0, 4).forEach(scanTile);
+  T('Surveyor Field Method rewards four fresh scans', cbt().energy === energy0 + 1 && cbt().insight === insight0b + 1);
+
+  newRun('terraformer'); startCombat('dig');
+  const open = board().cells.findIndex(c => c.revealed && !c.void && !c.construct);
+  const plating0 = cbt().plating;
+  addConstruct(open, 'relay', { block: 2 });
+  T('Terraformer Master Builder grants Plating', cbt().plating === plating0 + 2 && board().cells[open].construct?.kind === 'relay');
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');

@@ -18,7 +18,7 @@ npm test         # headless engine smoke tests (42 assertions, no DOM)
   all board verbs (Reveal/Detonate/Scan/Defuse/Chord/Entomb), combat loop, enemy turns, map,
   rewards, shop, camps, events. Exposes a tiny external store (`subscribe`/`getVersion`);
   every action mutates state then notifies.
-- `src/engine/data.js` — content: strata, classes, 27 cards, 13 enemies + 3 bosses,
+- `src/engine/data.js` — content: strata, three passive-driven Delvers, 42 cards, 13 enemies + 3 bosses,
   10 trinkets, 5 gadgets, encounter tables. Card/enemy effects call engine verbs at play-time.
 - `src/ui/` — React components subscribed via `useSyncExternalStore` (`useGame` hook):
   screens (title, map, combat, reward, camp, shop, event, puzzle, game over),
@@ -46,7 +46,8 @@ date-derived deterministic seed so its map and game rolls repeat for that day.
 - `E` — end turn · `Esc` — cancel targeting / close dialogs
 
 ## Implemented
-Three Delvers (Sapper / Surveyor / Terraformer) with starter decks, trinkets, and full card pools ·
+Three illustrated Delvers (Sapper / Surveyor / Terraformer), each with a unique starter deck,
+combat passive, trinket, and expanded card pool ·
 Block vs Plating (mines pierce Block) · **Lairs** — every enemy nests in a tinted board region:
 revealing a safe lair tile wounds its owner by the tile's number, a mine detonating there deals 10,
 entombing deals 3, and killing the owner crumbles its lair open (mines defused, tiles revealed)

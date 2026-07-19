@@ -1,4 +1,4 @@
-import { STRATA, TRINKETS, GADGETS } from '../engine/data.js';
+import { STRATA, CLASSES, TRINKETS, GADGETS } from '../engine/data.js';
 import { run, ui, openDeckModal, goHome } from '../engine/engine.js';
 
 export function TopBar({ children }) {
@@ -15,6 +15,9 @@ export function TopBar({ children }) {
       </span>
       <span className="stat gold">◈ <b>{run.gold}</b>g</span>
       <span className="stat dim">{STRATA[run.stratum].name}</span>
+      <span className={`classsig ${run.cls}`} title={CLASSES[run.cls].passive.replace(/<[^>]+>/g, '')}>
+        {CLASSES[run.cls].name.replace('THE ', '')}
+      </span>
       <span className="stat">
         <span className="pile" style={{ cursor: 'pointer' }} onClick={openDeckModal}>Deck: {run.deck.length}</span>
       </span>

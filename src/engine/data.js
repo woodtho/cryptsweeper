@@ -24,16 +24,22 @@ export const CLASSES = {
     name: 'THE SAPPER', hp: 80, sig: 'shortfuse', trinket: 'blastgoggles',
     role: '80 HP · demolitions · "a mine is ammunition"',
     blurb: 'She doesn\'t avoid mines — she spends them. Detonate hidden tiles on purpose, convert blasts into AoE damage, and pay HP for tempo.',
+    passive: '<b>Breachcraft:</b> the first controlled detonation each turn deals 4 damage to every enemy.',
+    deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'shortfuse', 'shortfuse', 'blastsuit', 'seedcharge'],
   },
   surveyor: {
     name: 'THE SURVEYOR', hp: 66, sig: 'scancard', trinket: 'dowsingcharm',
     role: '66 HP · information engine · "a mine is a fact"',
     blurb: 'Fragile, precise, scaling. Gain Insight for every safe reveal and spend it for damage and draw. The class most likely to Full Clear.',
+    passive: '<b>Field Method:</b> every fourth newly scanned tile grants 1⚡ and 1 Insight.',
+    deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'scancard', 'scancard', 'scancard', 'triangulate', 'fieldnotes'],
   },
   terraformer: {
     name: 'THE TERRAFORMER', hp: 72, sig: 'entombcard', trinket: 'keystone',
     role: '72 HP · board editor · "a mine is terrain"',
     blurb: 'The grid is clay: seal tiles, swap them, and build constructs that act every turn and soak enemy board attacks.',
+    passive: '<b>Master Builder:</b> whenever you build a construct, gain 2 Plating.',
+    deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'entombcard', 'entombcard', 'sentry', 'faultline'],
   },
 };
 
@@ -154,6 +160,38 @@ export const CARDS = {
       }
     },
   },
+  markedcharge: {
+    name: 'Marked Charge', type: 'Attack', rarity: 'common', cls: 'sapper', cost: [1, 1], hits: 'target',
+    targets: ['hidden'],
+    text: u => `${kwS('Scan')} a tile. Mine: verified-flag it and deal ${u ? 12 : 9}. Safe: reveal it and gain ${u ? 7 : 5} Block.`,
+    play: (u, tg) => {
+      const i = tg[0], cell = board().cells[i];
+      scanTile(i);
+      if (cell.mine) { verifyFlag(i); hitEnemy(curTarget(), atk(u ? 12 : 9)); }
+      else { revealTile(i, 'card-safe'); gainBlock(u ? 7 : 5); }
+    },
+  },
+  blastdividend: {
+    name: 'Blast Dividend', type: 'Power', rarity: 'uncommon', cls: 'sapper', cost: [1, 0],
+    targets: [],
+    text: u => `The first controlled ${kwD('Detonate')} each turn grants 1⚡ and draws 1.${u ? ' <span class="upg">Costs 0.</span>' : ''}`,
+    play: () => { cbt().powers.blastDividend = true; },
+  },
+  killzone: {
+    name: 'Kill Zone', type: 'Attack', rarity: 'rare', cls: 'sapper', cost: [2, 2], hits: 'all',
+    targets: [],
+    text: u => `${kwD('Detonate')} up to ${u ? 4 : 3} scanned mines. Each deals ${u ? 11 : 8} to ALL enemies.`,
+    can: () => hiddenIdx().some(i => board().cells[i].scan === 'mine'),
+    canMsg: 'No scanned mines.',
+    play: u => {
+      const b = board();
+      const mines = hiddenIdx().filter(i => b.cells[i].scan === 'mine').slice(0, u ? 4 : 3);
+      for (const i of mines) {
+        if (!cbt() || board() !== b) break;
+        if (detonateForCards(i) && cbt()) hitAll(atk(u ? 11 : 8));
+      }
+    },
+  },
 
   /* ----- Surveyor ----- */
   scancard: {
@@ -215,6 +253,49 @@ export const CARDS = {
     targets: [],
     text: u => `Deal damage equal to ${u ? '1.5×' : ''} the sum of all numbers revealed this turn. Exhaust.`,
     play: u => hitEnemy(curTarget(), atk(Math.floor(cbt().sumThisTurn * (u ? 1.5 : 1)))),
+  },
+  crosssection: {
+    name: 'Cross Section', type: 'Skill', rarity: 'common', cls: 'surveyor', cost: [1, 1],
+    targets: ['row'],
+    text: u => `${kwS('Scan')} up to ${u ? 6 : 5} hidden tiles in a chosen row.`,
+    play: (u, tg) => {
+      const b = board(), row = tg[0];
+      const tiles = [];
+      for (let col = 0; col < b.size; col++) {
+        const i = row * b.size + col;
+        if (isHiddenUsable(i)) tiles.push(i);
+      }
+      tiles.slice(0, u ? 6 : 5).forEach(scanTile);
+    },
+  },
+  knownquantity: {
+    name: 'Known Quantity', type: 'Attack', rarity: 'uncommon', cls: 'surveyor', cost: [1, 1], hits: 'target',
+    targets: [],
+    text: u => `Deal ${u ? 6 : 5} per scanned mine + ${u ? 3 : 2} per scanned safe tile. Scans are not consumed.`,
+    can: () => hiddenIdx().some(i => board().cells[i].scan),
+    canMsg: 'Nothing is scanned.',
+    play: u => {
+      const scans = hiddenIdx().map(i => board().cells[i].scan);
+      const mines = scans.filter(x => x === 'mine').length;
+      const safe = scans.filter(x => x === 'safe').length;
+      hitEnemy(curTarget(), atk(mines * (u ? 6 : 5) + safe * (u ? 3 : 2)));
+    },
+  },
+  eureka: {
+    name: 'Eureka', type: 'Skill', rarity: 'rare', cls: 'surveyor', cost: [2, 1],
+    targets: [], exhaust: true,
+    text: u => `Reveal every scanned-safe tile and verified-flag every scanned mine. Exhaust.${u ? ' <span class="upg">Costs 1.</span>' : ''}`,
+    can: () => hiddenIdx().some(i => board().cells[i].scan),
+    canMsg: 'Nothing is scanned.',
+    play: () => {
+      const b = board();
+      const scanned = hiddenIdx().filter(i => b.cells[i].scan);
+      for (const i of scanned) {
+        if (!cbt() || board() !== b) break;
+        if (b.cells[i].scan === 'mine') verifyFlag(i);
+        else revealTile(i, 'card-safe');
+      }
+    },
   },
 
   /* ----- Terraformer ----- */
@@ -281,6 +362,30 @@ export const CARDS = {
         revealTile(i, 'card-safe'); n++;
       }
       hitAll(atk((u ? 5 : 4) * n));
+    },
+  },
+  surveyrelay: {
+    name: 'Survey Relay', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1],
+    targets: ['open'],
+    text: u => `Build a Relay: at end of turn, ${kwS('Scan')} a random tile and gain ${u ? 4 : 2} Block. Enemy board attacks hit constructs first.`,
+    play: (u, tg) => addConstruct(tg[0], 'relay', { block: u ? 4 : 2 }),
+  },
+  stonechoir: {
+    name: 'Stone Choir', type: 'Power', rarity: 'uncommon', cls: 'terraformer', cost: [2, 1],
+    targets: [],
+    text: u => `Your constructs trigger twice at end of turn.${u ? ' <span class="upg">Costs 1.</span>' : ''}`,
+    play: () => { cbt().powers.stonechoir = true; },
+  },
+  citybelow: {
+    name: 'The City Below', type: 'Attack', rarity: 'rare', cls: 'terraformer', cost: [2, 2], hits: 'all',
+    targets: [],
+    text: u => `Deal ${u ? 13 : 10} per construct to ALL enemies. Gain ${u ? 3 : 2} Plating per construct.`,
+    can: () => board().cells.some(c => c.construct),
+    canMsg: 'Build a construct first.',
+    play: u => {
+      const n = board().cells.filter(c => c.construct).length;
+      hitAll(atk(n * (u ? 13 : 10)));
+      if (cbt()) gainPlating(n * (u ? 3 : 2));
     },
   },
 
