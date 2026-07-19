@@ -4,6 +4,7 @@ import {
   run, ui, cbt, endTurn, cancelTargeting, closeModal, toggleFlagMode,
 } from '../engine/engine.js';
 import { isMuted, toggleMuted } from '../engine/sfx.js';
+import { applyPreferences, loadPreferences, savePreferences } from '../engine/preferences.js';
 import { TitleScreen, MapScreen, RewardScreen, CampScreen, ShopScreen, EventScreen, PuzzleScreen, GameOverScreen } from './screens.jsx';
 import { CombatScreen } from './CombatScreen.jsx';
 import { ModalHost } from './ModalHost.jsx';
@@ -12,7 +13,12 @@ import { Toasts } from './Toasts.jsx';
 export function App() {
   useGame();
   const [muted, setMuted] = useState(isMuted());
+  const [preferences, setPreferences] = useState(loadPreferences);
   const shakeRef = useRef(ui.shakeSeq);
+
+  useEffect(() => {
+    applyPreferences(preferences);
+  }, [preferences]);
 
   useEffect(() => {
     const onKey = ev => {
@@ -43,7 +49,14 @@ export function App() {
   });
 
   let screen = null;
-  if (!run || ui.screen === 'title') screen = <TitleScreen />;
+  if (!run || ui.screen === 'title') screen = (
+    <TitleScreen
+      muted={muted}
+      preferences={preferences}
+      onMutedChange={() => setMuted(toggleMuted())}
+      onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))}
+    />
+  );
   else if (ui.screen === 'map') screen = <MapScreen />;
   else if (ui.screen === 'combat') screen = <CombatScreen />;
   else if (ui.screen === 'reward') screen = <RewardScreen />;

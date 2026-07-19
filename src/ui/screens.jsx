@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CLASSES, TRINKETS, GADGETS, STRATA } from '../engine/data.js';
 import {
   run, ui, MAP_ROWS, newRun, reachableNodes, enterNode, score, resetToTitle,
@@ -5,38 +6,126 @@ import {
   campHeal, campUpgrade, campSurvey,
   buyShopCard, buyShopTrinket, buyShopGadget, buyRemoval, gotoMap,
   eventChoice, toggleFlagMode, togglePuzzleScan,
+  listSaves, loadRun, saveRun, deleteSave,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
 import { BoardView } from './BoardView.jsx';
 
 /* ---------------- title / class select ---------------- */
-export function TitleScreen() {
+const PANEL_TITLES = { play: 'Choose your Delver', how: 'How to play', saves: 'Saved descents', settings: 'Settings', daily: 'Daily challenge' };
+
+function localDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function DelverPicker({ daily = null }) {
   return (
-    <>
-      <header style={{ padding: '40px 0 10px' }}>
+    <div className="classgrid">
+      {Object.entries(CLASSES).map(([k, c]) => (
+        <button type="button" key={k} className="classcard" onClick={() => newRun(k, daily ? { daily } : {})}>
+          <h3>{c.name}</h3>
+          <div className="role">{c.role}</div>
+          <div className="hp">❤ {c.hp} HP</div>
+          <p>{c.blurb}</p>
+          <div className="trink">
+            Starts with: {TRINKETS[c.trinket].emoji} <b>{TRINKETS[c.trinket].name}</b> — {TRINKETS[c.trinket].desc}
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function TitleScreen({ muted, preferences, onMutedChange, onPreferenceChange }) {
+  const [panel, setPanel] = useState('home');
+  const [saveRevision, setSaveRevision] = useState(0);
+  const saves = listSaves();
+  const auto = saves.find(s => s.slot === 'auto');
+  const daily = localDateKey();
+  const open = next => setPanel(next);
+
+  return (
+    <main className="home-screen">
+      <header className="home-hero">
         <p className="eyebrow">Roguelite deckbuilder × minesweeper · vertical slice v0.3</p>
         <h1 className="logo">CRYPT<span className="flag">SWEEPER</span></h1>
         <p className="tagline">Every fight is a board. Every card is a guess you don't have to make.</p>
       </header>
-      <p className="eyebrow">Choose your Delver</p>
-      <div className="classgrid">
-        {Object.entries(CLASSES).map(([k, c]) => (
-          <div key={k} className="classcard" onClick={() => newRun(k)}>
-            <h3>{c.name}</h3>
-            <div className="role">{c.role}</div>
-            <div className="hp">❤ {c.hp} HP</div>
-            <p>{c.blurb}</p>
-            <div className="trink">
-              Starts with: {TRINKETS[c.trinket].emoji} <b>{TRINKETS[c.trinket].name}</b> — {TRINKETS[c.trinket].desc}
-            </div>
+
+      {panel === 'home' ? (
+        <div className="home-menu" aria-label="Main menu">
+          {auto && <button className="home-action primary" onClick={() => loadRun('auto')}><span>Continue descent</span><small>Depth {auto.stratum + 1} · {auto.hp}/{auto.maxHp} HP · {auto.floors} floors</small></button>}
+          <button className="home-action" onClick={() => open('play')}><span>New run</span><small>Choose a Delver and enter the Undermine</small></button>
+          <button className="home-action daily" onClick={() => open('daily')}><span>Daily challenge</span><small>{daily} · one shared seeded crypt</small></button>
+          <div className="home-menu-grid">
+            <button className="home-action compact" onClick={() => open('how')}><span>How to play</span><small>Rules, combat, and controls</small></button>
+            <button className="home-action compact" onClick={() => open('saves')}><span>Saves</span><small>{saves.length} checkpoint{saves.length === 1 ? '' : 's'}</small></button>
+            <button className="home-action compact" onClick={() => open('settings')}><span>Settings</span><small>Sound, motion, and display</small></button>
           </div>
-        ))}
-      </div>
-      <div className="screenpanel" style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 16 }}>How to play</h2>
+        </div>
+      ) : (
+        <section className="home-panel screenpanel">
+          <div className="home-panel-head">
+            <button className="btn" onClick={() => open('home')}>← Back</button>
+            <p className="eyebrow">{PANEL_TITLES[panel]}</p>
+          </div>
+
+          {panel === 'play' && <DelverPicker />}
+          {panel === 'daily' && <>
+            <div className="daily-brief">
+              <div className="daily-rune">◆</div>
+              <div><h2>{daily}</h2><p>The map, boards, encounters, and rewards use today's fixed seed. Choose any Delver; retries remain identical for that class.</p></div>
+            </div>
+            <DelverPicker daily={daily} />
+          </>}
+          {panel === 'how' && <HowToPlay />}
+          {panel === 'saves' && <div className="save-list">
+            {['auto', 'slot1', 'slot2', 'slot3'].map((slot, i) => {
+              const item = saves.find(s => s.slot === slot);
+              const label = slot === 'auto' ? 'Autosave' : `Save slot ${i}`;
+              return <div className="save-row" key={`${slot}-${saveRevision}`}>
+                <div><b>{label}</b>{item
+                  ? <small>{CLASSES[item.cls]?.name || item.cls} · Depth {item.stratum + 1} · {item.hp}/{item.maxHp} HP · {new Date(item.savedAt).toLocaleString()}</small>
+                  : <small>Empty</small>}</div>
+                <div className="save-actions">
+                  {item && <button className="btn primary" onClick={() => loadRun(slot)}>Load</button>}
+                  {slot !== 'auto' && run && <button className="btn" onClick={() => { saveRun(slot); setSaveRevision(x => x + 1); }}>Save here</button>}
+                  {item && <button className="btn danger" onClick={() => { deleteSave(slot); setSaveRevision(x => x + 1); }}>Delete</button>}
+                </div>
+              </div>;
+            })}
+            {!run && <p className="dim">Start or load a run before writing a named save slot.</p>}
+          </div>}
+          {panel === 'settings' && <div className="settings-list">
+            <SettingToggle label="Sound effects" detail="Synthesized combat and interface audio" checked={!muted} onChange={onMutedChange} />
+            <SettingToggle label="Reduce motion" detail="Disables shakes, floating effects, and decorative animation" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
+            <SettingToggle label="High contrast" detail="Brightens text, borders, and board information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
+            <SettingToggle label="Large tiles" detail="Increases board tiles where the screen has room" checked={preferences.largeTiles} onChange={() => onPreferenceChange('largeTiles', !preferences.largeTiles)} />
+            <p className="dim settings-note">Settings are saved automatically in this browser.</p>
+          </div>}
+        </section>
+      )}
+    </main>
+  );
+}
+
+function SettingToggle({ label, detail, checked, onChange }) {
+  return <label className="setting-row">
+    <span><b>{label}</b><small>{detail}</small></span>
+    <input type="checkbox" checked={checked} onChange={onChange} />
+  </label>;
+}
+
+function HowToPlay() {
+  return <div className="how-grid">
+    <div>
+      <h2>Dig. Read. Survive.</h2>
         <ul style={{ fontSize: 14, lineHeight: 1.6 }}>
-          <li><b>Left-click</b> a hidden tile to <span className="kw reveal">Reveal</span> it. <b>Right-click</b> (or Flag mode) to place a ⚑ flag — free, unlimited, unverified.</li>
+          <li><b>Left-click</b> a hidden tile to <span className="kw reveal">Reveal</span> it — but you only get <b>⛏ 3 free digs per turn</b> (a cascade counts as one). Flags are free and unlimited: <b>right-click</b> or Flag mode.</li>
+          <li>Cards are your powered tools: their reveals, scans, defusals, chords, and detonations <b>never cost picks</b>. When the picks run out, the deck keeps digging.</li>
+          <li>Boards come in shapes — crosses, diamonds, donuts, caverns — and both sides can reshape them: enemies <b>Excavate</b> new mined ground; your cards can annex safe tiles or bury fresh mines.</li>
           <li>Numbers count adjacent mines. Revealing a mine <span className="kw detonate">Detonates</span> it: mine damage <b>pierces Block</b> — only <span className="kw gridk">Plating</span> stops it.</li>
           <li>Each turn: 3⚡, draw 5. Cards reveal, scan, defuse, detonate, and edit tiles — and hurt the enemies beside the board.</li>
           <li>The ⌖ TARGET marker shows who your attacks hit — click an enemy to switch. Each card's label says who it strikes: <b>⌖ target</b>, <b>✸ random</b>, or <b>☄ all</b>; hover a card to see exactly who it will hit.</li>
@@ -45,9 +134,16 @@ export function TitleScreen() {
           <li><b>Full Clear</b> the board (reveal every safe tile — the green ▦ counter) to collapse it: <b>50 damage to ALL enemies</b> and an upgraded card reward. The crypt then re-seals with a fresh board — <b>only killing every enemy wins the fight</b>.</li>
           <li>Once per combat, <b>Instinct</b> saves you from one revealed mine (Depth 0 training wheel).</li>
         </ul>
-      </div>
-    </>
-  );
+    </div>
+    <aside className="controls-card">
+      <h2>Controls</h2>
+      <p><kbd>Left click</kbd><span>Dig / select</span></p>
+      <p><kbd>Right click</kbd><span>Place a flag</span></p>
+      <p><kbd>F</kbd><span>Toggle flag mode</span></p>
+      <p><kbd>E</kbd><span>End turn</span></p>
+      <p><kbd>Esc</kbd><span>Cancel / close</span></p>
+    </aside>
+  </div>;
 }
 
 /* ---------------- map ---------------- */
@@ -330,7 +426,7 @@ export function GameOverScreen({ won }) {
         Floors: {run.floors} · Stratum: {run.stratum + 1} · Full Clears: {run.fullClears} · Gold: {run.gold} · HP: {run.hp}
       </p>
       <p className="scoreline" style={{ fontSize: 18, color: 'var(--gold)' }}>SCORE: {score()}</p>
-      <button className="btn primary" onClick={resetToTitle}>New run ▸</button>
+      <button className="btn primary" onClick={resetToTitle}>Return home ▸</button>
     </div>
   );
 }

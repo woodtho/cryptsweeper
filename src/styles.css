@@ -190,8 +190,31 @@ h1.logo .flag {
 }
 
 /* ================= title / class select ================= */
+.home-screen { max-width: 960px; margin: 0 auto; }
+.home-hero { padding: clamp(42px, 10vh, 96px) 0 18px; text-align: center; }
+.home-hero .eyebrow { margin-top: 0; }
+.home-menu { width: min(680px, 100%); margin: 12px auto 0; display: grid; gap: 10px; }
+.home-menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.home-action {
+  width: 100%; min-height: 76px; padding: 14px 20px; border: 1px solid var(--etch);
+  background: linear-gradient(135deg, rgba(34,39,51,.96), rgba(14,17,22,.96));
+  color: var(--bone); text-align: left; display: flex; flex-direction: column; justify-content: center;
+  clip-path: var(--octo); transition: border-color .15s, transform .15s, filter .15s;
+}
+.home-action:hover { border-color: var(--candle); filter: brightness(1.12); transform: translateY(-1px); }
+.home-action span { font-size: 17px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.home-action small { color: var(--bone-dim); font-family: var(--mono); font-size: 11px; margin-top: 3px; }
+.home-action.primary { border-color: var(--blood); box-shadow: inset 4px 0 0 var(--blood); }
+.home-action.primary span { color: var(--blood-hi); }
+.home-action.daily { border-color: rgba(201,151,59,.6); box-shadow: inset 4px 0 0 var(--candle); }
+.home-action.daily span { color: var(--candle); }
+.home-action.compact { min-height: 92px; padding: 14px; }
+.home-action.compact span { font-size: 13px; }
+.home-panel { margin: 10px auto 0; padding: 22px; }
+.home-panel-head { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--etch); padding-bottom: 14px; margin-bottom: 18px; }
+.home-panel-head .eyebrow { margin: 0; }
 .classgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 14px; margin: 18px 0; }
-.classcard { --cut: 12px; padding: 18px 18px 16px; cursor: pointer; }
+.classcard { --cut: 12px; padding: 18px 18px 16px; cursor: pointer; color: var(--bone); text-align: left; font-family: var(--display); }
 .classcard:hover { --edge: var(--candle); }
 .classcard:hover h3 { color: var(--candle); }
 .classcard h3 {
@@ -202,6 +225,24 @@ h1.logo .flag {
 .classcard p { font-size: 13.5px; margin: 8px 0 0; color: var(--bone); line-height: 1.55; }
 .classcard .hp { color: var(--moss); font-family: var(--mono); font-size: 13px; }
 .classcard .trink { font-size: 12.5px; color: var(--bone-dim); margin-top: 10px; border-top: 1px solid var(--etch); padding-top: 8px; }
+.daily-brief { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; padding: 10px 8px 4px; }
+.daily-brief h2 { margin: 0; color: var(--candle); letter-spacing: .12em; }
+.daily-brief p { margin: 5px 0 0; color: var(--bone-dim); }
+.daily-rune { font-size: 44px; color: var(--candle); text-shadow: 0 0 24px rgba(201,151,59,.5); }
+.save-list, .settings-list { display: grid; gap: 10px; }
+.save-row, .setting-row { border: 1px solid var(--etch); background: rgba(8,10,13,.55); padding: 14px 16px; }
+.save-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.save-row small, .setting-row small { display: block; color: var(--bone-dim); font-family: var(--mono); font-size: 11px; margin-top: 3px; }
+.save-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+.btn.danger { color: var(--blood-hi); }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; cursor: pointer; }
+.setting-row input { width: 42px; height: 22px; accent-color: var(--candle); cursor: pointer; }
+.settings-note { margin: 8px 2px 0; }
+.how-grid { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; }
+.how-grid h2 { margin-top: 0; }
+.controls-card { border-left: 1px solid var(--etch); padding-left: 20px; }
+.controls-card p { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; font-size: 12px; }
+kbd { border: 1px solid var(--etch-hi); background: var(--stone-2); padding: 3px 7px; font-family: var(--mono); color: var(--candle); }
 
 /* ================= top bar ================= */
 .topbar {
@@ -209,6 +250,33 @@ h1.logo .flag {
   display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
   padding: 10px 18px; margin-bottom: 12px;
   font-family: var(--mono); font-size: 13.5px;
+}
+.top-home { margin-left: auto; min-height: 30px; padding: 5px 11px; }
+
+html.high-contrast {
+  --bone: #fff9e8;
+  --bone-dim: #bcb5a3;
+  --etch: #596175;
+  --etch-hi: #8994aa;
+}
+html.large-tiles { --tile: 46px; }
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (max-width: 700px) {
+  .home-hero { padding-top: 46px; }
+  .home-menu-grid { grid-template-columns: 1fr; }
+  .home-action.compact { min-height: 70px; }
+  .home-panel { padding: 15px; }
+  .home-panel-head { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .save-row { align-items: flex-start; flex-direction: column; }
+  .save-actions { justify-content: flex-start; }
+  .how-grid { grid-template-columns: 1fr; }
+  .controls-card { border-left: 0; border-top: 1px solid var(--etch); padding: 18px 0 0; }
 }
 .topbar .stat b { font-size: 15px; }
 .hpbar { color: var(--blood-hi); }
@@ -311,9 +379,10 @@ h1.logo .flag {
   filter: none;
 }
 .tile.void {
-  background: radial-gradient(120% 120% at 50% 50%, rgba(0,0,0,.5), transparent 75%);
+  background: transparent;
   box-shadow: none;
   cursor: default; filter: none;
+  pointer-events: none;
 }
 .tile.entombed {
   background: repeating-linear-gradient(45deg, #35301f 0 4px, #2a2618 4px 8px);
@@ -326,23 +395,46 @@ h1.logo .flag {
   box-shadow: inset 0 0 10px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(179, 55, 44, .35);
 }
 .tile .scanmark {
-  position: absolute; top: 3px; right: 3px;
-  width: 7px; height: 7px;
-  clip-path: var(--dia);
+  position: absolute; top: 1px; right: 2px;
+  font-size: calc(var(--tile) * .3);
+  line-height: 1; pointer-events: none;
+  font-family: var(--mono); font-weight: 700;
 }
-/* lair ownership wedge — digging this tile hurts that enemy */
-.tile .lairmark {
-  position: absolute; bottom: 2px; left: 2px;
-  width: 9px; height: 9px;
-  clip-path: polygon(0 0, 0 100%, 100% 100%);
-  opacity: .8; pointer-events: none;
+.tile .scanmark.safe { color: var(--moss); text-shadow: 0 0 5px rgba(90, 160, 114, .9); }
+.tile .scanmark.mine { color: var(--blood-hi); text-shadow: 0 0 6px rgba(224, 80, 63, .95); }
+/* lair territory: tint fill + colored boundary edges + faint owner sigil */
+.tile .lairzone {
+  position: absolute; inset: 0;
+  pointer-events: none;
 }
-.tile.open .lairmark { opacity: .4; }
+.tile .lairghost {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--tile) * .62);
+  opacity: .18; pointer-events: none;
+  filter: grayscale(.4);
+}
+.tile .telemark {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  font-size: calc(var(--tile) * .3); line-height: 1.1;
+  color: var(--blood-hi); pointer-events: none;
+  text-shadow: 0 0 6px rgba(224, 80, 63, .9);
+  animation: teledrop 1.1s ease-in-out infinite;
+}
+@keyframes teledrop { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 3px); } }
+.tile.telegraph::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(224, 80, 63, .1);
+  pointer-events: none;
+}
 .tile.lairhi {
   outline: 2px solid var(--candle);
   outline-offset: -2px;
-  filter: brightness(1.25);
+  filter: brightness(1.35);
 }
+.tile.nopicks { cursor: not-allowed; }
+.tile.nopicks:hover { background: linear-gradient(135deg, var(--tile-hi) 0%, var(--tile-face) 34%, var(--tile-face) 62%, #171b23 100%); }
 .tile .scanmark.safe { background: var(--moss); }
 .tile .scanmark.mine { background: var(--blood-hi); filter: drop-shadow(0 0 3px var(--blood-hi)); }
 .tile.flag { color: var(--blood-hi); }
@@ -373,6 +465,11 @@ h1.logo .flag {
 .numc4 { color: var(--n4); } .numc5, .numc6, .numc7, .numc8 { color: var(--candle); }
 
 .boardinfo { display: flex; gap: 12px; margin: 10px 0; font-family: var(--mono); font-size: 13px; align-items: center; flex-wrap: wrap; }
+.legend {
+  font-family: var(--mono); font-size: 10.5px; color: var(--bone-dim);
+  letter-spacing: .03em; line-height: 1.6; max-width: 560px;
+}
+.legend b { color: var(--bone); font-weight: 700; }
 
 /* ================= enemies ================= */
 .enemy {

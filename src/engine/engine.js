@@ -10,10 +10,21 @@ const listeners = new Set();
 let version = 0;
 export function subscribe(cb) { listeners.add(cb); return () => listeners.delete(cb); }
 export function getVersion() { return version; }
-function notify() { version++; for (const cb of listeners) cb(); }
+function notify() {
+  version++;
+  if (run) persistRun('auto');
+  for (const cb of listeners) cb();
+}
 
 /* ================= utils ================= */
-export function randInt(n) { return Math.floor(Math.random() * n); }
+function random() {
+  if (!run?.daily || !Number.isInteger(run.rngState)) return Math.random();
+  let x = run.rngState | 0;
+  x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+  run.rngState = x | 0;
+  return (x >>> 0) / 4294967296;
+}
+export function randInt(n) { return Math.floor(random() * n); }
 export function randPick(arr) { return arr && arr.length ? arr[randInt(arr.length)] : null; }
 export function shuffle(arr) {
   const a = arr.slice();
@@ -30,6 +41,82 @@ export const ui = {
   screen: 'title', targeting: null, gadgetTargeting: null, flagMode: false,
   modal: null, toasts: [], shakeSeq: 0, dmg: [],
 };
+
+const SAVE_VERSION = 1;
+const SAVE_PREFIX = 'cryptsweeper.save.v1.';
+const slotKey = slot => `${SAVE_PREFIX}${slot}`;
+
+function saveReplacer(key, value) {
+  if (key === 'def') return undefined;
+  if (value instanceof Set) return { __cryptSet: [...value] };
+  return value;
+}
+
+function saveReviver(key, value) {
+  return value && Array.isArray(value.__cryptSet) ? new Set(value.__cryptSet) : value;
+}
+
+function saveSummary(slot, payload) {
+  const r = payload.run;
+  return {
+    slot, savedAt: payload.savedAt, cls: r.cls, hp: r.hp, maxHp: r.maxHp,
+    stratum: r.stratum, floors: r.floors, daily: r.daily || null,
+  };
+}
+
+function persistRun(slot) {
+  if (typeof localStorage === 'undefined' || !run) return false;
+  try {
+    const payload = { version: SAVE_VERSION, savedAt: Date.now(), screen: ui.screen, run };
+    localStorage.setItem(slotKey(slot), JSON.stringify(payload, saveReplacer));
+    return true;
+  } catch { return false; }
+}
+
+export function saveRun(slot) {
+  const ok = persistRun(slot);
+  if (ok) toast(`Run saved to ${slot === 'auto' ? 'autosave' : slot}`);
+  return ok;
+}
+
+export function listSaves() {
+  if (typeof localStorage === 'undefined') return [];
+  return ['auto', 'slot1', 'slot2', 'slot3'].flatMap(slot => {
+    try {
+      const raw = localStorage.getItem(slotKey(slot));
+      if (!raw) return [];
+      const payload = JSON.parse(raw, saveReviver);
+      return payload.version === SAVE_VERSION && payload.run ? [saveSummary(slot, payload)] : [];
+    } catch { return []; }
+  });
+}
+
+export function loadRun(slot) {
+  try {
+    const payload = JSON.parse(localStorage.getItem(slotKey(slot)) || '', saveReviver);
+    if (payload.version !== SAVE_VERSION || !payload.run) return false;
+    run = payload.run;
+    if (run.combat?.enemies) {
+      for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
+      if (run.combat.picks == null) run.combat.picks = PICKS_PER_TURN;
+    }
+    _cardId = Math.max(_cardId, ...run.deck.map(c => c.id || 0));
+    ui.screen = payload.screen || 'map';
+    ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.flagMode = false;
+    notify();
+    return true;
+  } catch { return false; }
+}
+
+export function deleteSave(slot) {
+  try { localStorage.removeItem(slotKey(slot)); } catch { /* storage unavailable */ }
+}
+
+export function goHome() {
+  ui.screen = 'title';
+  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.flagMode = false;
+  notify();
+}
 
 /* floating combat numbers: {id, kind: 'enemy'|'player', idx?, amount, note?} */
 let _dmgId = 0;
@@ -48,7 +135,13 @@ export function cbt() { return run.combat; }
 export function board() { return run.combat.board; }
 export function hasT(key) { return run.trinkets.includes(key); }
 
-export function newRun(clsKey) {
+function dailySeed(date) {
+  let h = 2166136261;
+  for (const ch of date) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return h | 0 || 1;
+}
+
+export function newRun(clsKey, options = {}) {
   const cls = CLASSES[clsKey];
   const deck = [];
   for (let i = 0; i < 5; i++) deck.push(mkCard('probe'));
@@ -61,6 +154,8 @@ export function newRun(clsKey) {
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
     surveyNext: false, seenEvents: [], combat: null,
     reward: null, shop: null, event: null, puzzle: null,
+    daily: options.daily || null,
+    rngState: options.daily ? dailySeed(options.daily) : null,
   };
   genMapForStratum();
   ui.screen = 'map';
@@ -68,6 +163,7 @@ export function newRun(clsKey) {
 }
 
 export function resetToTitle() {
+  try { localStorage.removeItem(slotKey('auto')); } catch { /* storage unavailable */ }
   run = null;
   ui.screen = 'title';
   ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.flagMode = false;
@@ -127,7 +223,7 @@ function genMapForStratum() {
   nodes[MAP_ROWS - 1] = { 2: 'boss' };
   for (let r = 1; r < MAP_ROWS - 2; r++) {
     for (const c of Object.keys(nodes[r])) {
-      const roll = Math.random();
+      const roll = random();
       let t = 'dig';
       if (roll < 0.20) t = 'event';
       else if (roll < 0.32) t = r >= 4 ? 'elite' : 'dig';
@@ -359,7 +455,7 @@ export function annexTiles(n, mined = false) {
     cell.void = false; cell.revealed = false; cell.entombed = false;
     cell.ever = false; cell.crater = false; cell.flag = 0; cell.scan = null;
     cell.construct = null; cell.grub = false; cell.primed = false; cell.glow = false;
-    cell.mine = mined === true || (mined === 'mixed' && Math.random() < 0.5);
+    cell.mine = mined === true || (mined === 'mixed' && random() < 0.5);
     added.push(pick);
   }
   return added;
@@ -778,7 +874,7 @@ export function scrambleMines(n) {
 export function setLie() {
   const b = board();
   const cand = b.cells.map((_, i) => i).filter(i => b.cells[i].revealed && !b.cells[i].void && numAt(i) > 0);
-  cbt().lie = cand.length ? { tile: randPick(cand), delta: Math.random() < 0.5 ? 1 : -1 } : null;
+  cbt().lie = cand.length ? { tile: randPick(cand), delta: random() < 0.5 ? 1 : -1 } : null;
 }
 export function clearLie() { if (run.combat) cbt().lie = null; }
 
@@ -786,7 +882,7 @@ export function primeTile() {
   const b = board();
   const mines = hiddenIdx().filter(i => b.cells[i].mine);
   const others = hiddenIdx().filter(i => !b.cells[i].mine);
-  const pick = (Math.random() < 0.65 && mines.length) ? randPick(mines) : randPick(others.length ? others : mines);
+  const pick = (random() < 0.65 && mines.length) ? randPick(mines) : randPick(others.length ? others : mines);
   if (pick == null) return;
   cbt().primed = pick;
   b.cells[pick].primed = true;
@@ -1281,7 +1377,7 @@ function combatVictory() {
     gold, kind, fullClear: c.fullCleared,
     cards: rollCardReward(c.fullCleared),
     cardTaken: false,
-    gadget: (kind !== 'boss' && Math.random() < (kind === 'elite' ? 0.5 : 0.3)) ? randPick(Object.keys(GADGETS)) : null,
+    gadget: (kind !== 'boss' && random() < (kind === 'elite' ? 0.5 : 0.3)) ? randPick(Object.keys(GADGETS)) : null,
     trinket: kind === 'elite' ? unownedTrinket() : null,
     bossTrinkets: kind === 'boss' ? ['lamp', 'dowsingrod'].filter(k => !run.trinkets.includes(k)) : null,
   };
@@ -1299,7 +1395,7 @@ function rollCardReward(upgraded) {
   const picks = [];
   let guard = 30;
   while (picks.length < 3 && guard-- > 0) {
-    const roll = Math.random();
+    const roll = random();
     const r = roll < 0.10 ? 'rare' : roll < 0.40 ? 'uncommon' : 'common';
     const cand = byRarity(r).filter(k => !picks.includes(k));
     const k = randPick(cand.length ? cand : pool.filter(x => !picks.includes(x)));
@@ -1448,7 +1544,7 @@ export function eventChoice(which) {
   const st = STRATA[run.stratum];
   if (run.event === 'shrine') {
     if (which === 'walk') { ui.screen = 'map'; notify(); return; }
-    if (Math.random() < 0.5) {
+    if (random() < 0.5) {
       const g = randPick(Object.keys(GADGETS));
       if (run.gadgets.length < 3) run.gadgets.push(g);
       run.gold += 30;

@@ -22,10 +22,13 @@ function ensure() {
 }
 
 export function isMuted() { return muted; }
-export function toggleMuted() {
-  muted = !muted;
+export function setMuted(next) {
+  muted = Boolean(next);
   try { localStorage.setItem('cs_muted', muted ? '1' : '0'); } catch { /* private mode */ }
   return muted;
+}
+export function toggleMuted() {
+  return setMuted(!muted);
 }
 
 function tone({ f = 440, f2, t = 0.12, type = 'sine', g = 0.18, when = 0 }) {

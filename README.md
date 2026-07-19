@@ -2,6 +2,8 @@
 
 A playable implementation of the *Cryptsweeper* design document (roguelite deckbuilder × Minesweeper).
 
+**Play:** https://woodtho.github.io/cryptsweeper/
+
 ## Run it
 ```
 npm install
@@ -32,6 +34,10 @@ npm test         # headless engine smoke tests (42 assertions, no DOM)
   Animations: cards fan into an arc, deal in staggered from the draw pile, and fly off as ghosts
   when played (up) or discarded (down); tiles pop on reveal; craters flash; detonations shake the
   screen; enemy HP bars ease; modals pop in. All motion respects `prefers-reduced-motion`.
+
+Browser-local autosave plus three named save slots preserve complete runs, including combats.
+Persistent accessibility/display settings are stored separately. The daily challenge uses a
+date-derived deterministic seed so its map and game rolls repeat for that day.
 
 ## Controls
 - **Left-click** — reveal a tile · **Right-click** or Flag mode (`F`) — flag

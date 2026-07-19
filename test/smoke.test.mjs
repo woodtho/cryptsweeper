@@ -6,19 +6,37 @@ import {
   takeRewardCard, finishReward, genShop, buyShopCard,
   startPuzzle, puzzleClick, devourRing, hitEnemy, checkNNPhase,
   detonateForCards, fleeCombat,
+  SHAPES, annexTiles, addMineAt, clickTile, PICKS_PER_TURN,
+  saveRun, listSaves, loadRun, deleteSave,
 } from '../src/engine/engine.js';
+import { CARDS } from '../src/engine/data.js';
 
 let failures = 0;
+const storage = new Map();
+globalThis.localStorage = {
+  getItem: key => storage.get(key) ?? null,
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: key => storage.delete(key),
+};
 function T(name, cond) { console.log((cond ? 'PASS' : 'FAIL') + '  ' + name); if (!cond) failures++; }
 // live-binding note: `run` re-imports fresh on each access; helpers below re-read it.
 const R = () => run;
 
-/* 1 — board generation at every stratum size + NN-99 max phase */
+/* 1 — shaped board generation at every stratum size + NN-99 max phase */
 for (const [size, mines] of [[8, 10], [9, 14], [10, 20], [13, 42]]) {
   const b = genBoard(size, mines);
+  const playable = b.cells.filter(c => !c.void).length;
   const mc = b.cells.filter(c => c.mine).length;
-  T(`genBoard ${size}x${size}/${mines}: mine count`, mc === Math.min(mines, size * size - 12));
-  T(`genBoard ${size}x${size}: opening safe`, !b.cells[b.opening].mine);
+  T(`genBoard ${size}/${mines} (${b.shape}): grid is size+2`, b.size === size + 2);
+  T(`genBoard ${size} (${b.shape}): playable region exists with void margin`, playable > 0 && playable < b.size * b.size);
+  T(`genBoard ${size} (${b.shape}): mines only on playable tiles, ≥4`, mc >= 4 && b.cells.every(c => !(c.mine && c.void)));
+  T(`genBoard ${size} (${b.shape}): opening playable + safe`, !b.cells[b.opening].void && !b.cells[b.opening].mine);
+}
+for (const shape of SHAPES) {
+  const b = genBoard(8, 10, shape);
+  T(`shape ${shape}: valid board`, b.shape === shape
+    && !b.cells[b.opening].void && !b.cells[b.opening].mine
+    && b.cells.every(c => !(c.mine && c.void)));
 }
 
 /* 2 — run + map */
@@ -186,7 +204,7 @@ cbt().revealedThisTurn = 6;
 hitEnemy(nn, 10);
 T('NN-99 takes damage after 5+ reveals', nn.hp === nnHp - 10);
 nn.hp = 149; checkNNPhase(nn);
-T('NN-99 phase 2 regenerates a 12x12 board', board().size === 12);
+T('NN-99 phase 2 regenerates a denser board (12+2 grid)', board().size === 14);
 
 /* 11 — construct fix regression: Sentry can be built (addConstruct exists now) */
 {
@@ -198,14 +216,80 @@ T('NN-99 phase 2 regenerates a 12x12 board', board().size === 12);
   }
 }
 
-/* 12 — solver quality report */
+/* 11.5 — board editing verbs, new cards, and the picks limit */
+R().stratum = 0;
+startCombat('dig');
+{
+  const cc = cbt();
+  cc.enemies.forEach(e => { e.maxHp += 900; e.hp += 900; }); // lair damage must not end the fight
+  const playable0 = board().cells.filter(x => !x.void).length;
+  const added = annexTiles(3, false);
+  T('annexTiles adds 3 playable safe tiles', added.length === 3
+    && board().cells.filter(x => !x.void).length === playable0 + 3
+    && added.every(i => !board().cells[i].void && !board().cells[i].mine));
+  const spot = hiddenIdx().find(i => !board().cells[i].mine);
+  T('addMineAt arms a hidden tile', addMineAt(spot) === true && board().cells[spot].mine === true);
+  CARDS.seedcharge.play(0, [spot]);
+  T('Seed Charge on a mined tile verified-flags it', board().cells[spot].flag === 2);
+  const empty = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
+  CARDS.seedcharge.play(0, [empty]);
+  T('Seed Charge buries a fresh mine', board().cells[empty].mine === true);
+  const playable1 = board().cells.filter(x => !x.void).length;
+  CARDS.scaffold.play(0, []);
+  T('Scaffold annexes pre-scanned safe tiles',
+    board().cells.filter(x => !x.void).length === playable1 + 3
+    && board().cells.filter(x => !x.void && x.scan === 'safe' && !x.mine).length >= 3);
+
+  T('turn starts with 3 picks', cc.picks === PICKS_PER_TURN);
+  let used = 0;
+  while (cc.picks > 0 && used < 10) {
+    const t = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
+    if (t == null) break;
+    clickTile(t);
+    used++;
+  }
+  T('3 free clicks consume all picks', cc.picks === 0 && used === 3);
+  const fourth = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
+  if (fourth != null) {
+    clickTile(fourth);
+    T('4th free click is rejected', !board().cells[fourth].revealed);
+    revealTile(fourth, 'card-safe');
+    T('card reveals bypass the pick limit', board().cells[fourth].revealed);
+  } else console.log('skip  4th-click test (no hidden safe tile left)');
+  endTurn();
+  if (R().combat && !cbt().over) T('picks reset next turn', cbt().picks === PICKS_PER_TURN);
+}
+
+/* 12 — solver quality report (shaped boards) */
 let acc = 0; const N = 20;
 for (let k = 0; k < N; k++) {
   const bb = genBoard(10, 20);
   const mines = new Set(bb.cells.map((x, i) => (x.mine ? i : -1)).filter(i => i >= 0));
-  acc += solveScore(mines, 10, bb.opening);
+  const voids = new Set(bb.cells.map((x, i) => (x.void ? i : -1)).filter(i => i >= 0));
+  acc += solveScore(mines, bb.size, bb.opening, voids);
 }
-console.log(`info  no-guess solver: avg provable-solvable fraction on 10x10/20 = ${(acc / N).toFixed(2)}`);
+console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/20 boards = ${(acc / N).toFixed(2)}`);
+
+/* 13 — persistent saves restore Sets and live enemy definitions */
+{
+  const hp = R().hp;
+  T('named save writes metadata', saveRun('slot1') && listSaves().some(s => s.slot === 'slot1' && s.hp === hp));
+  R().hp = 1;
+  T('named save restores run state', loadRun('slot1') && R().hp === hp);
+  T('loaded map edges are Sets', Object.values(R().map.edges).every(edge => edge instanceof Set));
+  if (R().combat?.enemies?.length) T('loaded enemies regain definitions', typeof R().combat.enemies[0].def.next === 'function');
+  deleteSave('slot1');
+  T('named save can be deleted', !listSaves().some(s => s.slot === 'slot1'));
+}
+
+/* 14 — the daily challenge seed is repeatable */
+{
+  const signature = () => JSON.stringify({ nodes: R().map.nodes, edges: Object.fromEntries(Object.entries(R().map.edges).map(([k, v]) => [k, [...v]])) });
+  newRun('surveyor', { daily: '2026-07-19' });
+  const first = signature();
+  newRun('surveyor', { daily: '2026-07-19' });
+  T('same daily seed generates the same map', signature() === first);
+}
 
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');
 process.exit(failures ? 1 : 0);

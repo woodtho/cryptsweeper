@@ -131,6 +131,7 @@ export function CombatScreen() {
         )}
         <span className="seg" title="hidden mines − flags">☀ {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
         <span className="seg" title="safe tiles left — reveal them all to FULL CLEAR: the board collapses for 50 damage to ALL enemies, then re-seals" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}>▦ {String(safeLeft).padStart(2, '0')}</span>
+        <span className="seg" title="picks — free digs left this turn. Card effects (reveals, scans, detonations, chords) never cost picks." style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}>⛏ {c.picks}</span>
         <span className="seg" title="turn">T{String(c.turn).padStart(2, '0')}</span>
         {!c.instinctUsed && (
           <span className="stat dim" title="Once per combat, a revealed mine is flagged instead of detonating.">🐾 instinct ready</span>
@@ -161,7 +162,12 @@ export function CombatScreen() {
               style={ui.flagMode ? { borderColor: 'var(--flag)', color: 'var(--flag)' } : undefined}>
               ⚑ Flag mode: {ui.flagMode ? 'ON' : 'off'}
             </button>
-            <span className="dim">right-click also flags</span>
+            <span className="dim">right-click also flags · ⛏ {c.picks} free digs left</span>
+          </div>
+          <div className="legend">
+            <b>⚑</b> flag · <b>◆</b> scanned safe · <b>☠</b> scanned mine · <b>💣</b> primed ·
+            <b> ▼</b> incoming mines · <b>▦</b> entombed · <b>✸</b> crater ·
+            tinted region = enemy <b>lair</b> (dig it to wound its owner)
           </div>
         </div>
         <div className="sidecol">

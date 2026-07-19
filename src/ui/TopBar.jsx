@@ -1,5 +1,5 @@
 import { STRATA, TRINKETS, GADGETS } from '../engine/data.js';
-import { run, ui, openDeckModal } from '../engine/engine.js';
+import { run, ui, openDeckModal, goHome } from '../engine/engine.js';
 
 export function TopBar({ children }) {
   return (
@@ -28,6 +28,7 @@ export function TopBar({ children }) {
         <span className="stat dim">Gadgets: {run.gadgets.map(g => GADGETS[g].emoji).join(' ')}</span>
       )}
       {children}
+      <button className="btn top-home" onClick={goHome} title="Autosave and return home">⌂ Home</button>
     </div>
   );
 }
