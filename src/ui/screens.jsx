@@ -49,7 +49,7 @@ export function TitleScreen({ muted, preferences, onMutedChange, onPreferenceCha
   return (
     <main className="home-screen">
       <header className="home-hero">
-        <p className="eyebrow">Roguelite deckbuilder × minesweeper · vertical slice v0.3</p>
+        <p className="eyebrow">Roguelite deckbuilder × minesweeper · v{__APP_VERSION__}</p>
         <h1 className="logo">CRYPT<span className="flag">SWEEPER</span></h1>
         <p className="tagline">Every fight is a board. Every card is a guess you don't have to make.</p>
       </header>

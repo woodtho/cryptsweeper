@@ -9,6 +9,7 @@ A playable implementation of the *Cryptsweeper* design document (roguelite deckb
 npm install
 npm run dev      # dev server with HMR
 npm run build    # production bundle in dist/
+npm run deploy   # bump patch version, build, and publish dist/ to gh-pages
 npm test         # headless engine smoke tests (42 assertions, no DOM)
 ```
 
