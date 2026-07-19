@@ -9,7 +9,9 @@
     "predeploy": "npm version patch --no-git-tag-version && npm run build",
     "deploy": "gh-pages -d dist",
     "preview": "vite preview",
-    "test": "node test/smoke.test.mjs"
+    "test": "node test/smoke.test.mjs",
+    "bot": "node src/bot/cli.mjs",
+    "balance": "node src/bot/balance.mjs --runs=10"
   },
   "dependencies": {
     "react": "^19.0.0",

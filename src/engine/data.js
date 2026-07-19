@@ -41,6 +41,55 @@ export const CLASSES = {
     passive: '<b>Master Builder:</b> whenever you build a construct, gain 2 Plating.',
     deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'entombcard', 'entombcard', 'sentry', 'faultline'],
   },
+  lamplighter: {
+    name: 'THE LAMPLIGHTER', hp: 68, sig: 'exp_lamplighter_0', trinket: 'emberjar',
+    role: '68 HP · cascades & energy · "bring your own dawn"',
+    blurb: 'Turns broad safe openings into explosive tempo, chaining bright cascades into extra energy and sweeping attacks.',
+    passive: '<b>Kindle:</b> the first cascade of 4+ tiles each turn grants 1⚡.',
+    deck: ['probe','probe','probe','brace','brace','brace','exp_lamplighter_0','exp_lamplighter_0','exp_lamplighter_1','exp_lamplighter_2'],
+  },
+  gambler: {
+    name: 'THE GAMBLER', hp: 70, sig: 'exp_gambler_0', trinket: 'loadedcoin',
+    role: '70 HP · flags & wagers · "the board always tells"',
+    blurb: 'Makes deliberate wagers on hidden tiles, cashing correct flags into cards while turning bad reads into controlled losses.',
+    passive: '<b>Lucky Read:</b> the first correct manual flag each turn draws 1 card.',
+    deck: ['probe','probe','probe','brace','brace','brace','exp_gambler_0','exp_gambler_0','exp_gambler_1','exp_gambler_2'],
+  },
+  chirurgeon: {
+    name: 'THE CHIRURGEON', hp: 76, sig: 'exp_chirurgeon_0', trinket: 'fieldkit',
+    role: '76 HP · pain conversion · "nothing vital was hit"',
+    blurb: 'Treats health as a tactical resource, converting the first wound each turn into protection and rebuilding after risky blasts.',
+    passive: '<b>Triage:</b> the first time you lose HP each turn, gain 5 Block.',
+    deck: ['probe','probe','probe','brace','brace','brace','exp_chirurgeon_0','exp_chirurgeon_0','exp_chirurgeon_1','exp_chirurgeon_2'],
+  },
+  archivist: {
+    name: 'THE ARCHIVIST', hp: 62, sig: 'exp_archivist_0', trinket: 'indexcard',
+    role: '62 HP · draw & exhaust · "everything is evidence"',
+    blurb: 'Cycles aggressively through a fragile deck, finding exact tools and turning exhausted cards into fresh possibilities.',
+    passive: '<b>Cross-Reference:</b> the first card Exhausted each turn draws 1.',
+    deck: ['probe','probe','probe','brace','brace','brace','exp_archivist_0','exp_archivist_0','exp_archivist_1','exp_archivist_2'],
+  },
+  warden: {
+    name: 'THE WARDEN', hp: 88, sig: 'exp_warden_0', trinket: 'wardplate',
+    role: '88 HP · block retention · "stone remembers pressure"',
+    blurb: 'Builds defenses that persist between turns, then converts accumulated Block and Plating into crushing board control.',
+    passive: '<b>Hold Fast:</b> retain half your Block between turns.',
+    deck: ['probe','probe','probe','brace','brace','brace','exp_warden_0','exp_warden_0','exp_warden_1','exp_warden_2'],
+  },
+  hexwright: {
+    name: 'THE HEXWRIGHT', hp: 64, sig: 'exp_hexwright_0', trinket: 'hexkey',
+    role: '64 HP · number magic · "three is a weapon"',
+    blurb: 'Weaponizes high revealed numbers, stacking Insight and turning dangerous numbered tiles into precise area damage.',
+    passive: '<b>Hot Number:</b> revealing a 3+ tile deals 2 damage to ALL enemies.',
+    deck: ['probe','probe','probe','brace','brace','brace','exp_hexwright_0','exp_hexwright_0','exp_hexwright_1','exp_hexwright_2'],
+  },
+  revenant: {
+    name: 'THE REVENANT', hp: 55, sig: 'exp_revenant_0', trinket: 'gravebell',
+    role: '55 HP · death defiance · "already buried once"',
+    blurb: 'Walks closest to disaster, using mines and low health for enormous payoffs while refusing one lethal blow each combat.',
+    passive: '<b>Not Yet:</b> survive the first lethal hit each combat at 1 HP.',
+    deck: ['probe','probe','probe','brace','brace','brace','exp_revenant_0','exp_revenant_0','exp_revenant_1','exp_revenant_2'],
+  },
 };
 
 /* ---------------- keyword spans ---------------- */
@@ -408,6 +457,70 @@ export const CARDS = {
   },
 };
 
+/* ---------------- expanded 200-card catalog ----------------
+   Hand-authored names feed a shared set of board-aware mechanical recipes. Every
+   entry has its own class, numbers, rarity, upgrade, and tactical role. */
+const EXPANSION_NAMES = {
+  sapper: ['Breach Tax','Copper Fuse','Aftershock Ledger','Red Wire','Blast Radius','Powder Trail'],
+  surveyor: ['Contour Logic','Bearing Check','Blue Pencil','Proof by Dust','Sightline','True North','Margin Note'],
+  terraformer: ['Load Stone','Deep Footing','Mason’s Bet','Arch Support','Cut and Fill','Bedrock','Counterweight','Vault Plan'],
+  lamplighter: ['First Spark','Wick Trim','Glass Dawn','Coal Memory','Bright Pocket','Flare Step','Lantern Sweep','Sunless Noon','Glowline','Beacon Tax','Candle Choir','Flashpan','Warm Route','Burning Map','Prism Break','Daybreak','Star Chamber','White Flame','Last Light'],
+  gambler: ['Open Wager','House Edge','Bone Token','Tell','Double Down','Cold Deck','Marked Corner','Side Pot','Dead Man’s Hand','Lucky Seven','Cut the Deck','Snake Eyes','Raise','Bluff','Cash Out','All In','The Long Odds','Loaded Table','Final Bet'],
+  chirurgeon: ['Clean Cut','Field Dressing','Triage Line','Red Thread','Splint','Bitter Tonic','Pulse Check','Pressure','Spare Blood','Stitchwork','Shock Ward','Second Opinion','Bonesaw Logic','Cauterize','Recovery Position','Miracle Dose','Anatomy Lesson','No Scar','Operating Theatre'],
+  archivist: ['Footnote','Index Mark','Errata','Redaction','Filed Under','Dust Jacket','Citation','Concordance','Borrowed Time','Appendix','Palimpsest','Marginalia','Closed Stacks','Recall Notice','Primary Source','Grand Catalogue','Forbidden Index','Final Edition','Everything Recorded'],
+  warden: ['Brace Line','Shield Angle','Gatehouse','Stone Oath','Interlock','Rampart','Watch Post','Iron Quiet','Hold the Door','Parapet','Layered Plate','Anchor Point','Siege Lesson','Unbroken','Counterfort','Citadel','Immovable','Last Bastion','The Wall Below'],
+  hexwright: ['Chalk Three','Odd Proof','Number Bite','False Zero','Sum Sign','Blue Hex','Carry One','Prime Mark','Count Again','Dangerous Four','Root Diagram','Broken Sequence','Eightfold','Miscalculation','Perfect Sum','Grand Theorem','Infinite Margin','Proof of Harm','Final Answer'],
+  revenant: ['Grave Step','Cold Breath','Second Burial','Dead Weight','Pale Fuse','Borrowed Pulse','Crypt Debt','Hollow Knock','Wake Bell','Mortal Reminder','Ghost Flag','Last Rites','No Tomorrow','Open Grave','Death’s Interest','Unburied','Walk It Off','Afterlife','Refuse the Dark'],
+};
+
+const EXPANSION_PROFILE = {
+  sapper: { attack: 3, guard: 0, scan: 1 }, surveyor: { attack: 0, guard: 0, scan: 3 },
+  terraformer: { attack: 0, guard: 3, scan: 1 }, lamplighter: { attack: 2, guard: 0, scan: 2 },
+  gambler: { attack: 2, guard: 1, scan: 1 }, chirurgeon: { attack: 1, guard: 3, scan: 0 },
+  archivist: { attack: 1, guard: 0, scan: 2 }, warden: { attack: 0, guard: 4, scan: 0 },
+  hexwright: { attack: 2, guard: 0, scan: 2 }, revenant: { attack: 4, guard: 0, scan: 0 },
+};
+
+function expansionCard(cls, name, i) {
+  const p = EXPANSION_PROFILE[cls], n = i + 1;
+  const rarity = i < 9 ? 'common' : i < 15 ? 'uncommon' : 'rare';
+  const cost = rarity === 'rare' ? [2, 1] : i % 5 === 0 ? [0, 0] : [1, 1];
+  const dmg = 5 + p.attack + (n % 5), guard = 4 + p.guard + (n % 4), scans = 1 + p.scan + (n % 2);
+  const base = { name, rarity, cls, cost };
+  switch (i % 19) {
+    case 0: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?dmg+4:dmg}.`, play:u=>hitEnemy(curTarget(),atk(u?dmg+4:dmg)) };
+    case 1: return { ...base, type:'Attack', hits:'target', targets:['hidden'], text:u=>`${kwR('Reveal')} a tile. If safe, deal ${u?dmg+5:dmg}.`, play:(u,t)=>{const r=revealTile(t[0],'card-safe');if(r.safe)hitEnemy(curTarget(),atk(u?dmg+5:dmg));} };
+    case 2: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwS('Scan')} a tile. Draw ${u?2:1}.`, play:(u,t)=>{scanTile(t[0]);drawCards(u?2:1);} };
+    case 3: return { ...base, type:'Skill', targets:[], text:u=>`Gain ${u?guard+4:guard} Block.`, play:u=>gainBlock(u?guard+4:guard) };
+    case 4: return { ...base, type:'Skill', targets:[], text:u=>`Gain ${u?Math.ceil(guard/2)+2:Math.ceil(guard/2)} ${kwG('Plating')}.`, play:u=>gainPlating(u?Math.ceil(guard/2)+2:Math.ceil(guard/2)) };
+    case 5: return { ...base, type:'Attack', hits:'random', targets:['hidden'], text:u=>`${kwS('Defuse')} a tile. Mine: deal ${u?dmg+6:dmg+2} to a random enemy. Safe: reveal it.`, play:(u,t)=>{if(defuseTile(t[0]))hitRandom(atk(u?dmg+6:dmg+2));} };
+    case 6: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwG('Entomb')} a tile and gain ${u?guard+3:guard} Block.`, play:(u,t)=>{entombTile(t[0]);gainBlock(u?guard+3:guard);} };
+    case 7: return { ...base, type:'Skill', targets:[], text:u=>`${kwS('Scan')} ${u?scans+2:scans} random hidden tiles.`, play:u=>shuffle(hiddenIdx()).slice(0,u?scans+2:scans).forEach(scanTile) };
+    case 8: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?4:3} per flagged tile.`, play:u=>hitEnemy(curTarget(),atk(flaggedIdx().length*(u?4:3))) };
+    case 9: return { ...base, type:'Attack', hits:'all', targets:['hidden'], text:u=>`${kwD('Detonate')} from cover. Mine: deal ${u?dmg+5:dmg} to ALL; safe: reveal it.`, play:(u,t)=>{if(detonateForCards(t[0]))hitAll(atk(u?dmg+5:dmg));else revealTile(t[0],'card-safe');} };
+    case 10:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?dmg+3:dmg-1} to ALL enemies.`, play:u=>hitAll(atk(u?dmg+3:dmg-1)) };
+    case 11:return { ...base, type:'Skill', targets:[], text:u=>`Draw ${u?3:2}.${u?' Gain 1⚡.':''}`, play:u=>{drawCards(u?3:2);if(u)gainEnergy(1);} };
+    case 12:return { ...base, type:'Skill', targets:[], text:u=>`Annex ${u?3:2} safe, pre-${kwS('Scan')}ned tiles.`, play:u=>annexTiles(u?3:2,false).forEach(i=>board().cells[i].scan='safe') };
+    case 13:return { ...base, type:'Skill', targets:['hidden'], text:u=>`Bury a mine; if already mined, verified-flag it.${u?' Gain 5 Block.':''}`, play:(u,t)=>{if(!addMineAt(t[0]))verifyFlag(t[0]);if(u)gainBlock(5);} };
+    case 14:return { ...base, type:'Skill', targets:['row'], text:u=>`${kwS('Scan')} up to ${u?6:4} tiles in a chosen row.`, play:(u,t)=>{const b=board();for(let c=0;c<b.size&&c<(u?6:4);c++){const x=t[0]*b.size+c;if(isHiddenUsable(x))scanTile(x);}} };
+    case 15:return { ...base, type:'Attack', hits:'target', targets:['hidden','hidden'], optionalTargets:true, text:u=>`${kwR('Reveal')} up to 2 tiles. Deal ${u?5:3} per safe tile.`, play:(u,t)=>{let safe=0;t.forEach(i=>{if(revealTile(i,'card-safe').safe)safe++;});hitEnemy(curTarget(),atk(safe*(u?5:3)));} };
+    case 16:return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?3:2} per tile revealed this turn.`, play:u=>hitEnemy(curTarget(),atk(cbt().revealedThisTurn*(u?3:2))) };
+    case 17:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?4:3} per scanned mine to ALL enemies.`, play:u=>hitAll(atk(hiddenIdx().filter(i=>board().cells[i].scan==='mine').length*(u?4:3))) };
+    default:return { ...base, type:'Skill', targets:[], exhaust:true, text:u=>`${kwS('Scan')} ${u?7:5} tiles; deal that many damage to ALL. Exhaust.`, play:u=>{const picks=shuffle(hiddenIdx()).slice(0,u?7:5);picks.forEach(scanTile);hitAll(atk(picks.length));} };
+  }
+}
+
+for (const [cls, names] of Object.entries(EXPANSION_NAMES)) {
+  names.forEach((name, i) => { CARDS[`exp_${cls}_${i}`] = expansionCard(cls, name, i); });
+}
+
+Object.assign(CARDS, {
+  steadyhand: { name:'Steady Hand',type:'Skill',rarity:'common',cls:'neutral',cost:[1,0],targets:[],text:u=>`Gain ${u?8:5} Block.${u?' Costs 0.':''}`,play:u=>gainBlock(u?8:5) },
+  lanternloan: { name:'Lantern Loan',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],text:u=>`${kwS('Scan')} ${u?3:2} random tiles.`,play:u=>shuffle(hiddenIdx()).slice(0,u?3:2).forEach(scanTile) },
+  hardlesson: { name:'Hard Lesson',type:'Attack',rarity:'uncommon',cls:'neutral',cost:[1,1],hits:'target',targets:[],text:u=>`Deal ${u?4:3} per mine detonated this combat.`,play:u=>hitEnemy(curTarget(),atk(cbt().minesDetonated*(u?4:3))) },
+  emergencyexit: { name:'Emergency Exit',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],text:u=>`Gain ${u?10:7} Plating and draw 2.`,play:u=>{gainPlating(u?10:7);drawCards(2);} },
+});
+
 /* ---------------- trinkets ---------------- */
 export const TRINKETS = {
   blastgoggles:  { name: 'Blast Goggles', emoji: '🥽', tier: 'starter',
@@ -416,6 +529,13 @@ export const TRINKETS = {
     desc: 'At the start of combat, Scan 2 random tiles.' },
   keystone:      { name: 'Keystone', emoji: '🗝️', tier: 'starter',
     desc: 'Your first Entomb each combat is free.' },
+  emberjar:      { name: 'Ember Jar', emoji: '🏮', tier: 'starter', desc: '+1 max Energy; draw one fewer card after turn 1.' },
+  loadedcoin:    { name: 'Loaded Coin', emoji: '🪙', tier: 'starter', desc: 'At combat start, one random mine is verified-flagged.' },
+  fieldkit:      { name: 'Field Kit', emoji: '🩹', tier: 'starter', desc: '+8 max HP.' },
+  indexcard:     { name: 'Index Card', emoji: '🗂️', tier: 'starter', desc: 'Draw 1 extra card on the first turn of combat.' },
+  wardplate:     { name: 'Ward Plate', emoji: '🛡️', tier: 'starter', desc: 'Begin combat with 4 Plating.' },
+  hexkey:        { name: 'Hex Key', emoji: '🔷', tier: 'starter', desc: 'At combat start, Scan 3 random tiles.' },
+  gravebell:     { name: 'Grave Bell', emoji: '🔔', tier: 'starter', desc: 'Instinct can save you twice each combat.' },
   luckycompass:  { name: 'Lucky Compass', emoji: '🧭', tier: 'common',
     desc: 'The first mine you detonate against yourself each combat deals 0 damage.' },
   quill:         { name: "Cartographer's Quill", emoji: '🪶', tier: 'common',

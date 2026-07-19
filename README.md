@@ -10,16 +10,35 @@ npm install
 npm run dev      # dev server with HMR
 npm run build    # production bundle in dist/
 npm run deploy   # bump patch version, build, and publish dist/ to gh-pages
-npm test         # headless engine smoke tests (42 assertions, no DOM)
+npm test         # headless engine smoke tests (no DOM)
+npm run bot      # JSON-lines bot on stdin/stdout
+npm run balance  # 10 deterministic oracle-policy runs per Delver
 ```
+
+## JSON bot
+
+The bot drives the exported game actions used by the UI. Send one JSON object per line:
+
+```json
+{"cmd":"new","class":"sapper","seed":"optional-seed"}
+{"cmd":"state"}
+{"cmd":"step","policy":"oracle"}
+{"cmd":"run","policy":"oracle","maxSteps":5000}
+```
+
+`step` performs exactly one action and returns the new observation. `run` repeats the same
+step policy until victory, defeat, a stall, or the step limit. Use `policy: "honest"` to prevent
+the bot from reading hidden mines; the default `oracle` policy is intended for repeatable combat
+and content balance tests. The latest 100-run snapshot is in `balance-report.json`.
 
 ## Architecture
 - `src/engine/engine.js` — DOM-free game engine: no-guess board generator + constraint solver,
   all board verbs (Reveal/Detonate/Scan/Defuse/Chord/Entomb), combat loop, enemy turns, map,
   rewards, shop, camps, events. Exposes a tiny external store (`subscribe`/`getVersion`);
   every action mutates state then notifies.
-- `src/engine/data.js` — content: strata, three passive-driven Delvers, 42 cards, 13 enemies + 3 bosses,
-  10 trinkets, 5 gadgets, encounter tables. Card/enemy effects call engine verbs at play-time.
+- `src/engine/data.js` — content: strata, ten passive-driven Delvers, 200 cards, 13 enemies + 3 bosses,
+  trinkets, gadgets, and encounter tables. Card/enemy effects call engine verbs at play-time.
+- `src/bot/` — JSON command interface, single-step/continuous policies, and deterministic balance runner.
 - `src/ui/` — React components subscribed via `useSyncExternalStore` (`useGame` hook):
   screens (title, map, combat, reward, camp, shop, event, puzzle, game over),
   `BoardView`/`Tile`, `CardView`, `ModalHost`, `Toasts`.
@@ -46,8 +65,9 @@ date-derived deterministic seed so its map and game rolls repeat for that day.
 - `E` — end turn · `Esc` — cancel targeting / close dialogs
 
 ## Implemented
-Three illustrated Delvers (Sapper / Surveyor / Terraformer), each with a unique starter deck,
-combat passive, trinket, and expanded card pool ·
+Ten illustrated Delvers, each with distinct cartoon portrait art, starter deck, combat passive,
+trinket, and card pool · the first three begin available and seven unlock through persistent
+cross-run achievements · 200 uniquely named cards ·
 Block vs Plating (mines pierce Block) · **Lairs** — every enemy nests in a tinted board region:
 revealing a safe lair tile wounds its owner by the tile's number, a mine detonating there deals 10,
 entombing deals 3, and killing the owner crumbles its lair open (mines defused, tiles revealed)
@@ -60,5 +80,4 @@ net (Depth 0) · 3 strata with branching tunnel maps, camps (Rest/Smith/Survey),
 (The Collapser, The Fogfather, three-phase NN-99).
 
 ## Not yet implemented (from the doc)
-The Vein / Detonator Keys (Act 4, The First Mine) · Depths 1–20 ascension ladder ·
-per-class unlock drip · score-tracked provably-safe reveals.
+The Vein / Detonator Keys (Act 4, The First Mine) · Depths 1–20 ascension ladder.

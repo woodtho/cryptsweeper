@@ -11,13 +11,26 @@ import {
 import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
 import { BoardView } from './BoardView.jsx';
-import sapperPortrait from '../assets/delvers/sapper.webp';
-import surveyorPortrait from '../assets/delvers/surveyor.webp';
-import terraformerPortrait from '../assets/delvers/terraformer.webp';
+import { UNLOCKS, isDelverUnlocked, loadProgression } from '../engine/progression.js';
+import sapperPortrait from '../assets/delvers/sapper-cartoon.webp';
+import surveyorPortrait from '../assets/delvers/surveyor-cartoon.webp';
+import terraformerPortrait from '../assets/delvers/terraformer-cartoon.webp';
+import lamplighterPortrait from '../assets/delvers/lamplighter.webp';
+import gamblerPortrait from '../assets/delvers/gambler.webp';
+import chirurgeonPortrait from '../assets/delvers/chirurgeon.webp';
+import archivistPortrait from '../assets/delvers/archivist.webp';
+import wardenPortrait from '../assets/delvers/warden.webp';
+import hexwrightPortrait from '../assets/delvers/hexwright.webp';
+import revenantPortrait from '../assets/delvers/revenant.webp';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = { play: 'Choose your Delver', how: 'How to play', saves: 'Saved descents', settings: 'Settings', daily: 'Daily challenge' };
-const DELVER_PORTRAITS = { sapper: sapperPortrait, surveyor: surveyorPortrait, terraformer: terraformerPortrait };
+const DELVER_PORTRAITS = {
+  sapper: sapperPortrait, surveyor: surveyorPortrait, terraformer: terraformerPortrait,
+  lamplighter: lamplighterPortrait, gambler: gamblerPortrait, chirurgeon: chirurgeonPortrait,
+  archivist: archivistPortrait, warden: wardenPortrait, hexwright: hexwrightPortrait,
+  revenant: revenantPortrait,
+};
 
 function localDateKey() {
   const d = new Date();
@@ -25,10 +38,14 @@ function localDateKey() {
 }
 
 function DelverPicker({ daily = null }) {
+  const progress = loadProgression();
   return (
     <div className="classgrid">
-      {Object.entries(CLASSES).map(([k, c]) => (
-        <button type="button" key={k} className="classcard" onClick={() => newRun(k, daily ? { daily } : {})}>
+      {Object.entries(CLASSES).map(([k, c]) => {
+        const unlocked = isDelverUnlocked(k, progress);
+        return (
+        <button type="button" key={k} className={`classcard ${unlocked ? '' : 'locked'}`} disabled={!unlocked}
+          onClick={() => newRun(k, daily ? { daily } : {})}>
           <div className="delver-art"><img src={DELVER_PORTRAITS[k]} alt={`${c.name} portrait`} /></div>
           <div className="delver-body">
             <h3>{c.name}</h3>
@@ -40,8 +57,9 @@ function DelverPicker({ daily = null }) {
           <div className="trink">
             Starts with: {TRINKETS[c.trinket].emoji} <b>{TRINKETS[c.trinket].name}</b> — {TRINKETS[c.trinket].desc}
           </div>
+          {!unlocked && <div className="unlock-rule"><b>LOCKED</b><span>{UNLOCKS[k].label}</span></div>}
         </button>
-      ))}
+      );})}
     </div>
   );
 }

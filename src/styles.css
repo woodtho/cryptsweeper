@@ -213,11 +213,11 @@ h1.logo .flag {
 .home-panel { margin: 10px auto 0; padding: 22px; }
 .home-panel-head { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--etch); padding-bottom: 14px; margin-bottom: 18px; }
 .home-panel-head .eyebrow { margin: 0; }
-.classgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(275px, 1fr)); gap: 14px; margin: 18px 0; }
+.classgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 18px 0; }
 .classcard { --cut: 12px; padding: 0 0 16px; cursor: pointer; color: var(--bone); text-align: left; font-family: var(--display); overflow: hidden; }
 .classcard:hover { --edge: var(--candle); }
 .classcard:hover h3 { color: var(--candle); }
-.delver-art { height: 176px; overflow: hidden; border-bottom: 1px solid var(--etch); background: var(--abyss-0); }
+.delver-art { height: 204px; overflow: hidden; border-bottom: 1px solid var(--etch); background: var(--abyss-0); position: relative; }
 .delver-art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 28%; filter: saturate(.86) contrast(1.05); transition: transform .2s ease, filter .2s ease; }
 .classcard:hover .delver-art img { transform: scale(1.025); filter: saturate(1) contrast(1.08); }
 .delver-body { padding: 15px 17px 0; }
@@ -230,6 +230,13 @@ h1.logo .flag {
 .classcard .hp { color: var(--moss); font-family: var(--mono); font-size: 13px; }
 .classcard .passive { font-size: 12px; color: var(--candle); margin-top: 11px; padding: 8px 10px; border-left: 2px solid var(--candle); background: rgba(201,151,59,.06); }
 .classcard .trink { font-size: 12.5px; color: var(--bone-dim); margin: 12px 17px 0; border-top: 1px solid var(--etch); padding-top: 9px; }
+.classcard.locked { cursor: not-allowed; --edge: #3e4654; }
+.classcard.locked .delver-art img { filter: grayscale(.78) brightness(.42) contrast(1.12); }
+.classcard.locked .delver-body, .classcard.locked .trink { opacity: .55; }
+.classcard.locked:hover .delver-art img { transform: none; filter: grayscale(.78) brightness(.42) contrast(1.12); }
+.unlock-rule { margin: 14px 17px 0; padding: 10px 12px; border: 1px solid #596273; background: rgba(8,10,13,.88); display: flex; gap: 9px; align-items: baseline; }
+.unlock-rule b { color: var(--blood-hi); font: 700 10px/1 var(--mono); letter-spacing: .15em; }
+.unlock-rule span { color: var(--bone); font: 11px/1.35 var(--mono); }
 .daily-brief { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; padding: 10px 8px 4px; }
 .daily-brief h2 { margin: 0; color: var(--candle); letter-spacing: .12em; }
 .daily-brief p { margin: 5px 0 0; color: var(--bone-dim); }
@@ -261,6 +268,13 @@ kbd { border: 1px solid var(--etch-hi); background: var(--stone-2); padding: 3px
 .classsig.sapper { color: var(--blood-hi); }
 .classsig.surveyor { color: var(--n1); }
 .classsig.terraformer { color: var(--moss); }
+.classsig.lamplighter { color: #f0b641; }
+.classsig.gambler { color: #c182d8; }
+.classsig.chirurgeon { color: #e67f72; }
+.classsig.archivist { color: #91a6dc; }
+.classsig.warden { color: #aab4c3; }
+.classsig.hexwright { color: #d86ee5; }
+.classsig.revenant { color: #83d9bd; }
 
 html.high-contrast {
   --bone: #fff9e8;
@@ -312,8 +326,8 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .mapwrap { --map-row: 64px; position: relative; margin: 10px auto; width: min(680px, 100%); }
 .mapwrap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .mapwrap svg line { vector-effect: non-scaling-stroke; }
-.mapline-shadow { stroke: rgba(0,0,0,.85); stroke-width: 5px; }
-.mapline { stroke: #657188; stroke-width: 2.2px; opacity: .95; }
+.mapline-shadow { stroke: rgba(0,0,0,.92); stroke-width: 7px; }
+.mapline { stroke: #9ba8bd; stroke-width: 3px; opacity: 1; }
 .maprow { display: flex; justify-content: space-around; align-items: center; height: var(--map-row); position: relative; }
 .mapnode {
   width: 50px; height: 44px;
@@ -326,7 +340,7 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
   transform: translateX(-50%);
   transition: transform .12s ease, filter .12s ease;
 }
-.mapicon { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; line-height: 1; font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", var(--display); font-weight: 700; }
+.mapicon { display: grid; width: 100%; height: 100%; place-items: center; line-height: 1; font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", var(--display); font-weight: 700; transform: translateY(-.02em); }
 .mapnode.reachable {
   background: var(--stone-3);
   color: var(--bone);
@@ -897,5 +911,7 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
   .mapnode { width: 46px; height: 40px; font-size: 17px; }
   .mapnode.boss { width: 56px; height: 50px; font-size: 22px; }
   .classcard { padding-bottom: 14px; }
-  .delver-art { height: 190px; }
+  .classgrid { grid-template-columns: 1fr; }
+  .delver-art { height: 220px; }
+  .mapicon { transform: none; font-size: 18px; }
 }

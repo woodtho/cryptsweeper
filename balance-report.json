@@ -1,0 +1,139 @@
+{
+  "policy": "oracle",
+  "runsPerClass": 10,
+  "report": [
+    {
+      "class": "sapper",
+      "runs": 10,
+      "wins": 0,
+      "winRate": 0,
+      "avgHp": 0,
+      "avgFloors": 29.8,
+      "avgScore": 845,
+      "avgSteps": 640.7,
+      "endings": {
+        "gameover": 10
+      }
+    },
+    {
+      "class": "surveyor",
+      "runs": 10,
+      "wins": 0,
+      "winRate": 0,
+      "avgHp": 0,
+      "avgFloors": 20.6,
+      "avgScore": 606.2,
+      "avgSteps": 502,
+      "endings": {
+        "gameover": 10
+      }
+    },
+    {
+      "class": "terraformer",
+      "runs": 10,
+      "wins": 0,
+      "winRate": 0,
+      "avgHp": 0,
+      "avgFloors": 21.6,
+      "avgScore": 740.2,
+      "avgSteps": 692.6,
+      "endings": {
+        "gameover": 10
+      }
+    },
+    {
+      "class": "lamplighter",
+      "runs": 10,
+      "wins": 0,
+      "winRate": 0,
+      "avgHp": 0,
+      "avgFloors": 32,
+      "avgScore": 902,
+      "avgSteps": 757.6,
+      "endings": {
+        "gameover": 10
+      }
+    },
+    {
+      "class": "gambler",
+      "runs": 10,
+      "wins": 0,
+      "winRate": 0,
+      "avgHp": 0,
+      "avgFloors": 34.5,
+      "avgScore": 943.5,
+      "avgSteps": 880.8,
+      "endings": {
+        "gameover": 10
+      }
+    },
+    {
+      "class": "chirurgeon",
+      "runs": 10,
+      "wins": 1,
+      "winRate": 0.1,
+      "avgHp": 2.9,
+      "avgFloors": 34.4,
+      "avgScore": 957.5,
+      "avgSteps": 898.1,
+      "endings": {
+        "gameover": 9,
+        "victory": 1
+      }
+    },
+    {
+      "class": "archivist",
+      "runs": 10,
+      "wins": 0,
+      "winRate": 0,
+      "avgHp": 0,
+      "avgFloors": 23.6,
+      "avgScore": 712.2,
+      "avgSteps": 584,
+      "endings": {
+        "gameover": 10
+      }
+    },
+    {
+      "class": "warden",
+      "runs": 10,
+      "wins": 3,
+      "winRate": 0.3,
+      "avgHp": 13.7,
+      "avgFloors": 32.4,
+      "avgScore": 980.9,
+      "avgSteps": 1019.1,
+      "endings": {
+        "gameover": 7,
+        "victory": 3
+      }
+    },
+    {
+      "class": "hexwright",
+      "runs": 10,
+      "wins": 1,
+      "winRate": 0.1,
+      "avgHp": 1.2,
+      "avgFloors": 29.4,
+      "avgScore": 798.7,
+      "avgSteps": 685,
+      "endings": {
+        "gameover": 9,
+        "victory": 1
+      }
+    },
+    {
+      "class": "revenant",
+      "runs": 10,
+      "wins": 0,
+      "winRate": 0,
+      "avgHp": 0,
+      "avgFloors": 27.1,
+      "avgScore": 714.5,
+      "avgSteps": 548.2,
+      "endings": {
+        "gameover": 10
+      }
+    }
+  ]
+}

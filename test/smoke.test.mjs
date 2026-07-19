@@ -10,7 +10,9 @@ import {
   saveRun, listSaves, loadRun, deleteSave,
   scanTile, addConstruct,
 } from '../src/engine/engine.js';
-import { CARDS } from '../src/engine/data.js';
+import { CARDS, CLASSES, TRINKETS } from '../src/engine/data.js';
+import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
+import { observe as botObserve, step as botStep } from '../src/bot/gameBot.js';
 
 let failures = 0;
 const storage = new Map();
@@ -315,6 +317,38 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   const plating0 = cbt().plating;
   addConstruct(open, 'relay', { block: 2 });
   T('Terraformer Master Builder grants Plating', cbt().plating === plating0 + 2 && board().cells[open].construct?.kind === 'relay');
+}
+
+/* 16 — complete Delver roster, persistent unlocks, and the 200-card catalog */
+{
+  const classKeys = Object.keys(CLASSES);
+  T('roster contains exactly 10 Delvers', classKeys.length === 10);
+  T('every Delver has a valid 10-card starter deck and starter trinket', classKeys.every(cls =>
+    CLASSES[cls].deck.length === 10
+    && CLASSES[cls].deck.every(key => CARDS[key])
+    && TRINKETS[CLASSES[cls].trinket]?.tier === 'starter'));
+  T('catalog contains exactly 200 uniquely named cards', Object.keys(CARDS).length === 200
+    && new Set(Object.values(CARDS).map(card => card.name)).size === 200);
+  T('every Delver has at least 19 class cards', classKeys.every(cls =>
+    Object.values(CARDS).filter(card => card.cls === cls).length >= 19));
+
+  resetProgressionForTests();
+  let progress = loadProgression();
+  T('only the first three Delvers begin unlocked', classKeys.filter(cls => isDelverUnlocked(cls, progress)).join(',') === 'sapper,surveyor,terraformer');
+  progress = recordProgress({ stratum: 1, gold: 225, upgrades: 5, safeReveals: 260, fullClears: 3, combat: { plating: 21 } }, 'map');
+  T('achievement conditions persist and unlock six advanced Delvers', ['lamplighter','gambler','chirurgeon','archivist','warden','hexwright'].every(cls => isDelverUnlocked(cls, progress)));
+  const winningRun = { stratum: 2, gold: 0, upgrades: 0, safeReveals: 0, fullClears: 0, combat: null, winRecorded: false };
+  progress = recordProgress(winningRun, 'victory');
+  T('a recorded win unlocks the Revenant once', isDelverUnlocked('revenant', progress) && progress.wins === 1 && winningRun.winRecorded);
+}
+
+/* 17 — bot uses JSON-sized state and advances exactly one public game action */
+{
+  newRun('lamplighter', { daily: 'smoke-bot' });
+  const before = botObserve();
+  const result = botStep({ policy: 'oracle' });
+  T('bot observation is serializable', typeof JSON.stringify(before) === 'string');
+  T('single-step bot enters exactly one reachable node', result.action.startsWith('enter:') && result.state.run.floors === before.run.floors + 1);
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');

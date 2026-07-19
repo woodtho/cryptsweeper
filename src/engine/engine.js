@@ -4,6 +4,7 @@ import {
   STRATA, CLASSES, CARDS, TRINKETS, GADGETS, ENEMIES, FIGHTS, NN99_PHASES,
 } from './data.js';
 import { sfx } from './sfx.js';
+import { recordProgress } from './progression.js';
 
 /* ================= store ================= */
 const listeners = new Set();
@@ -12,6 +13,7 @@ export function subscribe(cb) { listeners.add(cb); return () => listeners.delete
 export function getVersion() { return version; }
 function notify() {
   version++;
+  recordProgress(run, ui.screen);
   if (run) persistRun('auto');
   for (const cb of listeners) cb();
 }
@@ -96,6 +98,8 @@ export function loadRun(slot) {
     const payload = JSON.parse(localStorage.getItem(slotKey(slot)) || '', saveReviver);
     if (payload.version !== SAVE_VERSION || !payload.run) return false;
     run = payload.run;
+    run.upgrades ??= 0;
+    run.winRecorded ??= false;
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
       if (run.combat.picks == null) run.combat.picks = PICKS_PER_TURN;
@@ -104,7 +108,11 @@ export function loadRun(slot) {
         blastDividend: false, blastDividendUsed: false, stonechoir: false,
         ...run.combat.powers,
       };
-      run.combat.classState = { passiveUsed: false, scanCount: 0, ...run.combat.classState };
+      run.combat.classState = {
+        passiveUsed: false, scanCount: 0, kindleUsed: false, luckyUsed: false,
+        painUsed: false, exhaustUsed: false, deathUsed: false,
+        ...run.combat.classState,
+      };
     }
     _cardId = Math.max(_cardId, ...run.deck.map(c => c.id || 0));
     ui.screen = payload.screen || 'map';
@@ -138,7 +146,7 @@ function pushDmg(fx) {
 }
 
 export function cbt() { return run.combat; }
-export function board() { return run.combat.board; }
+export function board() { return run?.combat?.board || null; }
 export function hasT(key) { return run.trinkets.includes(key); }
 
 function dailySeed(date) {
@@ -152,11 +160,12 @@ export function newRun(clsKey, options = {}) {
   const deck = (cls.deck || ['probe', 'probe', 'probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'brace', cls.sig])
     .map(key => mkCard(key));
   run = {
-    cls: clsKey, hp: cls.hp, maxHp: cls.hp, gold: 50,
+    cls: clsKey, hp: cls.hp + (cls.trinket === 'fieldkit' ? 8 : 0),
+    maxHp: cls.hp + (cls.trinket === 'fieldkit' ? 8 : 0), gold: 50,
     deck, trinkets: [cls.trinket], gadgets: [],
     stratum: 0, map: null, pos: null, visited: {},
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
-    surveyNext: false, seenEvents: [], combat: null,
+    surveyNext: false, seenEvents: [], combat: null, upgrades: 0, winRecorded: false,
     reward: null, shop: null, event: null, puzzle: null,
     daily: options.daily || null,
     rngState: options.daily ? dailySeed(options.daily) : null,
@@ -504,7 +513,9 @@ export function highestRevealedNumber() {
 
 /* ================= board verbs ================= */
 export function revealTile(i, cause) {
-  const c = cbt(); const b = board(); const cell = b.cells[i];
+  const c = cbt(); const b = board();
+  if (!c || !b) return { safe: false, mine: false, none: true };
+  const cell = b.cells[i];
   if (!cell || cell.revealed || cell.void || cell.entombed) return { safe: false, mine: false, none: true };
   if (cell.mine) {
     const protectable = cause === 'reveal' || cause === 'chord';
@@ -514,16 +525,18 @@ export function revealTile(i, cause) {
       toast('Sixth Sense: mine flagged instead!');
       return { safe: false, mine: true, saved: true };
     }
-    if (protectable && !c.instinctUsed) {
-      c.instinctUsed = true;
+    const instinctLimit = hasT('gravebell') ? 2 : 1;
+    if (protectable && Number(c.instinctUsed || 0) < instinctLimit) {
+      c.instinctUsed = Number(c.instinctUsed || 0) + 1;
       verifyFlag(i);
-      toast('Instinct! (once per combat) Mine flagged instead.');
+      toast(`Instinct! Mine flagged instead${hasT('gravebell') ? ` (${instinctLimit - c.instinctUsed} left)` : '.'}`);
       return { safe: false, mine: true, saved: true };
     }
     detonatePlayer(i);
     return { safe: false, mine: true };
   }
   const count = openSafe(i);
+  if (!run?.combat || c.over) return { safe: true, mine: false, cascade: count };
   if (!c.setup && count > 0) sfx(count >= 4 ? 'cascade' : 'dig');
   if (c.powers.leylines && count >= c.powers.leylines) { gainEnergy(1); toast('Ley Lines: +1⚡'); }
   checkFullClear();
@@ -535,7 +548,7 @@ export function openSafe(start) {
   let count = 0;
   const q = [start];
   while (q.length) {
-    if (board() !== b) break; // lair damage can collapse & re-seal the board mid-cascade
+    if (!run?.combat || c.over || c.board !== b) break; // combat can end or the board can re-seal mid-cascade
     const i = q.pop();
     const cell = b.cells[i];
     if (!cell || cell.revealed || cell.void || cell.entombed || cell.mine || cell.flag) continue;
@@ -554,17 +567,33 @@ export function openSafe(start) {
           toast('Tally Counter: +1 max HP');
         }
       }
+      if (run.cls === 'hexwright' && n >= 3 && !c.over) hitAll(2, { noNitro: true });
     }
     cell.ever = true;
     if (cell.grub) { cell.grub = false; unburyAt(i); }
-    if (cbt().primed === i) { cbt().primed = null; cell.primed = false; }
+    if (c.primed === i) { c.primed = null; cell.primed = false; }
     if (!c.setup) {
       const owner = lairOwnerAt(i);
       if (owner) hitEnemy(owner, Math.max(1, n), { bypassGate: true, noNitro: true });
     }
+    if (!run?.combat || c.over) break;
     if (n === 0) for (const j of neighborsOf(i, b.size)) q.push(j);
   }
+  if (!c.setup && run.cls === 'lamplighter' && count >= 4 && !c.classState.kindleUsed) {
+    c.classState.kindleUsed = true;
+    gainEnergy(1);
+    toast('Kindle: a bright cascade grants +1⚡');
+  }
   return count;
+}
+
+function triggerPainPassive() {
+  const c = run?.combat;
+  if (c && run.cls === 'chirurgeon' && !c.classState.painUsed && !c.over) {
+    c.classState.painUsed = true;
+    gainBlock(5);
+    toast('Triage: pain grants 5 Block');
+  }
 }
 
 function unburyAt(i) {
@@ -597,7 +626,11 @@ function detonatePlayer(i, opts = {}) {
   const soak = Math.min(c.plating, dmg);
   c.plating -= soak;
   const rest = dmg - soak;
-  if (rest > 0) { run.hp -= rest; pushDmg({ kind: 'player', amount: rest }); log(`💥 Mine detonates: ${rest} damage (pierces Block)`); }
+  if (rest > 0) {
+    run.hp -= rest; pushDmg({ kind: 'player', amount: rest });
+    log(`💥 Mine detonates: ${rest} damage (pierces Block)`);
+    triggerPainPassive();
+  }
   else { pushDmg({ kind: 'player', amount: 0, note: 'ABSORBED' }); log('💥 Mine detonates — Plating absorbs it.'); }
   c.minesDetonated++;
   triggerPowderKeg();
@@ -735,7 +768,7 @@ const FULL_CLEAR_DMG = 50;
 
 function checkFullClear() {
   const c = cbt(), b = board();
-  if (c.over || b.cleared) return;
+  if (!c || !b || c.over || b.cleared) return;
   for (const cell of b.cells) {
     if (cell.void || cell.mine) continue;
     if (!cell.revealed && !cell.entombed) return;
@@ -829,7 +862,7 @@ function lairCrumble(e) {
   const b = cbt().board;
   let opened = 0;
   for (const i of e.lair) {
-    if (cbt().board !== b) break;
+    if (!run?.combat || cbt().board !== b) break;
     const cell = b.cells[i];
     if (!cell || cell.void || cell.revealed || cell.entombed) continue;
     if (cell.mine) { cell.mine = false; }
@@ -838,7 +871,7 @@ function lairCrumble(e) {
     opened++;
   }
   e.lair = [];
-  if (opened) {
+  if (opened && run?.combat) {
     toast(`${e.def.name}'s lair crumbles open! (${opened} tiles)`);
     log(`⛏ ${e.def.name}'s lair crumbles open: ${opened} tiles revealed, its mines defused.`);
     checkFullClear();
@@ -937,7 +970,8 @@ export function clearPrimed() {
 }
 
 export function devourRing() {
-  const b = board();
+  const c = cbt(), b = board();
+  if (!c || !b) return;
   let minR = b.size, maxR = -1, minC = b.size, maxC = -1;
   for (let i = 0; i < b.cells.length; i++) {
     if (b.cells[i].void) continue;
@@ -954,10 +988,10 @@ export function devourRing() {
     if (r !== minR && r !== maxR && col !== minC && col !== maxC) continue;
     if (cell.construct) cell.construct = null;
     if (cell.grub) { cell.grub = false; unburyAt(i); }
-    if (cbt().primed === i) { cbt().primed = null; cell.primed = false; }
+    if (c.primed === i) { c.primed = null; cell.primed = false; }
     if (!cell.revealed && !cell.entombed && cell.mine) {
       detonatePlayer(i, { half: true });
-      if (cbt().over) return;
+      if (!run?.combat || c.over) return;
     }
     cell.void = true; cell.mine = false; cell.flag = 0; cell.construct = null; cell.entombed = false;
     eaten++;
@@ -971,20 +1005,22 @@ export function devourRing() {
 
 /* ================= player effects ================= */
 export function atk(n) {
-  const rubble = cbt().hand.filter(c => c.key === 'rubble').length;
+  const rubble = cbt()?.hand.filter(c => c.key === 'rubble').length || 0;
   return Math.max(0, n - rubble);
 }
-export function gainBlock(n) { cbt().block += n; sfx('block'); log(`🛡 +${n} Block`); }
-export function gainPlating(n) { cbt().plating += n; sfx('plating'); log(`⛨ +${n} Plating`); }
-export function gainEnergy(n) { cbt().energy += n; }
-export function gainInsight(n) { cbt().insight += n; }
+export function gainBlock(n) { if (!run?.combat) return; cbt().block += n; sfx('block'); log(`🛡 +${n} Block`); }
+export function gainPlating(n) { if (!run?.combat) return; cbt().plating += n; sfx('plating'); log(`⛨ +${n} Plating`); }
+export function gainEnergy(n) { if (run?.combat) cbt().energy += n; }
+export function gainInsight(n) { if (run?.combat) cbt().insight += n; }
 export function loseHP(n) {
   run.hp -= n;
   pushDmg({ kind: 'player', amount: n });
   log(`🩸 You lose ${n} HP`);
+  triggerPainPassive();
   checkPlayerDeath();
 }
 export function drawCards(n) {
+  if (!run?.combat) return;
   const c = cbt();
   let drew = 0;
   for (let k = 0; k < n; k++) {
@@ -996,7 +1032,11 @@ export function drawCards(n) {
     if (c.hand.length >= 10) { c.discard.push(card); continue; }
     c.hand.push(card);
     drew++;
-    if (card.key === 'shrapnel') { toast('Shrapnel! Take 1.', true); loseHP(1); }
+    if (card.key === 'shrapnel') {
+      toast('Shrapnel! Take 1.', true);
+      loseHP(1);
+      if (c.over) break;
+    }
   }
   if (drew) sfx('draw');
 }
@@ -1012,6 +1052,7 @@ export function enemyAttack(e, n) {
     ui.shakeSeq++;
     pushDmg({ kind: 'player', amount: rest });
     log(`⚔ ${e.def.name} hits you for ${rest}${soak ? ` (${soak} blocked)` : ''}`);
+    triggerPainPassive();
   } else {
     sfx('block');
     pushDmg({ kind: 'player', amount: 0, note: 'BLOCKED' });
@@ -1021,8 +1062,15 @@ export function enemyAttack(e, n) {
 }
 
 function checkPlayerDeath() {
-  if (run.hp <= 0 && !cbt().over) {
+  if (run.hp <= 0) {
     run.hp = 0;
+    if (cbt().over) return;
+    if (run.cls === 'revenant' && !cbt().classState.deathUsed) {
+      cbt().classState.deathUsed = true;
+      run.hp = 1;
+      toast('Deathless: return from the brink at 1 HP');
+      return;
+    }
     cbt().over = true;
     sfx('defeat');
     ui.screen = 'gameover';
@@ -1042,7 +1090,7 @@ function spawnEnemy(key) {
   e.hp = e.maxHp;
   return e;
 }
-export function aliveEnemies() { return cbt().enemies.filter(e => e.hp > 0); }
+export function aliveEnemies() { return run?.combat ? cbt().enemies.filter(e => e.hp > 0) : []; }
 function targetableEnemies() { return aliveEnemies().filter(e => !e.data.buried); }
 export function curTarget() {
   const t = targetableEnemies();
@@ -1052,7 +1100,7 @@ export function curTarget() {
 }
 export function hitEnemy(e, n, opts = {}) {
   const c = cbt();
-  if (!e || e.hp <= 0 || c.over) return;
+  if (!c || !e || e.hp <= 0 || c.over) return;
   if (!opts.noNitro && c.nitroBoost) { n += c.nitroBoost; c.nitroBoost = 0; toast('Nitro! +10'); }
   if (e.def.gated && !opts.bypassGate && !(c.revealedThisTurn >= 5 || c.chordedThisTurn)) {
     pushDmg({ kind: 'enemy', idx: c.enemies.indexOf(e), amount: 0, note: 'IMMUNE' });
@@ -1095,7 +1143,7 @@ export function checkNNPhase(e) {
 
 function checkWin() {
   const c = cbt();
-  if (c.over) return;
+  if (!c || c.over) return;
   if (aliveEnemies().length === 0) {
     c.over = true;
     combatVictory();
@@ -1119,15 +1167,18 @@ export function startCombat(kind) {
     kind, board: b, boardSpec: { size: st.size, mines: st.mines + minePenalty() },
     enemies: [], hand: [], discard: [], exhaust: [], powersPlayed: [],
     draw: shuffle(run.deck.map(c => ({ ...c }))),
-    energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0),
+    energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0),
     block: 0, plating: 0, insight: 0, turn: 0,
     revealedThisTurn: 0, sumThisTurn: 0, chordedThisTurn: false, minesDetonated: 0,
     powers: {
       powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
       blastDividend: false, blastDividendUsed: false, stonechoir: false,
     },
-    classState: { passiveUsed: false, scanCount: 0 },
-    instinctUsed: false, gogglesUsed: false, compassUsed: false, canaryUsed: false, keystoneUsed: false,
+    classState: {
+      passiveUsed: false, scanCount: 0, kindleUsed: false, luckyUsed: false,
+      painUsed: false, exhaustUsed: false, deathUsed: false,
+    },
+    instinctUsed: 0, gogglesUsed: false, compassUsed: false, canaryUsed: false, keystoneUsed: false,
     nitro: 0, nitroBoost: 0, lie: null, primed: null, targetIdx: 0,
     fullCleared: false, over: false, setup: true, log: [],
   };
@@ -1155,14 +1206,19 @@ export function startCombat(kind) {
     if (e.def.setup) e.def.setup(e);
     e.intent = e.def.next(e);
   }
-  if (hasT('detector')) {
+  if (hasT('detector') || hasT('loadedcoin')) {
     const m = randPick(hiddenIdx().filter(i => b.cells[i].mine));
-    if (m != null) { verifyFlag(m); log('📻 Rusted Detector marks a mine.'); }
+    if (m != null) { verifyFlag(m); log(hasT('loadedcoin') ? '🪙 Loaded Coin marks a mine.' : '📻 Rusted Detector marks a mine.'); }
   }
   if (hasT('dowsingcharm')) {
     shuffle(hiddenIdx()).slice(0, 2).forEach(i => scanTile(i));
     log('📿 Dowsing Charm scans 2 tiles.');
   }
+  if (hasT('hexkey')) {
+    shuffle(hiddenIdx()).slice(0, 3).forEach(i => scanTile(i));
+    log('🔷 Hex Key scans 3 tiles.');
+  }
+  if (hasT('wardplate')) c.plating = 4;
   assignLairs();
   c.setup = false;
   ui.screen = 'combat';
@@ -1175,14 +1231,18 @@ export const PICKS_PER_TURN = 3;
 function startTurn() {
   const c = cbt();
   c.turn++;
-  c.block = 0;
+  c.block = run.cls === 'warden' && c.turn > 1 ? Math.floor(c.block / 2) : 0;
   c.energy = c.maxEnergy;
   c.picks = PICKS_PER_TURN;
   c.revealedThisTurn = 0; c.sumThisTurn = 0; c.chordedThisTurn = false;
   c.powers.sixthUsed = false;
   c.classState.passiveUsed = false;
+  c.classState.kindleUsed = false;
+  c.classState.luckyUsed = false;
+  c.classState.painUsed = false;
+  c.classState.exhaustUsed = false;
   c.powers.blastDividendUsed = false;
-  drawCards(5);
+  drawCards(5 + (hasT('indexcard') && c.turn === 1 ? 1 : 0) - (hasT('emberjar') && c.turn > 1 ? 1 : 0));
   updateGlow();
   notify();
 }
@@ -1339,7 +1399,14 @@ function resolveCard(handIdx, picked) {
   def.play(card.up, picked);
   if (!c.over) {
     if (def.type === 'Power') c.powersPlayed.push(card);
-    else if (def.exhaust) c.exhaust.push(card);
+    else if (def.exhaust) {
+      c.exhaust.push(card);
+      if (run.cls === 'archivist' && !c.classState.exhaustUsed) {
+        c.classState.exhaustUsed = true;
+        drawCards(1);
+        toast('Cross-reference: draw 1');
+      }
+    }
     else c.discard.push(card);
   }
   notify();
@@ -1379,6 +1446,11 @@ export function toggleFlag(i) {
   const cell = board().cells[i];
   if (!isHiddenUsable(i)) return;
   cell.flag = cell.flag ? 0 : 1;
+  if (cell.flag && cell.mine && run.cls === 'gambler' && !cbt().classState.luckyUsed) {
+    cbt().classState.luckyUsed = true;
+    drawCards(1);
+    toast('Read the Tell: correct flag draws 1');
+  }
   sfx('flag');
   notify();
 }
@@ -1512,6 +1584,7 @@ export function campUpgrade() {
 }
 export function doUpgrade(deckIdx) {
   run.deck[deckIdx].up = 1;
+  run.upgrades = (run.upgrades || 0) + 1;
   ui.modal = null;
   toast(`${CARDS[run.deck[deckIdx].key].name}+ !`);
   if (ui.screen === 'camp' || ui.screen === 'puzzle') ui.screen = 'map';
