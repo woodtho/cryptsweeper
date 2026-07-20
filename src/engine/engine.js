@@ -10,7 +10,10 @@ import {
   recordItemSeen, recordItemOwned, seedRunCollection,
 } from './collection.js';
 import { recordDailyAttempt, recordDailyResult } from './daily.js';
-import { EXTRA_EVENT_CATALOG } from './events.js';
+import {
+  EXTRA_EVENT_CATALOG, CORE_BEHAVIORAL_EVENTS,
+  createBehavioralEventState, behavioralEventView, resolveBehavioralEvent,
+} from './events.js';
 
 /* ================= store ================= */
 const listeners = new Set();
@@ -109,6 +112,13 @@ export function loadRun(slot) {
     run.winRecorded ??= false;
     run.pickBonus ??= 0;
     run.seenCutscenes ??= [];
+    run.eventHistory ??= [];
+    run.eventState ??= null;
+    if (run.puzzle?.type === 'sudoku') {
+      run.puzzle.size ??= 4;
+      run.puzzle.boxRows ??= run.puzzle.size === 6 ? 2 : Math.sqrt(run.puzzle.size);
+      run.puzzle.boxCols ??= run.puzzle.size === 6 ? 3 : Math.sqrt(run.puzzle.size);
+    }
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
       if (run.combat.picks == null) run.combat.picks = PICKS_PER_TURN;
@@ -130,7 +140,14 @@ export function loadRun(slot) {
     ui.screen = !payload.screen || payload.screen === 'title'
       ? (run.combat ? 'combat' : 'map')
       : payload.screen;
-    ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.flagMode = false;
+    /* Purchase-era saves could stop between strata on a retired paywall. Send
+       them back to their boss reward so Finish can continue the now-free run. */
+    if (ui.screen === 'paywall') ui.screen = run.reward ? 'reward' : 'map';
+    if (ui.screen === 'event' && run.event && !run.eventState) prepareEventState(run.event);
+    const resumedEventResult = ui.screen === 'event' && run.eventState?.stage === 'resolved' && run.eventState.result
+      ? { kind: 'info', ...run.eventState.result, btn: 'Continue', next: 'map' }
+      : null;
+    ui.targeting = null; ui.gadgetTargeting = null; ui.modal = resumedEventResult; ui.flagMode = false;
     ui.cutscene = payload.cutscene || null;
     notify();
     return true;
@@ -182,7 +199,7 @@ export function newRun(clsKey, options = {}) {
     stratum: 0, map: null, pos: null, visited: {},
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
     surveyNext: false, seenEvents: [], combat: null, upgrades: 0, pickBonus: 0, winRecorded: false,
-    reward: null, shop: null, event: null, puzzle: null, seenCutscenes: [],
+    reward: null, shop: null, event: null, eventState: null, eventHistory: [], puzzle: null, seenCutscenes: [],
     daily: options.daily || null,
     rngState: options.daily ? dailySeed(options.daily) : null,
   };
@@ -1629,6 +1646,15 @@ export function takeRewardGadget() {
   notify();
 }
 
+function advanceStratum() {
+  run.stratum++;
+  run.hp = Math.min(run.maxHp, run.hp + Math.floor(run.maxHp * 0.25));
+  toast(`Descending… you rest and recover. Welcome to ${STRATA[run.stratum].name}`);
+  genMapForStratum();
+  queueCutscene(`descent-${run.stratum}`, {}, true);
+  ui.screen = 'map';
+}
+
 export function finishReward() {
   const r = run.reward;
   run.reward = null;
@@ -1636,11 +1662,9 @@ export function finishReward() {
     if (run.stratum >= 2) {
       sfx('victory'); ui.screen = 'victory'; queueCutscene('finale', {}, true); recordDailyRunEnd(true); notify(); return;
     }
-    run.stratum++;
-    run.hp = Math.min(run.maxHp, run.hp + Math.floor(run.maxHp * 0.25));
-    toast(`Descending… you rest and recover. Welcome to ${STRATA[run.stratum].name}`);
-    genMapForStratum();
-    queueCutscene(`descent-${run.stratum}`, {}, true);
+    advanceStratum();
+    notify();
+    return;
   }
   ui.screen = 'map';
   notify();
@@ -1842,8 +1866,24 @@ export const EVENT_CATALOG = {
       { key: 'double', label: 'Double or nothing', desc: 'A fair single bet becomes dangerous when repeated to ruin.' },
     ],
   },
+  ...CORE_BEHAVIORAL_EVENTS,
   ...EXTRA_EVENT_CATALOG,
 };
+
+function prepareEventState(key) {
+  const event = EVENT_CATALOG[key];
+  if (!event?.behavioral) { run.eventState = null; return; }
+  const rolls = Array.from({ length: 6 }, () => random());
+  run.eventState = createBehavioralEventState(event, run, rolls, randPick(Object.keys(GADGETS)));
+}
+
+export function currentEventView() {
+  const event = EVENT_CATALOG[run?.event];
+  if (!event) return null;
+  if (!event.behavioral) return { text: event.text, choices: event.choices, stageLabel: 'Decision' };
+  if (!run.eventState) prepareEventState(run.event);
+  return behavioralEventView(event, run.eventState);
+}
 
 function startEvent() {
   const all = [...Object.keys(EVENT_CATALOG), 'puzzle'];
@@ -1852,6 +1892,7 @@ function startEvent() {
   run.seenEvents.push(pick);
   if (pick === 'puzzle') { startPuzzle('random'); return; }
   run.event = pick;
+  prepareEventState(pick);
   ui.screen = 'event';
   notify();
 }
@@ -1863,12 +1904,56 @@ function eventResult(title, html, btn = 'Continue') {
 export function startSpecificEvent(key) {
   if (!EVENT_CATALOG[key]) return;
   run.event = key;
+  prepareEventState(key);
   ui.modal = null; ui.cutscene = null; ui.screen = 'event';
   notify();
 }
 
+function applyEventEffect(effect = {}) {
+  if (effect.gold) run.gold = Math.max(0, run.gold + effect.gold);
+  if (effect.damage) run.hp = Math.max(1, run.hp - effect.damage);
+  if (effect.maxHp) { run.maxHp += effect.maxHp; run.hp = Math.min(run.maxHp, run.hp + effect.maxHp); }
+  if (effect.heal) run.hp = Math.min(run.maxHp, run.hp + effect.heal);
+  if (effect.curse && CARDS[effect.curse]) {
+    run.deck.push(mkCard(effect.curse));
+    recordCardOwned(effect.curse);
+  }
+  if (effect.upgrade) {
+    const eligible = run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null);
+    const card = randPick(eligible);
+    if (card) { card.up = 1; run.upgrades = (run.upgrades || 0) + 1; }
+    else run.gold += 15;
+  }
+  if (effect.gadget && GADGETS[effect.gadget]) {
+    if (run.gadgets.length < 3) {
+      run.gadgets.push(effect.gadget);
+      recordItemOwned(`gadget:${effect.gadget}`);
+    } else run.gold += 20;
+  }
+}
+
 export function eventChoice(which) {
   const st = STRATA[run.stratum];
+  const behavioral = EVENT_CATALOG[run.event];
+  if (behavioral?.behavioral) {
+    if (!run.eventState) prepareEventState(run.event);
+    const result = resolveBehavioralEvent(behavioral, run.eventState, which);
+    if (!result) return;
+    applyEventEffect(result.effect);
+    if (!result.done) {
+      toast(result.note);
+      notify();
+      return;
+    }
+    run.eventHistory ??= [];
+    run.eventHistory.push({
+      id: run.event, choice: which, observed: run.eventState.observed,
+      stratum: run.stratum, floor: run.floors,
+    });
+    run.eventState.result = { title: `${behavioral.emoji} ${result.title}`, html: result.html };
+    eventResult(`${behavioral.emoji} ${result.title}`, result.html);
+    return;
+  }
   if (run.event === 'shrine') {
     if (which === 'walk') { ui.screen = 'map'; notify(); return; }
     if (random() < 0.5) {
@@ -2044,13 +2129,13 @@ const SEQUENCE_PUZZLES = {
 
 function startMinesPuzzle(difficulty = 0) {
   const size = [6, 7, 8][difficulty];
-  const mineBase = [4, 7, 10][difficulty];
+  const mineBase = [6, 9, 13][difficulty];
   const { mines, opening } = genPuzzle(size, mineBase + randInt(2));
   const cells = [];
   for (let i = 0; i < size * size; i++) {
     cells.push({ mine: mines.has(i), revealed: false, flag: 0, entombed: false, void: false, ever: false, crater: false, scan: null, construct: null, grub: false, primed: false, glow: false });
   }
-  run.puzzle = { type: 'mines', difficulty, board: { size, cells }, scans: [3, 2, 1][difficulty], scanMode: false, failed: false, solved: false };
+  run.puzzle = { type: 'mines', difficulty, board: { size, cells }, scans: [2, 1, 0][difficulty], scanMode: false, failed: false, solved: false };
   puzzleFlood(opening);
 }
 

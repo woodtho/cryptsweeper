@@ -1,7 +1,9 @@
 /* Additional event content. The engine resolves the compact outcome metadata so
    this bank can grow without adding another branch to eventChoice for each room. */
 
-const QUIZZES = [
+/* Reference notes preserve the factual explanation for the post-choice reveal.
+   They are never exposed as questions or answer keys. */
+const REFERENCE_NOTES = [
   ['mean-median', '⚖️', 'The Crooked Average', 'One delver has 100 gold; nine have none. Which best describes the typical purse?', 'Median: 0 gold', 'Mean: 10 gold', 'Mode: 100 gold', 'The median resists the single extreme purse; the mean is pulled upward.'],
   ['gambler-fallacy', '🪙', 'Five Tails in the Dust', 'A fair coin has landed tails five times. What is the chance of heads next?', '50%', 'More than 50%', 'Less than 50%', 'Independent flips do not remember the previous streak.'],
   ['expected-die', '🎲', 'The Bone Die', 'What is the expected value of one fair six-sided die?', '3.5', '3', '4', 'Average all six equally likely faces: 21 divided by 6 is 3.5.'],
@@ -48,6 +50,56 @@ const QUIZZES = [
   ['expected-maximum', '🎲', 'Keep the Higher Die', 'Roll two fair dice and keep the higher. Is its expected value above or below 3.5?', 'Above 3.5', 'Exactly 3.5', 'Below 3.5', 'Taking a maximum preserves high rolls while replacing many low ones.'],
 ];
 
+/* These are decisions, not questions. Both actions can be rational depending
+   on the generated stakes and the player's current run. An optional field
+   observation reveals part of the hidden situation before commitment. */
+const DECISIONS = [
+  ['mean-median', 'Set every delver’s ration from a ledger distorted by one enormous purse.', 'Use one equal ration for the whole crew', 'Simple and predictable, but shaped by the extreme purse.', 'Reserve more for the poorer half', 'Protect the typical delver while reducing the shared surplus.'],
+  ['gambler-fallacy', 'A fair coin has shown tails five times. The keeper offers one more wager at freshly posted stakes.', 'Keep the original stake', 'Treat this flip as a new trial.', 'Double the stake after the streak', 'Risk more because the run of tails feels due to break.'],
+  ['expected-die', 'A bone die will determine tonight’s pay, but the quartermaster will buy the uncertain contract from you now.', 'Sell the contract for the posted amount', 'Take certainty before the die is rolled.', 'Keep the die contract', 'Accept its full spread of possible payouts.'],
+  ['conditional-coin', 'The keeper confirms that at least one of two hidden coins is heads, then offers to buy your claim on both being heads.', 'Sell the claim now', 'Take the guaranteed offer.', 'Keep the claim until both coins are shown', 'Trade certainty for the conditional chance.'],
+  ['large-numbers', 'One familiar seam pays steadily; a new field can be sampled repeatedly before you commit the crew.', 'Mine the familiar seam', 'Take the known return without learning more.', 'Fund repeated samples of the new field', 'Accept early noise for a better long-run estimate.'],
+  ['simpson', 'Two wards each report results for two different patient groups, while the combined ledger points the other way.', 'Choose one treatment for everyone', 'Follow the aggregate result and simplify supplies.', 'Assign treatment by patient group', 'Use the split evidence at the cost of scarce inventory.'],
+  ['regression-mean', 'A scout with one spectacular run demands a permanent bonus before attempting the route again.', 'Pay for the apparent breakthrough', 'Lock in the scout while the result looks exceptional.', 'Offer a smaller trial contract', 'Wait to learn how much of the performance persists.'],
+  ['survivorship', 'Only returning armor can be inspected before you spend the last reinforcement plates.', 'Patch the damage you can see', 'Improve the armor that survived and came home.', 'Reinforce the untouched fatal zones', 'Infer where missing suits may have been struck.'],
+  ['correlation', 'Torch use and cave injuries rose together. You can fund brighter torches or reduce traffic through the shaft.', 'Buy brighter torches', 'Act on the visible association directly.', 'Limit crowded expeditions', 'Act on a possible common cause instead.'],
+  ['p-value', 'A rune trial produced an unusual result under the old ward. Replacing it is costly and the evidence is suggestive, not final.', 'Replace the ward now', 'Act quickly on surprising evidence.', 'Run a larger replication first', 'Pay for stronger evidence before committing.'],
+  ['confidence', 'A survey gives an interval for the next ore seam. A narrow expedition can exploit its center; a broad plan covers its uncertainty.', 'Plan for the center estimate', 'Concentrate resources for a higher payoff.', 'Plan for the full interval', 'Sacrifice upside for robustness.'],
+  ['sampling-bias', 'Only angry delvers answered a safety survey, but repairs must begin tonight.', 'Repair what respondents named', 'Use available testimony immediately.', 'Pay to sample silent crews', 'Delay repairs to seek a representative picture.'],
+  ['independence', 'Two tunnel alarms may share one failing wire. You can insure them as separate risks or replace the common circuit.', 'Insure each alarm separately', 'Treat their failures as unrelated.', 'Replace the shared circuit', 'Pay more if the risks move together.'],
+  ['permutations', 'Three keyed seals must be tried in an order; every failed order consumes lamp oil.', 'Systematically enumerate orders', 'Spend time while avoiding repeated trials.', 'Try the most promising order first', 'Seek a quick win without full coverage.'],
+  ['combinations', 'You may send two of four specialists into a chamber, and team chemistry matters more than marching order.', 'Choose the strongest individuals', 'Maximize visible skill ratings.', 'Choose the most complementary pair', 'Trade raw skill for a better combination.'],
+  ['binomial', 'Three independent bolts each have the same chance to hold. You may reinforce one bolt or insure against exactly two holding.', 'Reinforce one bolt', 'Change one trial’s success chance.', 'Buy the two-success contract', 'Keep the trials unchanged and wager on the count.'],
+  ['geometric', 'A lock opens on the first six, charging lamp oil for every attempt.', 'Pay a fixed locksmith fee', 'Cap the waiting cost.', 'Roll until the lock opens', 'Accept an unbounded wait for a chance to pay less.'],
+  ['poisson', 'Bats arrive independently at a stable average rate. Cross now, or wait while each minute adds exposure and information.', 'Cross during the current lull', 'Act before another arrival.', 'Observe another interval', 'Improve the rate estimate while risking more arrivals.'],
+  ['normal-rule', 'A bell-shaped map predicts most shafts near the center but rare rich seams in the tails.', 'Mine near the center', 'Favor the dense, ordinary region.', 'Prospect a distant tail', 'Accept rarity for a larger possible seam.'],
+  ['central-limit', 'Many noisy scouts can each make a cheap estimate, or one master surveyor can make an expensive judgment.', 'Average many scout reports', 'Pool independent noise and tolerate mediocre individuals.', 'Hire the master surveyor', 'Buy one concentrated expert opinion.'],
+  ['variance', 'Two routes have the same average return; one is tightly clustered and the other swings from ruin to treasure.', 'Take the narrow route', 'Prefer a predictable result.', 'Take the volatile route', 'Accept greater spread for its extreme upside.'],
+  ['standard-deviation', 'A supplier quotes average delivery with a spread measured in the same days your camp can survive.', 'Stock for one usual deviation', 'Cover common delays cheaply.', 'Stock for an extreme delay', 'Pay heavily against a rare shortage.'],
+  ['ticket-ev', 'A ticket’s posted payout is slightly below its price, but the jackpot would solve your immediate supply problem.', 'Keep your gold', 'Reject the unfavorable average return.', 'Buy the ticket', 'Accept a poor average for a transformative chance.'],
+  ['risk-aversion', 'Choose between guaranteed supplies and a higher-average cache that may contain nothing.', 'Take the certain supplies', 'Protect the run’s current position.', 'Open the uncertain cache', 'Risk the floor for greater expected wealth.'],
+  ['nash', 'Two rival crews have settled into routes neither wants to abandon alone, though a coordinated swap could help both.', 'Keep your current route', 'Avoid being the only crew to move.', 'Propose a simultaneous swap', 'Risk failed coordination for a better joint outcome.'],
+  ['dominant-strategy', 'A merchant offers two sealed contracts while another buyer chooses independently.', 'Choose the contract robust to either rival move', 'Protect against every response.', 'Choose the contract with the largest cooperative upside', 'Depend on the rival selecting the compatible move.'],
+  ['zero-sum', 'One purse must be divided after a contest, but you can spend gold sabotaging the rival before the split.', 'Spend on sabotage', 'Improve your share while shrinking the useful prize.', 'Preserve the full purse', 'Accept a fairer contest for a larger total.'],
+  ['pareto', 'A tunnel reassignment can help one crew without hurting yours, but it gives them the more visible victory.', 'Approve the reassignment', 'Allow a gain that costs you nothing.', 'Block the change', 'Preserve relative standing despite no direct benefit.'],
+  ['stag-hunt', 'A rich armored beast requires both hunters; a smaller rat can be caught alone before your partner commits.', 'Wait for the shared hunt', 'Seek the larger coordinated prize.', 'Take the rat immediately', 'Secure the smaller independent reward.'],
+  ['chicken-game', 'Two ore carts race toward one narrow bridge and each driver can lock the brake or leave room to yield.', 'Leave room to yield', 'Avoid collision but risk losing priority.', 'Lock the brake visibly', 'Make a credible stand that could destroy both carts.'],
+  ['ultimatum', 'A rival offers you a small share of a cache. Rejecting destroys the cache for both.', 'Accept the offered share', 'Keep the available gold despite the insult.', 'Reject the split', 'Pay to punish an allocation you consider unfair.'],
+  ['public-goods', 'Every contributed flask brightens a shared lantern, including for crews that contribute nothing.', 'Add your flask', 'Increase the common light at personal cost.', 'Keep your flask', 'Preserve your supply and rely on others.'],
+  ['backward-induction', 'A chain of doors ends with the final guard taking any unclaimed gold. Earlier guards propose splits in sequence.', 'Accept an early modest split', 'Bank value before later decisions erase it.', 'Reject and continue', 'Seek a better offer while the terminal threat approaches.'],
+  ['mixed-strategy', 'The rat merchant has learned your last several choices in matching pennies.', 'Use a private randomizer', 'Give up pattern-based control to stay unpredictable.', 'Choose your favored face', 'Trust intuition despite being observed.'],
+  ['condorcet', 'Three routes cycle in pairwise crew votes. You control whether to hold another comparison.', 'Use the current pairwise winner', 'Stop the agenda where it stands.', 'Demand a full transparent cycle', 'Expose instability at the cost of delay.'],
+  ['arrow', 'No voting rule satisfies every crew’s fairness demand, and departure must happen before dawn.', 'Choose a simple published rule', 'Accept known imperfections consistently.', 'Let the captain decide', 'Trade collective fairness for decisive action.'],
+  ['anchoring', 'A merchant blurts out an arbitrary opening price before asking what a damaged relic is worth to you.', 'Negotiate from the spoken price', 'Use the available number as the starting point.', 'Write a private valuation first', 'Pay time to separate value from the anchor.'],
+  ['availability', 'A vivid cave-in dominates camp talk while quiet injury records point toward a different danger.', 'Guard against the memorable collapse', 'Respond to the event everyone can picture.', 'Follow the dull injury ledger', 'Trust frequency over vividness.'],
+  ['loss-aversion', 'A ward can protect gold already owned or fund a gamble with an equal-sized possible gain.', 'Protect the current purse', 'Avoid a loss that will sting immediately.', 'Risk the purse for growth', 'Accept symmetric gain and loss chances.'],
+  ['confirmation', 'Your map predicts the left tunnel. You can inspect a friendly clue or spend more to test the tunnel most likely to disprove it.', 'Inspect the supporting clue', 'Build confidence cheaply.', 'Test the strongest contradiction', 'Risk abandoning the map to learn more.'],
+  ['base-rate', 'A sensitive mimic detector alarms in a district where mimics are rare. Quarantine is costly.', 'Quarantine immediately', 'Act on the alarming signal.', 'Check district prevalence first', 'Delay action to incorporate the base rate.'],
+  ['prosecutor', 'A rare trace matches one suspect, but many delvers passed through the chamber.', 'Convict on the rare match', 'Treat the striking evidence as decisive.', 'Count alternative sources first', 'Risk letting the suspect go while updating the prior odds.'],
+  ['false-positive', 'A broad alarm catches most threats but flags many safe rooms. Search teams are limited.', 'Search every alarm', 'Maximize sensitivity at high cost.', 'Raise the alarm threshold', 'Miss some threats to reduce false searches.'],
+  ['expected-maximum', 'You may keep one die now or pay to roll a second and keep the higher result.', 'Keep the first die', 'Avoid the fee and preserve what is shown.', 'Buy the second roll', 'Pay for the option to replace a weak result.'],
+];
+
 const DILEMMAS = [
   ['signal-fire', '🔥', 'The Shared Signal Fire', 'Three parties need the beacon, but each hopes another pays for fuel.', 'Contribute fuel', 'Support the public good and make the signal reliable.', 'Wait for the others', 'Free-ride and gamble that enough fuel appears.', 'Public goods invite free-riding because contributors cannot easily exclude noncontributors.'],
   ['shared-rope', '🪢', 'The Common Rope', 'Every team may cut a little rope for itself; too many cuts ruin the crossing.', 'Take only the marked length', 'Preserve the shared resource.', 'Cut an extra coil', 'Gain more now and risk the crossing.', 'Individual extraction can collectively destroy a renewable commons.'],
@@ -76,7 +128,7 @@ const DILEMMAS = [
   ['common-knowledge', '👁️', 'The Blue-Eyed Delvers', 'Everyone sees the mark, but action begins only after its existence is publicly announced.', 'Make the fact public', 'Turn shared observation into common knowledge.', 'Whisper it privately', 'Tell each delver separately.', 'Coordination may require everyone to know that everyone knows, recursively.'],
   ['focal-point', '✳️', 'Meet Without a Map', 'Separated teams must independently choose one of many crypt gates to reunite.', 'Choose the uniquely decorated gate', 'Use salience as a coordination point.', 'Choose a random plain gate', 'Avoid being too obvious.', 'Schelling points coordinate expectations without explicit communication.'],
   ['information-cascade', '🐑', 'Footprints to the Left', 'Two earlier delvers went left; your private clue weakly favors right.', 'Weigh your clue and their information', 'Do not count copied choices as independent evidence.', 'Follow the footprints automatically', 'Assume every predecessor had a separate strong clue.', 'Information cascades form when people rationally imitate, hiding their private evidence.'],
-  ['winner-curse', '👑', "The Winner's Relic", 'You win a relic that everyone estimated independently. What should the victory itself suggest?', 'Your estimate may have been unusually high', 'The relic must be worth your bid', 'All other estimates were irrelevant', 'Winning a common-value auction is evidence that you were the most optimistic.'],
+  ['winner-curse', '👑', "The Winner's Relic", 'You won a common-value relic after every bidder made a noisy estimate. Payment is due, but inspection can still reveal whether to restore or resell it.', 'Commission an independent appraisal', 'Spend more before committing restoration supplies.', 'Trust your winning estimate', 'Act immediately and preserve the remaining upside.', 'Winning a common-value auction is evidence that your estimate may have been the most optimistic, but information and resale options determine what to do next.'],
   ['endowment', '🎒', 'The Trinket Already Yours', 'You demand more to sell a trinket than you would have paid to acquire it.', 'Revalue it without ownership', 'Use the same comparison in either direction.', 'Keep it because possession proves value', 'Treat ownership as new evidence.', 'The endowment effect makes ownership itself inflate perceived value.'],
   ['framing', '🖼️', 'Lives Saved or Lost', 'The same outcome sounds attractive as lives saved and frightening as lives lost.', 'Translate both frames to outcomes', 'Compare equivalent probabilities directly.', 'Choose the positive wording', 'Let presentation determine value.', 'Equivalent descriptions can produce different choices through framing effects.'],
   ['decoy', '🪤', 'The Inferior Pickaxe', 'A clearly worse third pickaxe makes one of two original choices look better.', 'Ignore dominated options', 'Compare the original tradeoff directly.', 'Follow the newly attractive choice', 'Let the decoy set the comparison.', 'An asymmetrically dominated decoy can shift preferences without adding real value.'],
@@ -95,14 +147,52 @@ const DILEMMAS = [
   ['principal-agent', '📋', 'The Absent Mine Owner', 'An owner pays a foreman whose effort is difficult to observe.', 'Reward measurable outcomes carefully', 'Align incentives while guarding against gaming.', 'Pay only a fixed wage', 'Assume effort cannot change.', 'Principal–agent problems arise when goals differ and actions are hidden.'],
 ];
 
-function makeQuiz(entry, index) {
-  const [id, emoji, title, text, correct, wrongA, wrongB, explanation] = entry;
+const CONCEPT_NAMES = {
+  'mean-median': 'Mean versus median', 'gambler-fallacy': "Gambler's fallacy", 'expected-die': 'Expected value',
+  'conditional-coin': 'Conditional probability', 'large-numbers': 'Law of large numbers', simpson: "Simpson's paradox",
+  'regression-mean': 'Regression toward the mean', survivorship: 'Survivorship bias', correlation: 'Correlation versus causation',
+  'p-value': 'P-values and evidence', confidence: 'Confidence intervals', 'sampling-bias': 'Selection bias', independence: 'Statistical independence',
+  permutations: 'Permutations', combinations: 'Combinations', binomial: 'Binomial probability', geometric: 'Geometric waiting time',
+  poisson: 'Poisson arrivals', 'normal-rule': 'Normal distributions', 'central-limit': 'Central limit theorem', variance: 'Variance',
+  'standard-deviation': 'Standard deviation', 'ticket-ev': 'Expected value versus utility', 'risk-aversion': 'Risk aversion', nash: 'Nash equilibrium',
+  'dominant-strategy': 'Dominant strategies', 'zero-sum': 'Zero-sum incentives', pareto: 'Pareto improvements', 'stag-hunt': 'Stag Hunt coordination',
+  'chicken-game': 'Game of Chicken', ultimatum: 'Ultimatum Game', 'public-goods': 'Public-goods games', 'backward-induction': 'Backward induction',
+  'mixed-strategy': 'Mixed strategies', condorcet: 'Condorcet cycles', arrow: "Arrow's impossibility theorem", anchoring: 'Anchoring bias',
+  availability: 'Availability heuristic', 'loss-aversion': 'Loss aversion', confirmation: 'Confirmation bias', 'base-rate': 'Base-rate neglect',
+  prosecutor: "Prosecutor's fallacy", 'false-positive': 'False positives and prevalence', 'expected-maximum': 'Expected maximum and option value',
+  'signal-fire': 'Public-goods free-riding', 'shared-rope': 'Tragedy of the commons', 'sealed-urn': 'Ambiguity aversion and the Ellsberg paradox',
+  'bridge-commitment': 'Strategic commitment', 'map-auction': "Winner's curse", 'expedition-vote': 'Agenda control and preference cycles',
+  'wounded-rival': 'Reciprocity in repeated games', 'ration-pool': 'Mechanism design with private information', 'cursed-coin': 'Tail risk',
+  'oracle-information': 'Value of information', 'mine-insurance': 'Moral hazard', 'single-file': 'Congestion games', volunteer: "Volunteer's dilemma",
+  centipede: 'Centipede Game', 'trust-game': 'Trust Game', 'dictator-game': 'Dictator Game', 'coordination-bells': 'Schelling focal points',
+  'minority-game': 'Minority Game', lemons: 'Market for lemons', 'moral-hazard': 'Moral hazard', 'adverse-selection': 'Adverse selection',
+  'free-rider': 'Free-rider problem', 'credible-threat': 'Credible threats', 'commitment-device': 'Commitment devices and present bias',
+  'common-knowledge': 'Common knowledge', 'focal-point': 'Schelling points', 'information-cascade': 'Information cascades',
+  'winner-curse': "Winner's curse", endowment: 'Endowment effect', framing: 'Framing effect', decoy: 'Decoy effect',
+  hyperbolic: 'Hyperbolic discounting', 'status-quo': 'Status quo bias', escalation: 'Escalation of commitment',
+  'explore-exploit': 'Explore–exploit tradeoff', bandit: 'Multi-armed bandit', 'stopping-chests': 'Optimal stopping',
+  'secretary-torch': 'Secretary problem', 'overgrazed-moss': 'Tragedy of the commons', bystander: 'Bystander effect',
+  'hawk-dove': 'Hawk–Dove Game', 'battle-sexes': 'Battle of the Sexes', 'network-effect': 'Network effects', 'principal-agent': 'Principal–agent problem',
+};
+function conceptName(id) {
+  return CONCEPT_NAMES[id] || id.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ');
+}
+
+function makeDecision(entry, index) {
+  const [id, text, actionA, descA, actionB, descB] = entry;
+  const note = REFERENCE_NOTES.find(candidate => candidate[0] === id);
+  const [, emoji, title, , , , , explanation] = note;
   return [id, {
-    emoji, title, text, extra: true, explanation,
+    emoji, title, text, extra: true, behavioral: true,
+    concept: conceptName(id), explanation, profile: index % 8,
+    actions: [
+      { key: 'a', label: actionA, desc: descA },
+      { key: 'b', label: actionB, desc: descB },
+    ],
     choices: [
-      { key: 'correct', label: correct, desc: 'Commit to this answer.', outcome: 'correct', gold: 35 + (index % 5) * 5 },
-      { key: 'wrong-a', label: wrongA, desc: 'Commit to this answer.', outcome: 'wrong', damage: 4 + (index % 4) },
-      { key: 'wrong-b', label: wrongB, desc: 'Commit to this answer.', outcome: 'wrong', damage: 4 + (index % 4) },
+      { key: 'a', label: actionA, desc: descA },
+      { key: 'b', label: actionB, desc: descB },
+      { key: 'observe', label: 'Gather one more observation', desc: 'Spend a little time or gold to reveal part of the hidden situation.' },
     ],
   }];
 }
@@ -110,17 +200,154 @@ function makeQuiz(entry, index) {
 function makeDilemma(entry, index) {
   const [id, emoji, title, text, prudent, prudentDesc, risky, riskyDesc, explanation] = entry;
   return [id, {
-    emoji, title, text, extra: true, explanation,
+    emoji, title, text, extra: true, behavioral: true,
+    concept: conceptName(id), explanation, profile: (index + 3) % 8,
+    actions: [
+      { key: 'a', label: prudent, desc: 'Commit to this action before the other parties and hidden outcomes are revealed.' },
+      { key: 'b', label: risky, desc: 'Take the competing action before the other parties and hidden outcomes are revealed.' },
+    ],
     choices: [
-      { key: 'prudent', label: prudent, desc: prudentDesc, outcome: 'prudent', gold: 25 + (index % 4) * 5 },
-      { key: 'risk', label: risky, desc: riskyDesc, outcome: 'risk', chance: .38 + (index % 3) * .08, gold: 65 + (index % 4) * 10, damage: 7 + (index % 5) },
-      { key: 'leave', label: 'Leave the chamber', desc: 'Take no prize and recover your breath.', outcome: 'leave', heal: 4 + (index % 4) },
+      { key: 'a', label: prudent, desc: 'Commit resources to this approach.' },
+      { key: 'b', label: risky, desc: 'Commit resources to the competing approach.' },
+      { key: 'observe', label: 'Look for another signal', desc: 'Pay for information before committing.' },
     ],
   }];
 }
 
 export const EXTRA_EVENT_CATALOG = Object.fromEntries([
-  ...QUIZZES.map(makeQuiz),
+  ...DECISIONS.map(makeDecision),
   ...DILEMMAS.map(makeDilemma),
 ]);
 
+function coreSpec(id, emoji, title, concept, text, explanation, profile, a, b) {
+  return [id, {
+    emoji, title, concept, text, explanation, profile, extra: true, behavioral: true,
+    actions: [{ key: 'a', label: a[0], desc: a[1] }, { key: 'b', label: b[0], desc: b[1] }],
+    choices: [
+      { key: 'a', label: a[0], desc: a[1] }, { key: 'b', label: b[0], desc: b[1] },
+      { key: 'observe', label: 'Gather one more observation', desc: 'Pay for information before committing.' },
+    ],
+  }];
+}
+
+export const CORE_BEHAVIORAL_EVENTS = Object.fromEntries([
+  coreSpec('shrine', '🚪', 'The 50/50 Shrine', 'Risk, certainty, and the certainty effect', 'A scorched shrine offers a modest sealed salvage payment or one live door whose outcome was fixed before you arrived.', 'People often overweight certainty relative to a probabilistic prospect. That preference can still be rational when survival resources have nonlinear value.', 0, ['Sell the claim unopened', 'Take a smaller guaranteed settlement.'], ['Open the live door', 'Keep exposure to both the prize and the blast.']),
+  coreSpec('corpse', '🪦', "The Cartographer's Corpse", 'Endowment, reciprocity, and moral preferences', 'A dead cartographer grips valuable charts. Taking them helps this run; stopping to bury him protects no one who can repay you.', 'Behavioral choices often include fairness, identity, and reciprocity even when material incentives predict pure appropriation.', 3, ['Take the annotated maps', 'Use what the dead delver can no longer use.'], ['Bury him and mark the grave', 'Spend time and supplies on an unrewarded norm.']),
+  coreSpec('monty', '🐐', "The Rat's Three Doors", 'Conditional probability and the value of a claim', 'After your first door is chosen, the rat reveals a goat elsewhere. He offers cash for your current claim before you decide whether to exchange it.', 'The host’s informed reveal changes the value of the remaining closed door. Selling certainty can nevertheless be attractive when current resources matter more than expected value.', 7, ['Sell the original claim', 'Lock in the rat’s guaranteed offer.'], ['Exchange for the remaining door', 'Keep the larger conditional chance and accept its variance.']),
+  coreSpec('prisoners', '⛓️', "The Prisoners' Bargain", 'Prisoner’s Dilemma and repeated reputation', 'You and another delver independently choose whether to share a cache. A scratched ledger shows how this stranger treated the previous crew.', 'One-shot incentives can favor defection while repetition, reputation, and uncertain opponent types can sustain cooperation.', 6, ['Offer cooperation', 'Expose yourself to betrayal while creating joint surplus.'], ['Seize your share first', 'Protect against exploitation while reducing mutual value.']),
+  coreSpec('birthday', '🎂', 'The Birthday Crypt', 'Collision probability and social risk', 'A crowded memorial shares a jackpot if any two birth-runes match, but every attendee also consumes scarce provisions.', 'Pairwise opportunities grow much faster than the number of people. The practical choice still balances collision probability against participation cost.', 4, ['Join the crowded memorial', 'Pay provisions to share the collision wager.'], ['Host a smaller private vigil', 'Keep costs predictable and forgo the crowd jackpot.']),
+  coreSpec('bayes', '🧪', "The Alchemist's Test", 'Base-rate updating and false positives', 'A sensitive Rot test marks you positive in a district where infection is rare. Immediate quarantine costs supplies; confirmation risks delay.', 'Posterior risk depends on prevalence, sensitivity, and false-positive rates. Acting early versus buying confirmation remains a genuine cost-of-information choice.', 1, ['Quarantine immediately', 'Pay the precautionary cost before confirmation.'], ['Seek a second independent test', 'Risk delay to reduce uncertainty.']),
+  coreSpec('secretary', '📜', 'The Hiring Ledger', 'Optimal stopping', 'A capable torchbearer stands before you now. More applicants remain, but anyone rejected is gone permanently.', 'Stopping rules trade early options for information and later information for disappearing opportunities; the best threshold depends on stakes and horizon.', 5, ['Hire the current candidate', 'Secure known quality before the option disappears.'], ['Continue interviewing', 'Buy more comparison at the risk of losing this candidate.']),
+  coreSpec('commons', '🍄', 'The Common Mushroom Bed', 'The tragedy of the commons', 'A shared mushroom bed can feed many future crews or be stripped for one expedition tonight.', 'Open access separates private benefit from shared depletion. Restraint, enforcement, and expectations about others all change the strategic choice.', 3, ['Take a sustainable share', 'Leave enough for regrowth and later crews.'], ['Strip the mature bed', 'Capture its current value before someone else does.']),
+  coreSpec('matching', '🪙', 'Matching Pennies', 'Mixed strategies and exploitability', 'The merchant wins on matching faces and studies every habit you show. You may use a noisy private randomizer or trust a deliberate bluff.', 'No pure choice is safe in matching pennies. Randomization prevents exploitation, while a costly or imperfect randomizer can create a real tradeoff.', 7, ['Use the private randomizer', 'Sacrifice control to hide your pattern.'], ['Choose a deliberate bluff', 'Try to exploit what the merchant expects.']),
+  coreSpec('sunkcost', '🕳️', 'The Bottomless Dig', 'Sunk cost and escalation of commitment', 'Three days of work are unrecoverable. One more shift has uncertain value, while leaving frees the crew for a modest known seam.', 'Past expenditure should not change future value, but new evidence, switching costs, and asymmetric upside can still make continuing rational.', 2, ['Move to the known seam', 'Abandon the old shaft and secure a modest return.'], ['Fund one final shift', 'Accept another cost for the remaining upside.']),
+  coreSpec('auction', '🔨', 'The Sealed-Bid Auction', 'Private value, information, and bid shading', 'You know what a relic is worth to this run but not the rival bids. A capped bid protects the purse; a full-value bid wins more often.', 'In a second-price private-value auction truthful bidding is strategically robust, while liquidity constraints and uncertainty about value can change practical utility.', 5, ['Submit a conservative capped bid', 'Preserve gold and accept losing profitable purchases.'], ['Bid your full private value', 'Maximize winning chances without bidding above your value.']),
+  coreSpec('ruin', '🎲', "The Gambler's Ruin", 'Repeated risk and absorbing ruin', 'The house offers another fair double-or-nothing round and can outlast any finite purse.', 'A fair individual wager can still lead a finite player toward eventual ruin when repeated without a stopping rule.', 7, ['Bank the current purse', 'End the sequence with a certain result.'], ['Play another round', 'Keep the upside while remaining exposed to ruin.']),
+]);
+
+function whole(value) { return Math.max(1, Math.round(value)); }
+function signedGold(amount) { return amount >= 0 ? `gain ${amount} gold` : `pay ${Math.abs(amount)} gold`; }
+
+export function createBehavioralEventState(event, context, rolls, gadgetKey = null) {
+  const depth = Math.max(0, context.stratum || 0);
+  const scale = 1 + depth * .22;
+  const lowGold = whole((18 + rolls[0] * 12) * scale);
+  const midGold = whole((34 + rolls[1] * 18) * scale);
+  const highGold = whole((65 + rolls[2] * 30) * scale);
+  const damage = whole((7 + rolls[3] * 7) * (1 + depth * .16));
+  const heal = whole(Math.max(5, context.maxHp * (.12 + rolls[0] * .08)));
+  const chance = Math.round((.36 + rolls[1] * .28) * 100) / 100;
+  const infoCost = Math.min(Math.max(0, context.gold || 0), 4 + depth * 2);
+  const infoDamage = infoCost > 0 ? 0 : 2 + depth;
+  const investCost = Math.min(Math.max(0, context.gold || 0), whole(14 * scale));
+  return {
+    version: 1, stage: 'choice', observed: false, history: [], profile: event.profile || 0,
+    hiddenRoll: rolls[4], secondRoll: rolls[5], lowGold, midGold, highGold, damage, heal, chance,
+    infoCost, infoDamage, investCost, gadgetKey,
+  };
+}
+
+function profileOptions(state) {
+  const pct = Math.round(state.chance * 100);
+  const known = state.observed;
+  const branch = (win, lose) => known
+    ? (state.hiddenRoll < state.chance ? `Observation indicates: ${win}.` : `Observation indicates: ${lose}.`)
+    : `${pct}%: ${win}. Otherwise: ${lose}.`;
+  const profiles = [
+    [
+      { effect: { gold: state.lowGold }, stakes: `Certain: gain ${state.lowGold} gold.` },
+      { effect: state.hiddenRoll < state.chance ? { gold: state.highGold } : { damage: state.damage }, stakes: branch(`gain ${state.highGold} gold`, `take ${state.damage} damage`) },
+    ],
+    [
+      { effect: { heal: state.heal }, stakes: `Recover up to ${state.heal} HP; excess healing is lost.` },
+      { effect: { gold: state.midGold, damage: Math.ceil(state.damage / 2) }, stakes: `Gain ${state.midGold} gold and take ${Math.ceil(state.damage / 2)} damage.` },
+    ],
+    [
+      { effect: { gold: -state.investCost, maxHp: 2, heal: 2 }, stakes: `${signedGold(-state.investCost)}; gain 2 max HP and heal 2.` },
+      { effect: { gold: state.midGold }, stakes: `Gain ${state.midGold} gold now; no lasting improvement.` },
+    ],
+    [
+      { effect: { gold: state.lowGold, heal: Math.ceil(state.heal / 2) }, stakes: `Gain ${state.lowGold} gold and recover up to ${Math.ceil(state.heal / 2)} HP.` },
+      { effect: { gold: state.highGold, curse: 'claustrophobia' }, stakes: `Gain ${state.highGold} gold; Claustrophobia enters your deck.` },
+    ],
+    [
+      { effect: { gold: state.midGold }, stakes: `Certain: gain ${state.midGold} gold.` },
+      { effect: state.hiddenRoll < state.chance ? { maxHp: 3, heal: 3 } : { damage: state.damage }, stakes: branch('gain 3 max HP', `take ${state.damage} damage`) },
+    ],
+    [
+      { effect: { gold: state.midGold }, stakes: `Take ${state.midGold} gold for the current run.` },
+      { effect: { gold: -state.investCost, upgrade: true }, stakes: `${signedGold(-state.investCost)} and upgrade one random eligible card.` },
+    ],
+    [
+      { effect: { heal: state.heal, gold: Math.ceil(state.lowGold / 2) }, stakes: `Recover up to ${state.heal} HP and gain ${Math.ceil(state.lowGold / 2)} gold.` },
+      { effect: state.hiddenRoll < state.chance ? { gadget: state.gadgetKey } : { damage: state.damage, gold: Math.ceil(state.midGold / 2) }, stakes: branch('gain a gadget', `take ${state.damage} damage but gain ${Math.ceil(state.midGold / 2)} gold`) },
+    ],
+    [
+      { effect: state.hiddenRoll < .72 ? { gold: state.midGold } : { damage: Math.ceil(state.damage / 2) }, stakes: known ? (state.hiddenRoll < .72 ? `Observation indicates a ${state.midGold}-gold gain.` : `Observation indicates ${Math.ceil(state.damage / 2)} damage.`) : `72%: gain ${state.midGold} gold; otherwise take ${Math.ceil(state.damage / 2)} damage.` },
+      { effect: state.secondRoll < .34 ? { gold: state.highGold } : { damage: state.damage }, stakes: known ? (state.secondRoll < .34 ? `Observation indicates a ${state.highGold}-gold gain.` : `Observation indicates ${state.damage} damage.`) : `34%: gain ${state.highGold} gold; otherwise take ${state.damage} damage.` },
+    ],
+  ];
+  return profiles[state.profile % profiles.length];
+}
+
+export function behavioralEventView(event, state) {
+  const options = profileOptions(state);
+  const canObserve = [0, 4, 6, 7].includes(state.profile % 8);
+  const observationCost = state.infoCost
+    ? `Spend ${state.infoCost} gold to reveal which uncertain branch is waiting.`
+    : `No gold remains: lose ${state.infoDamage} HP to investigate personally.`;
+  const choices = event.actions.map((action, index) => ({
+    key: action.key, label: action.label,
+    desc: `${action.desc} ${options[index].stakes}`,
+  }));
+  if (canObserve && !state.observed) choices.push({ key: 'observe', label: 'Gather one more observation', desc: observationCost });
+  return {
+    text: state.observed ? `${event.text} You paid to inspect the mechanism; its immediate consequence is now visible.` : event.text,
+    choices,
+    stageLabel: state.observed ? 'Evidence gathered · commit' : canObserve ? 'Decision · evidence incomplete' : 'Decision · known tradeoff',
+  };
+}
+
+export function resolveBehavioralEvent(event, state, key) {
+  if (state.stage === 'resolved') return null;
+  if (key === 'observe' && !state.observed && [0, 4, 6, 7].includes(state.profile % 8)) {
+    state.observed = true;
+    state.stage = 'informed-choice';
+    state.history.push('observe');
+    return {
+      done: false,
+      effect: state.infoCost ? { gold: -state.infoCost } : { damage: state.infoDamage },
+      note: state.infoCost ? `You spend ${state.infoCost} gold gathering evidence.` : `The investigation costs ${state.infoDamage} HP.`,
+    };
+  }
+  const index = event.actions.findIndex(action => action.key === key);
+  if (index < 0) return null;
+  const option = profileOptions(state)[index];
+  state.history.push(key);
+  state.stage = 'resolved';
+  return {
+    done: true, effect: option.effect, stakes: option.stakes, action: event.actions[index],
+    title: event.title,
+    html: `<p><b>Your decision:</b> ${event.actions[index].label}</p><p>${option.stakes}</p><hr><p><b>What this tested — ${event.concept}</b></p><p>${event.explanation}</p><p class="dim">This was not graded as a remembered answer. The choice traded current resources, uncertainty, and future value inside this run.</p>`,
+  };
+}

@@ -2,21 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { CLASSES } from '../engine/data.js';
 import { closeCutscene, run, ui } from '../engine/engine.js';
 import { sfx } from '../engine/sfx.js';
-import { DELVER_PORTRAITS, ratMerchantPortrait } from './portraits.js';
-import openingArt from '../assets/cutscenes/opening.webp';
-import campArt from '../assets/cutscenes/camp.webp';
-import archivesArt from '../assets/cutscenes/sunk-archives.webp';
-import clockworkArt from '../assets/cutscenes/clockwork-depths.webp';
-import collapserArt from '../assets/cutscenes/collapser.webp';
-import fogfatherArt from '../assets/cutscenes/fogfather.webp';
-import nn99Art from '../assets/cutscenes/nn99.webp';
-import finaleArt from '../assets/cutscenes/finale.webp';
+import { delverPortrait, ratMerchantPortrait } from './portraits.js';
+import { loadPreferences } from '../engine/preferences.js';
+import { enemyIcon } from './enemyIcons.jsx';
+import { GameIcon } from './gameIcons.jsx';
+import { ENEMIES } from '../engine/data.js';
+import { cutsceneArt } from './cutsceneArt.js';
 
 const TYPE_INTERVAL_MS = 22;
 
 const BOSS_SCENES = [
   {
-    name: 'The Collapser', mark: '🕳️', art: collapserArt,
+    name: 'The Collapser', enemyKey: 'collapser', artKey: 'collapser',
     intro: [
       ['narrator', 'The tunnel opens into a chamber held together by one groaning column. Something beneath it turns.'],
       ['boss', 'Every brace breaks. Every roof comes down.'],
@@ -28,7 +25,7 @@ const BOSS_SCENES = [
     ],
   },
   {
-    name: 'The Fogfather', mark: '🌁', art: fogfatherArt,
+    name: 'The Fogfather', enemyKey: 'fogfather', artKey: 'fogfather',
     intro: [
       ['narrator', 'A bell sounds somewhere inside the fog. The answer comes from directly behind you.'],
       ['boss', 'Maps are only promises made by the lost.'],
@@ -40,7 +37,7 @@ const BOSS_SCENES = [
     ],
   },
   {
-    name: 'NN-99', mark: '🛰️', art: nn99Art,
+    name: 'NN-99', enemyKey: 'nn99', artKey: 'nn99',
     intro: [
       ['narrator', 'An ancient survey engine unfolds above the seam. Its red lens fixes on your heartbeat.'],
       ['boss', 'FAULT DETECTED. DELVER CONFIDENCE EXCEEDS SAFE LIMIT.'],
@@ -73,7 +70,7 @@ const SHOP_LINES = [
 
 function getScene(id, context = {}) {
   if (id === 'opening') return {
-    kind: 'opening', title: 'The Mouth of the Undermine', art: openingArt, mark: '⛏', markLabel: 'DESCEND', finalLabel: 'Enter the crypt',
+    kind: 'opening', title: 'The Mouth of the Undermine', art: cutsceneArt('opening'), iconName: 'picks', markLabel: 'DESCEND', finalLabel: 'Enter the crypt',
     lines: [
       ['narrator', 'The lift stops where the maps begin lying. Beneath your boots, the Undermine shifts in its sleep.'],
       ['player', 'Lantern trimmed. Deck checked. One way left to go.'],
@@ -81,32 +78,32 @@ function getScene(id, context = {}) {
     ],
   };
   if (id === 'shop') return {
-    kind: 'merchant', title: 'The Rat Merchant', art: ratMerchantPortrait, finalLabel: 'See the wares',
+    kind: 'merchant', title: 'The Rat Merchant', art: ratMerchantPortrait(), finalLabel: 'See the wares',
     lines: SHOP_LINES[Math.max(0, Math.min(2, context.stratum ?? run.stratum))],
   };
   if (id === 'camp') return {
-    kind: 'camp', title: 'A Candle in the Dark', art: campArt, mark: '🔥', markLabel: 'RESPITE', finalLabel: 'Choose how to rest',
+    kind: 'camp', title: 'A Candle in the Dark', art: cutsceneArt('camp'), iconName: 'camp', markLabel: 'RESPITE', finalLabel: 'Choose how to rest',
     lines: [
       ['narrator', 'A dry ledge, an old fire ring, and just enough silence to hear yourself think.'],
       ['player', 'The dark can wait one more minute.'],
     ],
   };
   if (id === 'descent-1') return {
-    kind: 'descent', title: 'The Sunk Archives', art: archivesArt, mark: '📜', markLabel: 'STRATUM II', finalLabel: 'Descend',
+    kind: 'descent', title: 'The Sunk Archives', art: cutsceneArt('archives'), iconName: 'deck', markLabel: 'STRATUM II', finalLabel: 'Descend',
     lines: [
       ['narrator', 'Below the broken supports, drowned shelves lean into corridors filled with silver fog.'],
       ['player', 'Someone catalogued this place. Let us see what they were afraid to name.'],
     ],
   };
   if (id === 'descent-2') return {
-    kind: 'descent', title: 'The Clockwork Depths', art: clockworkArt, mark: '⚙', markLabel: 'STRATUM III', finalLabel: 'Descend',
+    kind: 'descent', title: 'The Clockwork Depths', art: cutsceneArt('clockwork'), iconName: 'services', markLabel: 'STRATUM III', finalLabel: 'Descend',
     lines: [
       ['narrator', 'The stone gives way to brass. Far below, buried machinery resumes counting your steps.'],
       ['player', 'So much for being unexpected.'],
     ],
   };
   if (id === 'finale') return {
-    kind: 'finale', title: 'The Seam Is Silent', art: finaleArt, mark: '◆', markLabel: 'FOR NOW', finalLabel: 'See the reckoning',
+    kind: 'finale', title: 'The Seam Is Silent', art: cutsceneArt('finale'), iconName: 'victory', markLabel: 'FOR NOW', finalLabel: 'See the reckoning',
     lines: [
       ['narrator', 'The last red lens goes dark. Dust drifts through a silence deeper than stone.'],
       ['player', 'Not the bottom. Just the end of this map.'],
@@ -121,8 +118,8 @@ function getScene(id, context = {}) {
     return {
       kind: phase === 'intro' ? 'boss-intro' : 'boss',
       title: boss.name,
-      art: boss.art,
-      mark: boss.mark,
+      art: cutsceneArt(boss.artKey),
+      enemyKey: boss.enemyKey,
       markLabel: phase === 'intro' ? 'BOSS AHEAD' : 'DEFEATED',
       finalLabel: phase === 'intro' ? 'Face the boss' : 'Claim the spoils',
       lines: boss[phase],
@@ -148,6 +145,7 @@ export function Cutscene() {
   const [beat, setBeat] = useState(0);
   const [shown, setShown] = useState(reduceMotion() ? Infinity : 0);
   const skipTypeRef = useRef(false);
+  const prefs = loadPreferences();
 
   const [speaker, line] = scene ? scene.lines[beat] : ['narrator', ''];
   const typing = shown < line.length;
@@ -197,11 +195,11 @@ export function Cutscene() {
           <img className={`cutscene-main-art ${speaker === 'merchant' || speaker === 'boss' ? 'speaking' : ''}`}
             src={scene.art} alt={`${scene.title} cutscene`} />
           <div className={`cutscene-player ${speaker === 'player' ? 'speaking' : ''}`}>
-            <img src={DELVER_PORTRAITS[run.cls]} alt={CLASSES[run.cls].name} />
+            <img src={delverPortrait(run.cls)} alt={CLASSES[run.cls].name} />
           </div>
-          {scene.mark && (
+          {(scene.iconName || scene.enemyKey) && (
             <div className="cutscene-mark" aria-label={`${scene.title}: ${scene.markLabel}`}>
-              <span>{scene.mark}</span><small>{scene.markLabel}</small>
+              <span>{scene.enemyKey ? enemyIcon(scene.enemyKey, ENEMIES[scene.enemyKey], prefs) : <GameIcon name={scene.iconName} preferences={prefs} />}</span><small>{scene.markLabel}</small>
             </div>
           )}
           <div className="cutscene-vignette" />

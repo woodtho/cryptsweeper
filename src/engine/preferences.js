@@ -12,6 +12,11 @@ const DEFAULTS = {
   mapIconStyle: 'emoji',
   mapEmojis: {},
   mapMarks: {},
+  mapIconMix: {},
+  enemyIconMix: {},
+  interfaceIconStyle: 'emoji',
+  interfaceIconMix: {},
+  customIconSets: {},
   notoEmoji: true,
 };
 

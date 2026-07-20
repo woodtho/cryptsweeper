@@ -2,6 +2,7 @@ import { CARDS } from '../engine/data.js';
 import { run, ui, closeModal, doUpgrade, doRemove } from '../engine/engine.js';
 import { CardView } from './CardView.jsx';
 import { decorateMechanics } from './mechanics.js';
+import { GameIcon, IconText } from './gameIcons.jsx';
 
 export function ModalHost() {
   const m = ui.modal;
@@ -10,7 +11,7 @@ export function ModalHost() {
   if (m.kind === 'info') {
     body = (
       <>
-        <h2>{m.title}</h2>
+        <h2><IconText>{m.title}</IconText></h2>
         <div dangerouslySetInnerHTML={{ __html: decorateMechanics(m.html) }} />
         <button className="btn primary" onClick={closeModal}>{m.btn || 'Continue'}</button>
       </>
@@ -43,7 +44,7 @@ export function ModalHost() {
       .filter(x => !x.c.up && CARDS[x.c.key].cost != null);
     body = (
       <>
-        <h2>⛏ Upgrade a card</h2>
+        <h2><GameIcon name="upgrade" /> Upgrade a card</h2>
         <p className="sub">Previewing upgraded versions — pick one.</p>
         <div className="cardpick">
           {upgradable.map(x => (

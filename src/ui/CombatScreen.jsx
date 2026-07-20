@@ -7,15 +7,17 @@ import {
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { enemyIcon } from './enemyIcons.jsx';
+import { itemVector } from './themedIcons.jsx';
 import { BoardView } from './BoardView.jsx';
 import { CardView } from './CardView.jsx';
+import { GameIcon, IconText } from './gameIcons.jsx';
 
 const SPEC_TEXT = {
   hidden: 'a hidden tile', open: 'a revealed tile', number: 'a revealed number',
   row: 'a row', anytile: 'any tile',
 };
 
-function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji }) {
+function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji, preferences }) {
   const pct = Math.max(0, (e.hp / e.maxHp) * 100);
   const targeted = curTarget() === e;
   const buried = e.data.buried;
@@ -39,7 +41,7 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji }) {
           {d.amount > 0 ? `−${d.amount}` : d.note}
         </span>
       ))}
-      <div className="art">{buried ? '🕳️' : emoji}</div>
+      <div className="art">{buried ? <GameIcon name="buried" preferences={preferences} /> : emoji}</div>
       <div className="einfo">
         <div className="ename">
           {e.def.name}
@@ -49,12 +51,12 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji }) {
         <div className="hpline"><div className="hpfill" style={{ width: `${pct}%` }} /></div>
         <div className="estats">
           {e.hp}/{e.maxHp}
-          {e.block ? ` · 🛡${e.block}` : ''}
+          {e.block ? <> · <GameIcon name="block" preferences={preferences} />{e.block}</> : ''}
           {lairLeft > 0 && (
             <span title="Its lair: reveal these tiles to hurt it — safe tiles deal their number, detonated mines deal 10.">
               {' · '}
               <span className="lairswatch" style={{ background: LAIR_COLORS[idx % LAIR_COLORS.length] }} />
-              ⛏ {lairLeft}
+              <GameIcon name="lair" preferences={preferences} /> {lairLeft}
             </span>
           )}
           {e.def.gated ? <> · <span className="dim">{e.def.gateNote}</span></> : null}
@@ -65,13 +67,13 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji }) {
   );
 }
 
-function EnemyToken({ e, idx, selected, onClick, emoji }) {
+function EnemyToken({ e, idx, selected, onClick, emoji, preferences }) {
   if (e.hp <= 0) return null;
-  const intentIcon = e.intent?.cls === 'atk' ? '⚔' : e.intent?.cls === 'defend' ? '🛡' : '⛏';
+  const intentIcon = <GameIcon name={e.intent?.cls === 'atk' ? 'attack' : e.intent?.cls === 'defend' ? 'defend' : 'lair'} preferences={preferences} />;
   return <button type="button" className={`enemy-token ${selected ? 'selected' : ''}`} onClick={() => onClick(idx)}
     aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} health. ${e.intent?.label || 'No intent'}`}>
-    <span className="enemy-token-art">{e.data.buried ? '🕳️' : emoji}</span>
-    <span className="enemy-token-hp">❤ {e.hp}</span>
+    <span className="enemy-token-art">{e.data.buried ? <GameIcon name="buried" preferences={preferences} /> : emoji}</span>
+    <span className="enemy-token-hp"><GameIcon name="health" preferences={preferences} /> {e.hp}</span>
     <span className={`enemy-token-intent ${e.intent?.cls || ''}`} title={e.intent?.label}>{intentIcon}</span>
     {curTarget() === e && !e.data.buried && <span className="enemy-token-target">⌖</span>}
   </button>;
@@ -146,17 +148,17 @@ export function CombatScreen({ preferences = {} }) {
     <div className="enemy-roster-list">
       {compact ? c.enemies.map((e, i) => (
         <EnemyToken key={`${keyPrefix}-${i}`} e={e} idx={i} selected={focusedEnemy === i} onClick={focusEnemy}
-          emoji={enemyIcon(e.key, e.def, preferences)} />
+          emoji={enemyIcon(e.key, e.def, preferences)} preferences={preferences} />
       )) : c.enemies.map((e, i) => (
         <EnemyView key={`${keyPrefix}-${i}`} e={e} idx={i} hitMode={hitModeFor(e)} onHover={setHoverLair}
-          focused={focusedEnemy === i} onFocus={focusEnemy} emoji={enemyIcon(e.key, e.def, preferences)} />
+          focused={focusedEnemy === i} onFocus={focusEnemy} emoji={enemyIcon(e.key, e.def, preferences)} preferences={preferences} />
       ))}
     </div>
     {compact && focusedEnemy >= 0 && c.enemies[focusedEnemy]?.hp > 0 && <div className="enemy-detail-popover">
       <button type="button" className="enemy-detail-close" onClick={() => setFocusedEnemy(-1)} aria-label="Close enemy details">×</button>
       <EnemyView e={c.enemies[focusedEnemy]} idx={focusedEnemy} hitMode={hitModeFor(c.enemies[focusedEnemy])}
         onHover={setHoverLair} focused onFocus={focusEnemy}
-        emoji={enemyIcon(c.enemies[focusedEnemy].key, c.enemies[focusedEnemy].def, preferences)} />
+        emoji={enemyIcon(c.enemies[focusedEnemy].key, c.enemies[focusedEnemy].def, preferences)} preferences={preferences} />
     </div>}
   </div>;
   const itemEntries = [
@@ -172,21 +174,21 @@ export function CombatScreen({ preferences = {} }) {
   return (
     <>
       <TopBar>
-        <span className="stat" data-mechanic="block">🛡 <b>{c.block}</b></span>
-        <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}>⛨ <b>{c.plating}</b></span>
+        <span className="stat" data-mechanic="block"><GameIcon name="block" preferences={preferences} /> <b>{c.block}</b></span>
+        <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}><GameIcon name="plating" preferences={preferences} /> <b>{c.plating}</b></span>
         {(run.cls === 'surveyor' || c.insight > 0) && (
-          <span className="stat" data-mechanic="insight" style={{ color: 'var(--n2)' }}>👁 <b>{c.insight}</b> Insight</span>
+          <span className="stat" data-mechanic="insight" style={{ color: 'var(--n2)' }}><GameIcon name="insight" preferences={preferences} /> <b>{c.insight}</b> Insight</span>
         )}
-        <span className="seg" data-mechanic="mines" tabIndex="0" title="hidden mines − flags">☀ {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
+        <span className="seg" data-mechanic="mines" tabIndex="0" title="hidden mines − flags"><GameIcon name="mines" preferences={preferences} /> {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
         <span className="seg" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}>▦ {String(safeLeft).padStart(2, '0')}</span>
-        <span className="seg" data-mechanic="max picks" title="current / max picks" style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}>⛏ {c.picks}/{c.maxPicks}</span>
+        <span className="seg" data-mechanic="max picks" title="current / max picks" style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}><GameIcon name="picks" preferences={preferences} /> {c.picks}/{c.maxPicks}</span>
         <span className="seg" data-mechanic="turn" tabIndex="0" title="turn">T{String(c.turn).padStart(2, '0')}</span>
-        <span className="seg energy-stat" data-mechanic="energy" tabIndex="0">⚡ {c.energy}</span>
-        <button className="header-pile" onClick={() => openPileModal('draw')} title="Open draw pile">🂠 {c.draw.length}</button>
-        <button className="header-pile" onClick={() => openPileModal('discard')} title="Open discard pile">♻ {c.discard.length}</button>
-        {c.exhaust.length > 0 && <button className="header-pile" onClick={() => openPileModal('exhaust')} title="Open exhaust pile">✕ {c.exhaust.length}</button>}
+        <span className="seg energy-stat" data-mechanic="energy" tabIndex="0"><GameIcon name="energy" preferences={preferences} /> {c.energy}</span>
+        <button className="header-pile" onClick={() => openPileModal('draw')} title="Open draw pile"><GameIcon name="draw" preferences={preferences} /> {c.draw.length}</button>
+        <button className="header-pile" onClick={() => openPileModal('discard')} title="Open discard pile"><GameIcon name="discard" preferences={preferences} /> {c.discard.length}</button>
+        {c.exhaust.length > 0 && <button className="header-pile" onClick={() => openPileModal('exhaust')} title="Open exhaust pile"><GameIcon name="exhaust" preferences={preferences} /> {c.exhaust.length}</button>}
         {!c.instinctUsed && (
-          <span className="stat dim" data-mechanic="instinct">🐾 instinct ready</span>
+          <span className="stat dim" data-mechanic="instinct"><GameIcon name="instinct" preferences={preferences} /> instinct ready</span>
         )}
       </TopBar>
 
@@ -194,7 +196,7 @@ export function CombatScreen({ preferences = {} }) {
 
       {t && (
         <div className="hint">
-          🎯 {CARDS[c.hand[t.handIdx].key].name}: pick {SPEC_TEXT[spec] || ''} ({t.picked.length}/{t.specs.length})
+          <GameIcon name="target" preferences={preferences} /> {CARDS[c.hand[t.handIdx].key].name}: pick {SPEC_TEXT[spec] || ''} ({t.picked.length}/{t.specs.length})
           {t.optional && t.picked.length > 0 ? ' · click the card again to finish' : ''}
           {' · '}
           <a style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={cancelTargeting}>cancel</a>
@@ -202,7 +204,7 @@ export function CombatScreen({ preferences = {} }) {
       )}
       {!t && ui.gadgetTargeting && (
         <div className="hint">
-          🎯 {GADGETS[ui.gadgetTargeting].name}: pick a tile
+          <GameIcon name="target" preferences={preferences} /> {GADGETS[ui.gadgetTargeting].name}: pick a tile
           {' · '}
           <a style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={cancelTargeting}>cancel</a>
         </div>
@@ -216,30 +218,30 @@ export function CombatScreen({ preferences = {} }) {
           {enemyRoster('desktop-enemy-roster', 'desktop')}
           <div className="combat-utility-row">
             {itemEntries.length > 0 && <button type="button" className="item-toggle" onClick={() => setShowItems(x => !x)} aria-expanded={showItems}>
-                <span className="item-toggle-bag">🎒</span>
+                <span className="item-toggle-bag"><GameIcon name="bag" preferences={preferences} /></span>
                 <span className="item-preview">
-                  {itemEntries.slice(0, 4).map(item => <span className="item-preview-icon" key={item.id}>{item.def.emoji}<small>{item.count}</small></span>)}
+                  {itemEntries.slice(0, 4).map(item => <span className="item-preview-icon" key={item.id}>{itemVector(item.key, preferences)}<small>{item.count}</small></span>)}
                   {itemEntries.length > 4 && <b>+{itemEntries.length - 4}</b>}
                 </span>
                 <span className="item-total">{itemEntries.reduce((sum, item) => sum + item.count, 0)}</span>
                 <span>{showItems ? '▲' : '▼'}</span>
               </button>}
-            <button className={`btn log-toggle ${showLog ? 'active' : ''}`} onClick={() => setShowLog(x => !x)}>☷ Log {showLog ? '▲' : '▼'}</button>
+            <button className={`btn log-toggle ${showLog ? 'active' : ''}`} onClick={() => setShowLog(x => !x)}><GameIcon name="log" preferences={preferences} /> Log {showLog ? '▲' : '▼'}</button>
           </div>
           {showItems && <div className="item-tray">
               {itemEntries.map(item => item.kind === 'gadget'
                 ? <button key={item.id} className="item-tray-entry usable" onClick={() => { setShowItems(false); useGadget(item.key); }}>
-                    <span>{item.def.emoji}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count} · Use</i>
+                    <span>{itemVector(item.key, preferences)}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count} · Use</i>
                   </button>
                 : <div key={item.id} className="item-tray-entry">
-                    <span>{item.def.emoji}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count}</i>
+                    <span>{itemVector(item.key, preferences)}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count}</i>
                   </div>)}
             </div>}
           {c.powersPlayed.length > 0 && (
             <div className="gadgetrow dim">Powers: {c.powersPlayed.map(p => CARDS[p.key].name).join(', ')}</div>
           )}
           {showLog && <div className="log" ref={logRef}>
-            {c.log.length ? c.log.map((x, i) => <div key={i} className="entry">{x}</div>) : <div className="entry">The crypt is quiet.</div>}
+            {c.log.length ? c.log.map((x, i) => <div key={i} className="entry"><IconText preferences={preferences}>{x}</IconText></div>) : <div className="entry">The crypt is quiet.</div>}
           </div>}
         </div>
       </div>
@@ -247,7 +249,7 @@ export function CombatScreen({ preferences = {} }) {
       <div className={`hand-drawer ${showHand ? 'open' : ''}`}>
         <div className="combat-primary-actions">
           <button className="btn hand-toggle" aria-expanded={showHand} onClick={() => setShowHand(x => !x)}>
-            {showHand ? '▼ Hide cards' : `🃏 Show cards (${c.hand.length})`}
+            {showHand ? <>▼ Hide cards</> : <><GameIcon name="cards" preferences={preferences} /> Show cards ({c.hand.length})</>}
           </button>
           <button className="btn primary end-turn" onClick={endTurn}>END TURN ▸</button>
         </div>

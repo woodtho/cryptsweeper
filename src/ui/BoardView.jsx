@@ -3,6 +3,9 @@ import {
   run, ui, cbt, board, numAt, neighborsOf, aliveEnemies, tileEligible,
   clickTile, toggleFlag, puzzleClick, puzzleToggleFlag, LAIR_COLORS,
 } from '../engine/engine.js';
+import { loadPreferences } from '../engine/preferences.js';
+import { enemyIcon } from './enemyIcons.jsx';
+import { interfaceIcon } from './gameIcons.jsx';
 
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
@@ -19,6 +22,7 @@ function orthIdx(i, size, dir) {
 }
 
 function Tile({ i, mode, hiliteLair }) {
+  const prefs = loadPreferences();
   const b = mode === 'puzzle' ? run.puzzle.board : board();
   const cell = b.cells[i];
   const num = mode === 'puzzle'
@@ -33,10 +37,10 @@ function Tile({ i, mode, hiliteLair }) {
   if (cell.entombed) { cls.push('entombed'); content = '▦'; title.push('Entombed — counts as revealed for Full Clear'); }
   else if (cell.revealed) {
     cls.push('open');
-    if (cell.crater) { cls.push('crater'); content = '✸'; title.push('Crater — a mine detonated here'); }
+    if (cell.crater) { cls.push('crater'); content = interfaceIcon('crater', prefs); title.push('Crater — a mine detonated here'); }
     else if (cell.construct) {
       cls.push('construct');
-      const icons = { sentry: '🗼', bulwark: '🛡️', relay: '⌁' };
+      const icons = { sentry: interfaceIcon('sentry', prefs), bulwark: interfaceIcon('bulwark', prefs), relay: interfaceIcon('relay', prefs) };
       const labels = { sentry: 'Sentry — fires at end of turn', bulwark: 'Bulwark — Plating + Block at end of turn', relay: 'Survey Relay — scans and grants Block at end of turn' };
       content = icons[cell.construct.kind] || '◆'; title.push(labels[cell.construct.kind] || 'Construct');
     }
@@ -50,16 +54,16 @@ function Tile({ i, mode, hiliteLair }) {
     }
   } else {
     if (cell.grub) {
-      cls.push('grub'); content = '🪱';
+      cls.push('grub'); content = interfaceIcon('grub', prefs);
       title.push('Grubber burrow — reveal this tile to unearth it');
     }
     if (cell.flag) {
-      cls.push('flag'); if (cell.flag === 2) cls.push('verified'); content = '⚑';
+      cls.push('flag'); if (cell.flag === 2) cls.push('verified'); content = interfaceIcon('flag', prefs);
       title.push(cell.flag === 2 ? 'Verified flag — this IS a mine' : 'Flag (your annotation, unverified)');
     }
     if (cell.primed) {
       cls.push('primed');
-      if (!cell.flag) content = '💣';
+      if (!cell.flag) content = interfaceIcon('bomb', prefs);
       title.push('PRIMED — flag, defuse, or reveal it before Detonata strikes!');
     }
     if (cell.glow) { cls.push('glow'); title.push('Dowsing Rod: provably safe'); }
@@ -102,7 +106,7 @@ function Tile({ i, mode, hiliteLair }) {
           lairStyle[`border${dir[0].toUpperCase()}${dir.slice(1)}`] = `2px solid ${color}aa`;
         }
       }
-      if (owner.lair[Math.floor(owner.lair.length / 2)] === i) lairGhost = owner.def.emoji;
+      if (owner.lair[Math.floor(owner.lair.length / 2)] === i) lairGhost = enemyIcon(owner.key, owner.def, prefs);
       title.push(`${owner.def.name}'s lair — dig here to wound it (numbers hit harder; its mines deal 10 to it)`);
       if (hiliteLair === lairIdx) cls.push('lairhi');
     }
@@ -156,7 +160,7 @@ function Tile({ i, mode, hiliteLair }) {
       {lairGhost ? <span className="lairghost">{lairGhost}</span> : null}
       {content}
       {!cell.revealed && !cell.entombed && cell.scan
-        ? <span className={`scanmark ${cell.scan}`}>{cell.scan === 'mine' ? '☠' : '◆'}</span> : null}
+        ? <span className={`scanmark ${cell.scan}`}>{interfaceIcon(cell.scan === 'mine' ? 'bomb' : 'safe', prefs)}</span> : null}
       {teleTop ? <span className="telemark">▼</span> : null}
     </div>
   );

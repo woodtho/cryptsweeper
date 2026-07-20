@@ -3,7 +3,8 @@
    map's Delver's Marks: 24×24, 1.7px round strokes, currentColor throughout.
    Tokens are stored as 'svg:<name>' so they survive in preferences. */
 
-import { Mark } from './mapIcons.jsx';
+import { Mark, themedVector, VECTOR_THEMES } from './mapIcons.jsx';
+import { customIconSets, customSetBase, customSetIcon, iconSetLabel, resolveAtlasIcon } from './iconSets.js';
 
 export const BEAST_MARKS = {
   /* the burrowers — grubbers and tunneler grubs */
@@ -141,7 +142,7 @@ export const BEAST_NAMES = Object.keys(BEAST_MARKS);
 
 /* Ten selectable enemy sets. Within every set, each of the fourteen foes has
    its own unique face — sets share nothing internally, only themes. */
-export const ENEMY_ICON_STYLES = {
+const LEGACY_ENEMY_ICON_STYLES = {
   classic: { label: 'Emoji', icons: {} }, // falls back to each enemy's own emoji
   crypt: {
     label: 'Graveyard',
@@ -218,7 +219,42 @@ export const ENEMY_ICON_STYLES = {
   },
 };
 
-export function resolveEnemyIcon(icon) {
+const ENEMY_BASE = {
+  grubber: 'worm', minelayer: 'imp', warden: 'golem', wisp: 'wisp', shade: 'shade', tunneler: 'grub',
+  clockwork: 'cog', gearhusk: 'husk', ossuary: 'skull', miscounter: 'mask', detonata: 'bomb',
+  collapser: 'spiral', fogfather: 'bell', nn99: 'lens',
+};
+const themedBeasts = {};
+for (const [theme, def] of Object.entries(VECTOR_THEMES)) {
+  for (const [name, mark] of Object.entries(BEAST_MARKS)) themedBeasts[`${theme}-${name}`] = themedVector(mark, def.frame);
+}
+Object.assign(BEAST_MARKS, themedBeasts);
+
+const VECTOR_ENEMY_ICON_STYLES = Object.fromEntries(Object.entries(VECTOR_THEMES).map(([theme, def]) => [theme, {
+  label: def.label,
+  icons: Object.fromEntries(Object.entries(ENEMY_BASE).map(([enemy, mark]) => [enemy, `svg:${theme}-${mark}`])),
+}]));
+
+/* The original artwork remains available alongside the ten new vector sets. */
+export const ENEMY_ICON_STYLES = {
+  ...LEGACY_ENEMY_ICON_STYLES,
+  ...VECTOR_ENEMY_ICON_STYLES,
+  mixer: { label: 'Mix & Match', icons: {} },
+};
+
+export function getEnemyIconStyles(prefs) {
+  const custom = Object.fromEntries(Object.keys(customIconSets(prefs)).map(id => {
+    const base = customSetBase(id, prefs, 'emoji');
+    const source = ENEMY_ICON_STYLES[base] || ENEMY_ICON_STYLES.classic;
+    const icons = { ...source.icons };
+    for (const key of Object.keys(ENEMY_BASE)) icons[key] = customSetIcon(id, 'enemy', key, prefs) || icons[key];
+    return [id, { label: iconSetLabel(id, prefs), icons }];
+  }));
+  return { ...ENEMY_ICON_STYLES, ...custom };
+}
+
+export function resolveEnemyIcon(icon, prefs = null) {
+  if (typeof icon === 'string' && icon.startsWith('atlas:')) return resolveAtlasIcon(icon, prefs);
   if (typeof icon === 'string' && icon.startsWith('svg:')) return BEAST_MARKS[icon.slice(4)] || '?';
   return icon;
 }
@@ -227,9 +263,14 @@ export function resolveEnemyIcon(icon) {
    first (emoji text or an 'svg:' mark token), then the chosen style, then
    the enemy's own emoji from data. */
 export function enemyIcon(key, def, prefs) {
-  const custom = prefs?.enemyEmojis?.[key];
-  if (typeof custom === 'string' && custom.trim()) return resolveEnemyIcon(custom.trim());
-  const style = ENEMY_ICON_STYLES[prefs?.enemyIconStyle] || ENEMY_ICON_STYLES.classic;
-  const styled = style.icons[key];
-  return styled ? resolveEnemyIcon(styled) : (def?.emoji ?? '?');
+  let styleKey = prefs?.enemyIconStyle;
+  if (styleKey === 'mixer') {
+    const choice = prefs?.enemyIconMix?.[key];
+    styleKey = choice?.style && choice.style !== 'mixer' ? choice.style : 'classic';
+  }
+  const customArt = customSetIcon(styleKey, 'enemy', key, prefs);
+  const base = customSetBase(styleKey, prefs, 'classic');
+  const style = ENEMY_ICON_STYLES[base] || ENEMY_ICON_STYLES.classic;
+  const styled = customArt || style.icons[key];
+  return styled ? resolveEnemyIcon(styled, prefs) : (def?.emoji ?? '?');
 }

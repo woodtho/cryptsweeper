@@ -10,7 +10,7 @@ import {
   saveRun, listSaves, loadRun, deleteSave, goHome,
   scanTile, addConstruct,
   campTrainPicks, closeCutscene, closeModal,
-  EVENT_CATALOG, eventChoice, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
+  EVENT_CATALOG, eventChoice, currentEventView, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
   toggleLightsCell, toggleNonogramCell, answerSequence,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS } from '../src/engine/data.js';
@@ -189,7 +189,7 @@ T('shop card purchase adds to deck', R().deck.length === deckPreShop + 1 && R().
 
 /* 9 — puzzle event */
 startPuzzle();
-T('puzzle board 6x6, 4-5 mines', R().puzzle.board.cells.length === 36 && [4, 5].includes(R().puzzle.board.cells.filter(x => x.mine).length));
+T('puzzle board 6x6, 6-7 mines', R().puzzle.board.cells.length === 36 && [6, 7].includes(R().puzzle.board.cells.filter(x => x.mine).length));
 for (let i = 0; i < 36; i++) { const cell = R().puzzle.board.cells[i]; if (!cell.mine && !cell.revealed) puzzleClick(i); }
 T('puzzle solvable by full sweep', R().puzzle.solved === true);
 {
@@ -208,6 +208,12 @@ T('puzzle solvable by full sweep', R().puzzle.solved === true);
 }
 T('event catalog contains exactly 100 discoverable encounters', Object.keys(EVENT_CATALOG).length === 100);
 T('all events have titles, descriptions, and at least two choices', Object.values(EVENT_CATALOG).every(event => event.title && event.text && event.choices?.length >= 2));
+T('every encounter uses the behavioral decision model', Object.values(EVENT_CATALOG).every(event => event.behavioral && event.concept && event.explanation && event.actions?.length === 2));
+const roteKeys = new Set(['correct', 'wrong-a', 'wrong-b', 'prudent', 'risk', 'leave']);
+T('no encounter exposes answer-key or formula-template choices', Object.values(EVENT_CATALOG).every(event => event.choices.every(choice => !roteKeys.has(choice.key) && !['correct', 'wrong', 'prudent', 'risk', 'leave'].includes(choice.outcome))));
+T('no encounter asks the player to commit to an answer', Object.values(EVENT_CATALOG).every(event => !event.choices.some(choice => /commit to this answer/i.test(choice.desc || ''))));
+const rotePrompt = /\b(what (?:is|does|happens)|which best|how many|roughly what|is often modeled|means what|is useful because)\b/i;
+T('event prompts describe decisions rather than recall questions', Object.values(EVENT_CATALOG).every(event => !rotePrompt.test(event.text)));
 startPuzzle('sudoku');
 T('Sudoku puzzle has a persisted 4x4 solution and givens', R().puzzle.type === 'sudoku' && R().puzzle.values.length === 16 && R().puzzle.givens.length > 0);
 R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
@@ -219,7 +225,7 @@ R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
 checkLogicPuzzle();
 T('crossword can be solved through engine actions', R().puzzle.solved === true);
 startPuzzle('mines-hard');
-T('late Minesweeper expands to a no-guess 8x8 board with fewer scans', R().puzzle.board.cells.length === 64 && R().puzzle.scans === 1);
+T('late Minesweeper expands to a no-guess 8x8 board with no free scans', R().puzzle.board.cells.length === 64 && R().puzzle.scans === 0);
 startPuzzle('sudoku-hard');
 T('late Sudoku expands to a standard 9x9 board', R().puzzle.size === 9 && R().puzzle.values.length === 81);
 R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
@@ -241,10 +247,68 @@ T('nonogram clues have a complete solvable 5x5 answer', R().puzzle.solved === tr
 testLaunch('event', 'monty');
 T('test lab can launch a named event directly', ui.screen === 'event' && R().event === 'monty' && R().testMode === true);
 testLaunch('event', 'mean-median');
-const eventGold = R().gold;
-eventChoice('correct');
-T('data-driven event choices resolve rewards and explanations', R().gold > eventGold && ui.modal?.html.includes('median'));
+const initialEventView = currentEventView();
+const hiddenEventRoll = R().eventState.hiddenRoll;
+T('events begin with generated stakes and an information choice', initialEventView.choices.length === 3 && initialEventView.choices.some(choice => choice.key === 'observe'));
+saveRun('slot2');
+eventChoice('observe');
+T('buying information advances the event instead of ending it', ui.screen === 'event' && !ui.modal && R().eventState.observed && !currentEventView().choices.some(choice => choice.key === 'observe'));
+loadRun('slot2');
+T('mid-event saves preserve hidden outcomes without rerolling', ui.screen === 'event' && R().eventState.hiddenRoll === hiddenEventRoll && !R().eventState.observed);
+eventChoice('observe');
+eventChoice('a');
+T('behavioral choices resolve consequences and reveal the concept afterward', R().eventHistory.at(-1)?.id === 'mean-median' && ui.modal?.html.includes('What this tested') && ui.modal.html.includes('Mean versus median'));
+const resolvedEventGold = R().gold;
+const resolvedHistoryLength = R().eventHistory.length;
+saveRun('slot2');
 closeModal();
+loadRun('slot2');
+T('resolved event explanations resume after an app reload', ui.screen === 'event' && ui.modal?.html.includes('What this tested'));
+eventChoice('b');
+T('a resumed resolved event cannot grant consequences twice', R().gold === resolvedEventGold && R().eventHistory.length === resolvedHistoryLength);
+closeModal();
+deleteSave('slot2');
+testLaunch('event', 'anchoring');
+saveRun('slot3');
+const legacyEventSave = JSON.parse(localStorage.getItem('cryptsweeper.save.v1.slot3'));
+delete legacyEventSave.run.eventState;
+delete legacyEventSave.run.eventHistory;
+localStorage.setItem('cryptsweeper.save.v1.slot3', JSON.stringify(legacyEventSave));
+T('legacy event saves initialize the new decision state', loadRun('slot3') && ui.screen === 'event' && R().eventState?.stage === 'choice' && Array.isArray(R().eventHistory));
+deleteSave('slot3');
+
+let allEventPathsResolve = true;
+for (const key of Object.keys(EVENT_CATALOG)) {
+  for (const action of ['a', 'b']) {
+    testLaunch('event', key);
+    R().gold = 999; R().hp = R().maxHp;
+    eventChoice(action);
+    if (!ui.modal || R().hp < 1 || R().gold < 0 || R().eventState?.stage !== 'resolved') allEventPathsResolve = false;
+    closeModal();
+  }
+}
+T('both primary paths of all 100 events terminate safely', allEventPathsResolve);
+let allInvestigationPathsResolve = true;
+let investigatedEvents = 0;
+for (const key of Object.keys(EVENT_CATALOG)) {
+  testLaunch('event', key);
+  R().gold = 999; R().hp = R().maxHp;
+  if (!currentEventView().choices.some(choice => choice.key === 'observe')) continue;
+  investigatedEvents++;
+  eventChoice('observe');
+  if (ui.modal || !R().eventState.observed || currentEventView().choices.some(choice => choice.key === 'observe')) allInvestigationPathsResolve = false;
+  eventChoice('b');
+  if (!ui.modal || R().eventState?.stage !== 'resolved') allInvestigationPathsResolve = false;
+  closeModal();
+}
+T('information gathering is available on many uncertainty events', investigatedEvents >= 40);
+T('every information-gathering path advances once and terminates safely', allInvestigationPathsResolve);
+newRun('sapper', { daily: '2099-03-14' });
+testLaunch('event', 'sealed-urn');
+const seededEventState = JSON.stringify(R().eventState);
+newRun('sapper', { daily: '2099-03-14' });
+testLaunch('event', 'sealed-urn');
+T('daily events generate identical hidden stakes and outcomes', JSON.stringify(R().eventState) === seededEventState);
 
 /* 10 — boss machinery: collapser devour + nn99 gate */
 startCombat('boss');
@@ -483,6 +547,22 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   const marked = decorateMechanics('Gain Block, Scan a tile, then earn a pick for Full Clear.');
   T('mechanic glossary decorates specific terms with interactive hooks',
     ['block', 'scan', 'picks', 'full clear'].every(key => marked.includes(`data-mechanic="${key}"`)));
+}
+
+/* ================= single free edition: no purchase or paywall gates ================= */
+{
+  newRun('hexwright');
+  T('late-roster Delvers can start once selected', R() && R().cls === 'hexwright');
+
+  newRun('sapper');
+  R().stratum = 0;
+  R().reward = { kind: 'boss', cards: [], cardTaken: true };
+  finishReward();
+  T('Stratum 1 boss reward advances directly to Stratum 2', R().stratum === 1 && ui.screen === 'map');
+
+  R().reward = { kind: 'boss', cards: [], cardTaken: true };
+  finishReward();
+  T('Stratum 2 boss reward advances directly to Stratum 3', R().stratum === 2 && ui.screen === 'map');
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');
