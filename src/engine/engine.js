@@ -5,6 +5,12 @@ import {
 } from './data.js';
 import { sfx } from './sfx.js';
 import { recordProgress } from './progression.js';
+import {
+  recordEnemySeen, recordEnemyDefeated, recordCardSeen, recordCardOwned, recordCardPlayed,
+  recordItemSeen, recordItemOwned, seedRunCollection,
+} from './collection.js';
+import { recordDailyAttempt, recordDailyResult } from './daily.js';
+import { EXTRA_EVENT_CATALOG } from './events.js';
 
 /* ================= store ================= */
 const listeners = new Set();
@@ -14,7 +20,8 @@ export function getVersion() { return version; }
 function notify() {
   version++;
   recordProgress(run, ui.screen);
-  if (run) persistRun('auto');
+  /* never stamp 'title' into the autosave — Continue must resume gameplay */
+  if (run && ui.screen !== 'title') persistRun('auto');
   for (const cb of listeners) cb();
 }
 
@@ -41,7 +48,7 @@ function mkCard(key, up = 0) { return { id: ++_cardId, key, up }; }
 export let run = null;
 export const ui = {
   screen: 'title', targeting: null, gadgetTargeting: null, flagMode: false,
-  modal: null, toasts: [], shakeSeq: 0, dmg: [],
+  modal: null, cutscene: null, toasts: [], shakeSeq: 0, dmg: [],
 };
 
 const SAVE_VERSION = 1;
@@ -69,7 +76,7 @@ function saveSummary(slot, payload) {
 function persistRun(slot) {
   if (typeof localStorage === 'undefined' || !run) return false;
   try {
-    const payload = { version: SAVE_VERSION, savedAt: Date.now(), screen: ui.screen, run };
+    const payload = { version: SAVE_VERSION, savedAt: Date.now(), screen: ui.screen, cutscene: ui.cutscene, run };
     localStorage.setItem(slotKey(slot), JSON.stringify(payload, saveReplacer));
     return true;
   } catch { return false; }
@@ -101,6 +108,7 @@ export function loadRun(slot) {
     run.upgrades ??= 0;
     run.winRecorded ??= false;
     run.pickBonus ??= 0;
+    run.seenCutscenes ??= [];
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
       if (run.combat.picks == null) run.combat.picks = PICKS_PER_TURN;
@@ -117,8 +125,13 @@ export function loadRun(slot) {
       };
     }
     _cardId = Math.max(_cardId, ...run.deck.map(c => c.id || 0));
-    ui.screen = payload.screen || 'map';
+    seedRunCollection(run);
+    /* older autosaves could be stamped 'title' by goHome — resume into gameplay */
+    ui.screen = !payload.screen || payload.screen === 'title'
+      ? (run.combat ? 'combat' : 'map')
+      : payload.screen;
     ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.flagMode = false;
+    ui.cutscene = payload.cutscene || null;
     notify();
     return true;
   } catch { return false; }
@@ -129,8 +142,9 @@ export function deleteSave(slot) {
 }
 
 export function goHome() {
+  persistRun('auto'); // capture the resumable screen before leaving it
   ui.screen = 'title';
-  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.flagMode = false;
+  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false;
   notify();
 }
 
@@ -168,12 +182,15 @@ export function newRun(clsKey, options = {}) {
     stratum: 0, map: null, pos: null, visited: {},
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
     surveyNext: false, seenEvents: [], combat: null, upgrades: 0, pickBonus: 0, winRecorded: false,
-    reward: null, shop: null, event: null, puzzle: null,
+    reward: null, shop: null, event: null, puzzle: null, seenCutscenes: [],
     daily: options.daily || null,
     rngState: options.daily ? dailySeed(options.daily) : null,
   };
   genMapForStratum();
+  seedRunCollection(run);
+  if (run.daily) recordDailyAttempt(run.daily);
   ui.screen = 'map';
+  queueCutscene('opening', {}, true);
   notify();
 }
 
@@ -181,7 +198,22 @@ export function resetToTitle() {
   try { localStorage.removeItem(slotKey('auto')); } catch { /* storage unavailable */ }
   run = null;
   ui.screen = 'title';
-  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.flagMode = false;
+  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false;
+  notify();
+}
+
+function queueCutscene(id, context = {}, once = false) {
+  if (!run) return false;
+  run.seenCutscenes ??= [];
+  if (once && run.seenCutscenes.includes(id)) return false;
+  if (once) run.seenCutscenes.push(id);
+  ui.cutscene = { id, context };
+  return true;
+}
+
+export function closeCutscene() {
+  if (!ui.cutscene) return;
+  ui.cutscene = null;
   notify();
 }
 
@@ -273,8 +305,8 @@ export function enterNode(r, c) {
   sfx('turn');
   const type = run.map.nodes[r][c];
   if (type === 'dig' || type === 'elite' || type === 'boss') startCombat(type);
-  else if (type === 'camp') { ui.screen = 'camp'; notify(); }
-  else if (type === 'shop') { genShop(); ui.screen = 'shop'; notify(); }
+  else if (type === 'camp') { ui.screen = 'camp'; queueCutscene('camp', {}, true); notify(); }
+  else if (type === 'shop') { genShop(); ui.screen = 'shop'; queueCutscene('shop', { stratum: run.stratum }); notify(); }
   else if (type === 'treasure') grantTreasure();
   else if (type === 'event') startEvent();
 }
@@ -1105,6 +1137,7 @@ function checkPlayerDeath() {
     cbt().over = true;
     sfx('defeat');
     ui.screen = 'gameover';
+    recordDailyRunEnd(false);
     notify();
   }
 }
@@ -1153,6 +1186,7 @@ export function hitAll(n, opts) { for (const e of targetableEnemies().slice()) h
 
 function onEnemyDeath(e) {
   e.hp = 0;
+  recordEnemyDefeated(e.key);
   sfx('death');
   log(`☠ ${e.def.name} destroyed.`);
   if (e.def.onDeath) e.def.onDeath(e);
@@ -1235,6 +1269,7 @@ export function startCombat(kind) {
   for (const k of enemyKeys) {
     const e = spawnEnemy(k);
     c.enemies.push(e);
+    recordEnemySeen(k);
     if (e.def.setup) e.def.setup(e);
     e.intent = e.def.next(e);
   }
@@ -1255,6 +1290,7 @@ export function startCombat(kind) {
   c.setup = false;
   ui.screen = 'combat';
   ui.targeting = null; ui.gadgetTargeting = null; ui.flagMode = false;
+  if (kind === 'boss') queueCutscene(`boss-intro-${run.stratum}`, {}, true);
   startTurn();
 }
 
@@ -1423,6 +1459,7 @@ function resolveCard(handIdx, picked) {
   const card = c.hand[handIdx];
   if (!card) return;
   const def = CARDS[card.key];
+  recordCardPlayed(card.key);
   const cost = effCost(card);
   if (card.key === 'entombcard' && hasT('keystone') && !c.keystoneUsed && cost === 0) c.keystoneUsed = true;
   c.energy -= cost;
@@ -1529,8 +1566,13 @@ function combatVictory() {
     trinket: kind === 'elite' ? unownedTrinket() : null,
     bossTrinkets: kind === 'boss' ? ['lamp', 'dowsingrod'].filter(k => !run.trinkets.includes(k)) : null,
   };
+  for (const card of run.reward.cards) recordCardSeen(card.key);
+  if (run.reward.trinket) recordItemSeen(`trinket:${run.reward.trinket}`);
+  if (run.reward.gadget) recordItemSeen(`gadget:${run.reward.gadget}`);
+  for (const key of run.reward.bossTrinkets || []) recordItemSeen(`trinket:${key}`);
   run.combat = null;
   ui.screen = 'reward';
+  if (kind === 'boss') queueCutscene(`boss-aftermath-${run.stratum}`, {}, true);
   notify();
 }
 
@@ -1558,6 +1600,7 @@ export function takeRewardCard(i) {
   if (r.cardTaken) return;
   r.cardTaken = true;
   run.deck.push(mkCard(r.cards[i].key, r.cards[i].up));
+  recordCardOwned(r.cards[i].key);
   toast(`Added ${CARDS[r.cards[i].key].name}${r.cards[i].up ? '+' : ''} to your deck`);
   notify();
 }
@@ -1565,6 +1608,7 @@ export function takeRewardTrinket() {
   const r = run.reward;
   if (!r.trinket) return;
   run.trinkets.push(r.trinket);
+  recordItemOwned(`trinket:${r.trinket}`);
   r.trinket = null;
   notify();
 }
@@ -1572,6 +1616,7 @@ export function takeBossTrinket(key) {
   const r = run.reward;
   if (!r.bossTrinkets || !r.bossTrinkets.includes(key)) return;
   run.trinkets.push(key);
+  recordItemOwned(`trinket:${key}`);
   r.bossTrinkets = null;
   notify();
 }
@@ -1579,6 +1624,7 @@ export function takeRewardGadget() {
   const r = run.reward;
   if (!r.gadget || run.gadgets.length >= 3) return;
   run.gadgets.push(r.gadget);
+  recordItemOwned(`gadget:${r.gadget}`);
   r.gadget = null;
   notify();
 }
@@ -1587,11 +1633,14 @@ export function finishReward() {
   const r = run.reward;
   run.reward = null;
   if (r.kind === 'boss') {
-    if (run.stratum >= 2) { sfx('victory'); ui.screen = 'victory'; notify(); return; }
+    if (run.stratum >= 2) {
+      sfx('victory'); ui.screen = 'victory'; queueCutscene('finale', {}, true); recordDailyRunEnd(true); notify(); return;
+    }
     run.stratum++;
     run.hp = Math.min(run.maxHp, run.hp + Math.floor(run.maxHp * 0.25));
     toast(`Descending… you rest and recover. Welcome to ${STRATA[run.stratum].name}`);
     genMapForStratum();
+    queueCutscene(`descent-${run.stratum}`, {}, true);
   }
   ui.screen = 'map';
   notify();
@@ -1643,12 +1692,16 @@ export function genShop() {
   }
   const gadgets = shuffle(Object.keys(GADGETS)).slice(0, 2).map(k => ({ key: k, price: 30 + randInt(15), sold: false }));
   run.shop = { cards, trinkets, gadgets };
+  for (const item of cards) recordCardSeen(item.key);
+  for (const item of trinkets) recordItemSeen(`trinket:${item.key}`);
+  for (const item of gadgets) recordItemSeen(`gadget:${item.key}`);
 }
 export function buyShopCard(i) {
   const it = run.shop.cards[i];
   if (it.sold || run.gold < it.price) { toast('Not enough gold.', true); return; }
   run.gold -= it.price; it.sold = true;
   run.deck.push(mkCard(it.key));
+  recordCardOwned(it.key);
   notify();
 }
 export function buyShopTrinket(i) {
@@ -1656,6 +1709,7 @@ export function buyShopTrinket(i) {
   if (it.sold || run.gold < it.price || run.trinkets.includes(it.key)) { toast('Not enough gold.', true); return; }
   run.gold -= it.price; it.sold = true;
   run.trinkets.push(it.key);
+  recordItemOwned(`trinket:${it.key}`);
   notify();
 }
 export function buyShopGadget(i) {
@@ -1664,6 +1718,7 @@ export function buyShopGadget(i) {
   if (run.gadgets.length >= 3) { toast('Gadget slots full (3).', true); return; }
   run.gold -= it.price; it.sold = true;
   run.gadgets.push(it.key);
+  recordItemOwned(`gadget:${it.key}`);
   notify();
 }
 export function buyRemoval() {
@@ -1684,14 +1739,131 @@ export function gotoMap() {
 }
 
 /* ----- events ----- */
+export const EVENT_CATALOG = {
+  shrine: {
+    emoji: '🚪', title: 'The 50/50 Shrine',
+    text: "Two doors of scorched brass. Behind one: a delver's prize. Behind the other: a blast that never went off — until now. The one honest coin flip in the Undermine, priced up front.",
+    choices: [
+      { key: 'left', label: 'The left door', desc: '50%: gadget + 30 gold · 50%: heavy mine damage.' },
+      { key: 'right', label: 'The right door', desc: "Same odds. It's a coin flip; the door doesn't care." },
+      { key: 'walk', label: 'Walk away', desc: 'No flip, no prize.' },
+    ],
+  },
+  corpse: {
+    emoji: '🪦', title: "The Cartographer's Corpse",
+    text: 'He mapped three strata and died six feet from a camp. His satchel bulges with annotated charts. His hand still grips a charcoal stick.',
+    choices: [
+      { key: 'take', label: 'Take his maps', desc: 'Gain a rare trinket — and his Claustrophobia (curse: boards spawn +2 mines).' },
+      { key: 'bury', label: 'Bury him properly', desc: '+3 max HP.' },
+    ],
+  },
+  monty: {
+    emoji: '🐐', title: "The Rat's Three Doors",
+    text: 'A rat host hides one gold coffer behind three doors and goats behind the others. You pick a door. He opens a different door to reveal a goat, then offers you a switch.',
+    choices: [
+      { key: 'switch', label: 'Switch doors', desc: 'Trade your first choice for the remaining closed door.' },
+      { key: 'stay', label: 'Stay', desc: 'Trust the door you chose first.' },
+    ],
+  },
+  prisoners: {
+    emoji: '⛓️', title: "The Prisoners' Bargain",
+    text: 'You and another delver choose in separate cells. Cooperate and share. Defect and seize the haul. The other prisoner is making the same calculation.',
+    choices: [
+      { key: 'cooperate', label: 'Cooperate', desc: 'Best together, but vulnerable to betrayal.' },
+      { key: 'defect', label: 'Defect', desc: 'Exploit cooperation; suffer if both defect.' },
+    ],
+  },
+  birthday: {
+    emoji: '🎂', title: 'The Birthday Crypt',
+    text: 'The inscription asks: how many randomly born delvers are needed before a shared birthday becomes more likely than not?',
+    choices: [
+      { key: '23', label: '23 delvers', desc: 'A surprisingly small gathering.' },
+      { key: '50', label: '50 delvers', desc: 'Half the days? Half the chance?' },
+      { key: '183', label: '183 delvers', desc: 'Half of a 365-day year.' },
+    ],
+  },
+  bayes: {
+    emoji: '🧪', title: "The Alchemist's Test",
+    text: 'Only 1% of delvers carry the Rot. This test catches 90% of cases but falsely marks 10% of healthy delvers. Yours is positive. Roughly how likely are you to carry it?',
+    choices: [
+      { key: '9', label: 'About 9%', desc: 'Start with the base rate, then update.' },
+      { key: '50', label: 'About 50%', desc: 'A positive test sounds like even odds.' },
+      { key: '90', label: 'About 90%', desc: 'Use the test sensitivity directly.' },
+    ],
+  },
+  secretary: {
+    emoji: '📜', title: 'The Hiring Ledger',
+    text: 'Candidates arrive one at a time. Rejected candidates cannot return. What fraction should you observe before choosing the next candidate better than all you have seen?',
+    choices: [
+      { key: '37', label: 'About 37%', desc: 'Observe first, then take the next record-breaker.' },
+      { key: 'first', label: 'Choose the first', desc: 'Never risk losing a good candidate.' },
+      { key: 'last', label: 'Wait until the last', desc: 'See almost everyone before committing.' },
+    ],
+  },
+  commons: {
+    emoji: '🍄', title: 'The Common Mushroom Bed',
+    text: 'A shared cave bed feeds every passing delver if each takes a little. It can also be stripped bare tonight.',
+    choices: [
+      { key: 'one', label: 'Take one share', desc: 'A sustainable reward for you and those behind you.' },
+      { key: 'strip', label: 'Strip the bed', desc: 'Much more gold now, with a lasting cost.' },
+      { key: 'restore', label: 'Tend the bed', desc: 'Take nothing; recover while restoring the commons.' },
+    ],
+  },
+  matching: {
+    emoji: '🪙', title: 'Matching Pennies',
+    text: 'The merchant wins if your coins match; you win if they differ. Neither side has a safe pure strategy.',
+    choices: [
+      { key: 'heads', label: 'Show heads', desc: 'The merchant chooses at the same time.' },
+      { key: 'tails', label: 'Show tails', desc: 'A symmetric choice; unpredictability is the strategy.' },
+    ],
+  },
+  sunkcost: {
+    emoji: '🕳️', title: 'The Bottomless Dig',
+    text: 'You have already spent three days digging this dry shaft. That effort is gone either way. A foreman asks whether you will spend one more day.',
+    choices: [
+      { key: 'leave', label: 'Leave the shaft', desc: 'Ignore unrecoverable costs and judge only what comes next.' },
+      { key: 'continue', label: 'Keep digging', desc: 'Maybe the next swing finally pays for the last three days.' },
+    ],
+  },
+  auction: {
+    emoji: '🔨', title: 'The Sealed-Bid Auction',
+    text: 'You value a relic at 45 gold. In this second-price auction, the highest bidder wins but pays the second-highest bid. What should you bid?',
+    choices: [
+      { key: '25', label: 'Bid 25 gold', desc: 'Shade your bid to chase a bargain.' },
+      { key: '45', label: 'Bid 45 gold', desc: 'Bid exactly what the relic is worth to you.' },
+      { key: '75', label: 'Bid 75 gold', desc: 'Bid aggressively to guarantee the win.' },
+    ],
+  },
+  ruin: {
+    emoji: '🎲', title: "The Gambler's Ruin",
+    text: 'A bone die offers one last even-money double-or-nothing wager. The house has deeper pockets than you and will keep offering the same bet.',
+    choices: [
+      { key: 'cash', label: 'Cash out', desc: 'Take a certain reward and end the repeated game.' },
+      { key: 'double', label: 'Double or nothing', desc: 'A fair single bet becomes dangerous when repeated to ruin.' },
+    ],
+  },
+  ...EXTRA_EVENT_CATALOG,
+};
+
 function startEvent() {
-  const all = ['shrine', 'corpse', 'puzzle'];
+  const all = [...Object.keys(EVENT_CATALOG), 'puzzle'];
   const unseen = all.filter(e => !run.seenEvents.includes(e));
   const pick = randPick(unseen.length ? unseen : all);
   run.seenEvents.push(pick);
-  if (pick === 'puzzle') { startPuzzle(); return; }
+  if (pick === 'puzzle') { startPuzzle('random'); return; }
   run.event = pick;
   ui.screen = 'event';
+  notify();
+}
+
+function eventResult(title, html, btn = 'Continue') {
+  openModal({ kind: 'info', title, btn, next: 'map', html });
+}
+
+export function startSpecificEvent(key) {
+  if (!EVENT_CATALOG[key]) return;
+  run.event = key;
+  ui.modal = null; ui.cutscene = null; ui.screen = 'event';
   notify();
 }
 
@@ -1731,21 +1903,235 @@ export function eventChoice(which) {
         html: `<p>The crypt approves. <b style="color:var(--n2)">+3 max HP</b>.</p>`,
       });
     }
+  } else if (run.event === 'monty') {
+    const chance = which === 'switch' ? 2 / 3 : 1 / 3;
+    if (random() < chance) {
+      run.gold += 65;
+      eventResult('🐐 The coffer!', `<p>The gold was behind your ${which === 'switch' ? 'new' : 'original'} door. <b class="gold">+65 gold</b>.</p><p>Switching wins whenever your first pick was wrong: <b>2 chances in 3</b>. Staying keeps the original 1-in-3 chance.</p>`);
+    } else {
+      eventResult('🐐 A very ordinary goat', `<p>No coffer this time. ${which === 'switch' ? 'Switching was still the stronger decision' : 'Staying kept only the original chance'}: good strategy changes the odds, not the outcome of every trial.</p>`);
+    }
+  } else if (run.event === 'prisoners') {
+    const other = random() < 0.55 ? 'cooperate' : 'defect';
+    if (which === 'cooperate' && other === 'cooperate') { run.gold += 40; eventResult('⛓️ Mutual cooperation', '<p>You both keep faith and split the cache. <b class="gold">+40 gold</b>. Repeated games can make trust rational.</p>'); }
+    else if (which === 'defect' && other === 'cooperate') { run.gold += 70; eventResult('⛓️ Temptation pays — today', '<p>You seize the whole cache. <b class="gold">+70 gold</b>. A one-shot defection pays, but your reputation would poison a repeated game.</p>'); }
+    else if (which === 'cooperate') { run.hp = Math.max(1, run.hp - 12); eventResult('⛓️ Betrayed', '<p>The other prisoner defects. You take <b class="flagc">12 damage</b>. Mutual cooperation is best together, but is not a dominant strategy in a one-shot game.</p>'); }
+    else { run.hp = Math.max(1, run.hp - 7); eventResult('⛓️ Mutual defection', '<p>Both of you lunge for the cache and trigger the ward. You take <b class="flagc">7 damage</b>. Rational individual choices can produce a worse shared result.</p>'); }
+  } else if (run.event === 'birthday') {
+    if (which === '23') { run.gold += 45; eventResult('🎂 Correct: 23', '<p>With 23 people there are 253 possible pairs, pushing the chance of at least one shared birthday just above 50%. <b class="gold">+45 gold</b>.</p>'); }
+    else { run.hp = Math.max(1, run.hp - 5); eventResult('🎂 Mind the number of pairs', '<p>The answer is <b>23</b>, not half the number of calendar days. Pairwise comparisons grow much faster than the group.</p>'); }
+  } else if (run.event === 'bayes') {
+    if (which === '9') { run.gold += 50; eventResult('🧪 Base rates remembered', '<p>Among 1,000 delvers: about 9 sick people test positive, while about 99 healthy people falsely test positive. That makes the posterior roughly <b>8–9%</b>. <b class="gold">+50 gold</b>.</p>'); }
+    else { run.hp = Math.max(1, run.hp - 6); eventResult('🧪 A false alarm', '<p>The test is sensitive, but the disease is rare. False positives greatly outnumber true positives; the answer is only about <b>9%</b>.</p>'); }
+  } else if (run.event === 'secretary') {
+    if (which === '37') { run.gold += 45; eventResult('📜 The 37% rule', '<p>Observe roughly the first 1/e of candidates, then choose the next who beats everyone seen so far. This maximizes the chance of selecting the single best candidate. <b class="gold">+45 gold</b>.</p>'); }
+    else { run.gold += 8; eventResult('📜 Commitment at the wrong time', '<p>The classic optimal-stopping solution samples about <b>37%</b> first. Choosing immediately lacks information; waiting to the end wastes the option to act.</p><p class="gold">The clerk pays 8 gold for the attempt.</p>'); }
+  } else if (run.event === 'commons') {
+    if (which === 'one') { run.gold += 30; run.maxHp += 2; run.hp += 2; eventResult('🍄 A sustainable harvest', '<p>You take a fair share and leave spores behind. <b class="gold">+30 gold</b> and <b>+2 max HP</b>.</p>'); }
+    else if (which === 'strip') { run.gold += 85; run.deck.push(mkCard('claustrophobia')); eventResult('🍄 The commons are bare', '<p><b class="gold">+85 gold</b>, but private incentive has destroyed the shared resource. <b class="flagc">Claustrophobia</b> enters your deck.</p>'); }
+    else { const heal = Math.max(1, Math.floor(run.maxHp * .25)); run.hp = Math.min(run.maxHp, run.hp + heal); eventResult('🍄 Spores for the next delver', `<p>You restore the bed and rest beside it. <b>+${heal} HP</b>.</p>`); }
+  } else if (run.event === 'matching') {
+    const merchant = random() < .5 ? 'heads' : 'tails';
+    if (which !== merchant) { run.gold += 40; eventResult('🪙 Mismatch — you win', `<p>The merchant showed ${merchant}. <b class="gold">+40 gold</b>. In matching pennies, randomizing 50/50 prevents exploitation.</p>`); }
+    else { run.hp = Math.max(1, run.hp - 5); eventResult('🪙 Match — the merchant wins', `<p>The merchant also showed ${merchant}. You take <b class="flagc">5 damage</b>. No fixed choice is superior; a predictable pattern can be exploited.</p>`); }
+  } else if (run.event === 'sunkcost') {
+    if (which === 'leave') { const heal = Math.max(1, Math.floor(run.maxHp * .2)); run.hp = Math.min(run.maxHp, run.hp + heal); eventResult('🕳️ The past stays buried', `<p>You judge the next day on its own merits and recover <b>${heal} HP</b>. Past effort is unrecoverable and should not dictate the next choice.</p>`); }
+    else if (random() < .35) { run.gold += 90; eventResult('🕳️ A lucky seam', '<p>The next swing finds ore. <b class="gold">+90 gold</b>. The outcome is fortunate; “we already spent so much” was still not useful evidence.</p>'); }
+    else { run.hp = Math.max(1, run.hp - 10); eventResult('🕳️ Another dry day', '<p>You take <b class="flagc">10 damage</b>. More investment cannot recover a sunk cost unless the future prospects independently justify it.</p>'); }
+  } else if (run.event === 'auction') {
+    if (which === '45') { run.gold += 50; eventResult('🔨 Truthful bidding', '<p>In a private-value second-price auction, bidding your true value is the dominant strategy: your bid decides whether you win, while someone else’s bid sets the price. <b class="gold">+50 gold</b>.</p>'); }
+    else if (which === '25') { run.gold += 10; eventResult('🔨 Outbid', '<p>You lose a relic you would have profitably bought between 25 and 45 gold. The auctioneer returns your stake plus <b class="gold">10 gold</b>.</p>'); }
+    else { run.gold = Math.max(0, run.gold - 20); eventResult('🔨 Winner’s curse', '<p>You risk winning when the price exceeds your 45-gold value. <b class="flagc">-20 gold</b>. Aggression cannot create value.</p>'); }
+  } else if (run.event === 'ruin') {
+    if (which === 'cash') { run.gold += 35; eventResult('🎲 You leave with something', '<p>You bank <b class="gold">+35 gold</b>. Even fair repeated bets approach eventual ruin when one player has finite funds and never stops.</p>'); }
+    else if (random() < .5) { run.gold += 90; eventResult('🎲 Double', '<p>The die favors you this round. <b class="gold">+90 gold</b>. A win does not remove the long-run ruin risk of repeated play.</p>'); }
+    else { run.hp = Math.max(1, run.hp - 18); eventResult('🎲 Nothing', '<p>The wager breaks against you for <b class="flagc">18 damage</b>. A fair expected value does not mean a safe path.</p>'); }
+  } else if (EVENT_CATALOG[run.event]?.extra) {
+    const event = EVENT_CATALOG[run.event];
+    const choice = event.choices.find(option => option.key === which);
+    if (!choice) return;
+    let outcome = '';
+    let title = `${event.emoji} ${event.title}`;
+    if (choice.outcome === 'correct') {
+      run.gold += choice.gold;
+      title = `${event.emoji} Sound reasoning`;
+      outcome = `<b class="gold">+${choice.gold} gold</b>`;
+    } else if (choice.outcome === 'wrong') {
+      run.hp = Math.max(1, run.hp - choice.damage);
+      title = `${event.emoji} A costly assumption`;
+      outcome = `<b class="flagc">${choice.damage} damage</b>`;
+    } else if (choice.outcome === 'prudent') {
+      run.gold += choice.gold;
+      title = `${event.emoji} A sustainable choice`;
+      outcome = `<b class="gold">+${choice.gold} gold</b>`;
+    } else if (choice.outcome === 'risk') {
+      if (random() < choice.chance) {
+        run.gold += choice.gold;
+        title = `${event.emoji} The gamble pays`;
+        outcome = `<b class="gold">+${choice.gold} gold</b>`;
+      } else {
+        run.hp = Math.max(1, run.hp - choice.damage);
+        title = `${event.emoji} The risk arrives`;
+        outcome = `<b class="flagc">${choice.damage} damage</b>`;
+      }
+    } else {
+      const before = run.hp;
+      run.hp = Math.min(run.maxHp, run.hp + choice.heal);
+      title = `${event.emoji} You step away`;
+      outcome = `<b>${run.hp - before} HP recovered</b>`;
+    }
+    eventResult(title, `<p>${outcome}.</p><p>${event.explanation}</p>`);
   }
 }
 
 /* ----- Honest Puzzle ----- */
-export function startPuzzle() {
-  const size = 6;
-  const mines = new Set([10, 13, 27, 35]); // (1,4) (2,1) (4,3) (5,5)
+/* "Honest" is a promise: the whole board is provable from the opening with pure
+   logic, no guessing. Random layouts are drawn and checked against the no-guess
+   solver until one keeps that promise. Uses run RNG, so dailies share puzzles. */
+function genPuzzle(size, mineCount) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const mines = new Set();
+    while (mines.size < mineCount) mines.add(randInt(size * size));
+    const numL = i => neighborsOf(i, size).filter(j => mines.has(j)).length;
+    const zeros = [];
+    for (let i = 0; i < size * size; i++) if (!mines.has(i) && numL(i) === 0) zeros.push(i);
+    if (!zeros.length) continue;
+    const opening = zeros[randInt(zeros.length)];
+    if (solveScore(mines, size, opening) >= 1) return { mines, opening };
+  }
+  return { mines: new Set(Array.from({ length: mineCount }, (_, i) => size * size - 1 - i)), opening: 0 };
+}
+
+const digits = text => text.replace(/\s/g, '').split('').map(Number);
+const SUDOKU_PUZZLES = {
+  4: [
+    { solution: digits('1234 3412 2143 4321'), givens: [0, 3, 5, 6, 9, 10, 12, 15] },
+    { solution: digits('4123 2341 1432 3214'), givens: [1, 2, 4, 7, 8, 11, 13, 14] },
+  ],
+  6: [{ solution: digits('123456 456123 234561 561234 345612 612345'), givens: [0, 2, 4, 7, 9, 11, 12, 15, 17, 19, 20, 22, 25, 28, 30, 32, 33, 35] }],
+  9: [{
+    solution: digits('534678912 672195348 198342567 859761423 426853791 713924856 961537284 287419635 345286179'),
+    givens: digits('530070000 600195000 098000060 800060003 400803001 700020006 060000280 000419005 000080079')
+      .map((value, i) => value ? i : -1).filter(i => i >= 0),
+  }],
+};
+
+const CROSSWORD_PUZZLES = {
+  3: [
+    { words: ['CAR', 'APE', 'RED'], clues: ['Vehicle', 'Primate', 'Color of a warning flag'] },
+    { words: ['APE', 'PEA', 'EAR'], clues: ['Primate', 'Small green vegetable', 'Organ used to hear'] },
+    { words: ['CAT', 'ARE', 'TEN'], clues: ['Feline', 'Exist', 'Number after nine'] },
+  ],
+  4: [
+    { words: ['BALL', 'AREA', 'LEAD', 'LADY'], clues: ['Round toy', 'Region', 'Guide from the front', 'A woman'] },
+    { words: ['SAND', 'AREA', 'NEAR', 'DART'], clues: ['Desert grains', 'Region', 'Close by', 'A small pointed missile'] },
+  ],
+  5: [{ words: ['SATOR', 'AREPO', 'TENET', 'OPERA', 'ROTAS'], clues: ['Latin: sower', 'Name from an ancient word square', 'A principle or belief', 'Musical drama', 'Latin: wheels'] }],
+};
+
+const SEQUENCE_PUZZLES = {
+  1: [
+    { prompt: '2, 4, 8, 16, ?', answer: 32, choices: [24, 30, 32, 34], explanation: 'Each term doubles.' },
+    { prompt: '1, 1, 2, 3, 5, ?', answer: 8, choices: [6, 7, 8, 10], explanation: 'Each term is the sum of the previous two.' },
+    { prompt: '3, 6, 11, 18, ?', answer: 27, choices: [25, 26, 27, 29], explanation: 'The gaps are +3, +5, +7, then +9.' },
+  ],
+  2: [
+    { prompt: '1, 4, 9, 16, 25, ?', answer: 36, choices: [30, 32, 35, 36], explanation: 'These are consecutive square numbers.' },
+    { prompt: '2, 3, 5, 8, 12, 17, ?', answer: 23, choices: [21, 22, 23, 24], explanation: 'The gaps increase from +1 through +6.' },
+    { prompt: '1, 2, 6, 24, ?', answer: 120, choices: [48, 96, 100, 120], explanation: 'Multiply successively by 2, 3, 4, then 5.' },
+  ],
+};
+
+function startMinesPuzzle(difficulty = 0) {
+  const size = [6, 7, 8][difficulty];
+  const mineBase = [4, 7, 10][difficulty];
+  const { mines, opening } = genPuzzle(size, mineBase + randInt(2));
   const cells = [];
   for (let i = 0; i < size * size; i++) {
     cells.push({ mine: mines.has(i), revealed: false, flag: 0, entombed: false, void: false, ever: false, crater: false, scan: null, construct: null, grub: false, primed: false, glow: false });
   }
-  run.puzzle = { board: { size, cells }, scans: 3, scanMode: false, failed: false, solved: false };
-  const numL = i => neighborsOf(i, size).filter(j => mines.has(j)).length;
-  const zero = cells.findIndex((c, i) => !c.mine && numL(i) === 0);
-  puzzleFlood(zero);
+  run.puzzle = { type: 'mines', difficulty, board: { size, cells }, scans: [3, 2, 1][difficulty], scanMode: false, failed: false, solved: false };
+  puzzleFlood(opening);
+}
+
+function startSudokuPuzzle(difficulty = 0) {
+  const size = [4, 6, 9][difficulty];
+  const template = randPick(SUDOKU_PUZZLES[size]);
+  const givenSet = new Set(template.givens);
+  run.puzzle = {
+    type: 'sudoku', difficulty, size, boxRows: size === 6 ? 2 : Math.sqrt(size), boxCols: size === 6 ? 3 : Math.sqrt(size), solution: template.solution.slice(), givens: template.givens.slice(),
+    values: template.solution.map((value, i) => givenSet.has(i) ? value : 0), failed: false, solved: false,
+  };
+}
+
+function startCrosswordPuzzle(difficulty = 0) {
+  const size = [3, 4, 5][difficulty];
+  const template = randPick(CROSSWORD_PUZZLES[size]);
+  run.puzzle = {
+    type: 'crossword', difficulty, size, solution: template.words.join('').split(''), values: Array(size * size).fill(''),
+    words: template.words.slice(), clues: template.clues.slice(), failed: false, solved: false,
+  };
+}
+
+function toggleCross(values, size, i) {
+  const row = Math.floor(i / size), col = i % size;
+  for (const [dr, dc] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    const r = row + dr, c = col + dc;
+    if (r >= 0 && c >= 0 && r < size && c < size) values[r * size + c] = values[r * size + c] ? 0 : 1;
+  }
+}
+
+function startLightsPuzzle(difficulty = 1) {
+  const size = difficulty >= 2 ? 4 : 3;
+  const values = Array(size * size).fill(0);
+  const presses = 4 + difficulty * 3;
+  for (let n = 0; n < presses; n++) toggleCross(values, size, randInt(values.length));
+  if (values.every(value => !value)) toggleCross(values, size, Math.floor(values.length / 2));
+  run.puzzle = { type: 'lights', difficulty, size, values, failed: false, solved: false, moves: 0 };
+}
+
+function lineClue(line) {
+  const groups = []; let count = 0;
+  for (const value of line) { if (value) count++; else if (count) { groups.push(count); count = 0; } }
+  if (count) groups.push(count);
+  return groups.length ? groups : [0];
+}
+
+function startNonogramPuzzle() {
+  const patterns = [
+    ['10001', '01010', '00100', '01010', '10001'],
+    ['01110', '10001', '10101', '10001', '01110'],
+    ['00100', '01110', '11111', '01110', '00100'],
+  ];
+  const rows = randPick(patterns).map(row => row.split('').map(Number));
+  const solution = rows.flat();
+  const colClues = Array.from({ length: 5 }, (_, c) => lineClue(rows.map(row => row[c])));
+  run.puzzle = { type: 'nonogram', difficulty: 2, size: 5, solution, values: Array(25).fill(0), rowClues: rows.map(lineClue), colClues, failed: false, solved: false };
+}
+
+function startSequencePuzzle(difficulty = 1) {
+  const template = randPick(SEQUENCE_PUZZLES[difficulty >= 2 ? 2 : 1]);
+  run.puzzle = { type: 'sequence', difficulty, ...template, choices: shuffle(template.choices), failed: false, solved: false };
+}
+
+export function startPuzzle(type = 'mines') {
+  let picked = type;
+  if (picked === 'random') {
+    const pools = [
+      ['mines', 'mines', 'sudoku', 'crossword'],
+      ['mines-medium', 'sudoku-medium', 'crossword-medium', 'sequence-medium', 'lights-medium'],
+      ['mines-hard', 'sudoku-hard', 'crossword-hard', 'sequence-hard', 'lights-hard', 'nonogram'],
+    ];
+    picked = randPick(pools[clamp(run.stratum, 0, 2)]);
+  }
+  const difficulty = picked.endsWith('-hard') ? 2 : picked.endsWith('-medium') ? 1 : 0;
+  const family = picked.replace(/-(medium|hard)$/, '');
+  if (family === 'sudoku') startSudokuPuzzle(difficulty);
+  else if (family === 'crossword') startCrosswordPuzzle(difficulty);
+  else if (family === 'sequence') startSequencePuzzle(difficulty);
+  else if (family === 'lights') startLightsPuzzle(difficulty);
+  else if (family === 'nonogram') startNonogramPuzzle();
+  else startMinesPuzzle(difficulty);
   ui.screen = 'puzzle';
   ui.flagMode = false;
   notify();
@@ -1764,6 +2150,7 @@ function puzzleFlood(start) {
 }
 export function puzzleClick(i) {
   const p = run.puzzle;
+  if (p.type && p.type !== 'mines') return;
   if (p.failed || p.solved) return;
   const cell = p.board.cells[i];
   if (cell.revealed) return;
@@ -1788,15 +2175,131 @@ export function puzzleClick(i) {
   notify();
 }
 export function puzzleToggleFlag(i) {
+  if (run.puzzle.type && run.puzzle.type !== 'mines') return;
   const cell = run.puzzle.board.cells[i];
   if (!cell.revealed) { cell.flag = cell.flag ? 0 : 1; notify(); }
 }
 export function togglePuzzleScan() {
   const p = run.puzzle;
+  if (p.type && p.type !== 'mines') return;
   if (p.scans > 0) { p.scanMode = !p.scanMode; notify(); }
+}
+
+export function setLogicPuzzleCell(i, value) {
+  const p = run.puzzle;
+  if (!p || p.failed || p.solved || p.type === 'mines' || i < 0 || i >= p.values.length) return;
+  if (p.type === 'sudoku') {
+    if (p.givens.includes(i)) return;
+    p.values[i] = clamp(Number(value) || 0, 0, p.size);
+  } else if (p.type === 'crossword') {
+    p.values[i] = String(value || '').slice(-1).toUpperCase().replace(/[^A-Z]/g, '');
+  }
+  notify();
+}
+
+export function toggleLightsCell(i) {
+  const p = run.puzzle;
+  if (!p || p.type !== 'lights' || p.failed || p.solved) return;
+  toggleCross(p.values, p.size, i); p.moves++;
+  if (p.values.every(value => !value)) { p.solved = true; toast('★ Every light is still. The stone yields.'); }
+  notify();
+}
+
+export function toggleNonogramCell(i) {
+  const p = run.puzzle;
+  if (!p || p.type !== 'nonogram' || p.failed || p.solved) return;
+  p.values[i] = p.values[i] ? 0 : 1;
+  notify();
+}
+
+export function answerSequence(value) {
+  const p = run.puzzle;
+  if (!p || p.type !== 'sequence' || p.failed || p.solved) return;
+  if (Number(value) === p.answer) { p.solved = true; toast(`★ Correct. ${p.explanation}`); }
+  else { p.failed = true; toast(`The sequence rejects it. ${p.explanation}`, true); }
+  notify();
+}
+
+export function checkLogicPuzzle() {
+  const p = run.puzzle;
+  if (!p || p.type === 'mines' || p.failed || p.solved) return;
+  if (p.type !== 'nonogram' && p.values.some(value => value === 0 || value === '')) { toast('Every square needs an answer first.', true); return; }
+  if (p.values.every((value, i) => String(value) === String(p.solution[i]))) {
+    p.solved = true;
+    toast('★ Flawless. The stone offers its secret.');
+  } else {
+    p.failed = true;
+    toast('The answer breaks the engraving. It fades…', true);
+  }
+  notify();
+}
+
+/* ================= hidden QA lab ================= */
+export const TEST_CUTSCENES = [
+  ['opening', 'Opening'], ['shop', 'Merchant shop'], ['camp', 'Camp'],
+  ['boss-intro-0', 'Boss 1 intro'], ['boss-aftermath-0', 'Boss 1 aftermath'],
+  ['descent-1', 'Descent to stratum 2'], ['boss-intro-1', 'Boss 2 intro'], ['boss-aftermath-1', 'Boss 2 aftermath'],
+  ['descent-2', 'Descent to stratum 3'], ['boss-intro-2', 'Final boss intro'], ['boss-aftermath-2', 'Final boss aftermath'],
+  ['finale', 'Finale'],
+];
+
+function ensureTestRun(cls = 'sapper') {
+  if (!run) newRun(cls);
+  run.testMode = true;
+  run.gold = Math.max(run.gold, 999);
+  run.hp = run.maxHp;
+  ui.modal = null; ui.cutscene = null; ui.targeting = null; ui.gadgetTargeting = null;
+}
+
+export function testLaunch(kind, value = null) {
+  if (kind === 'reset') {
+    newRun(value && CLASSES[value] ? value : 'sapper');
+    run.testMode = true; run.gold = 999; ui.cutscene = null; ui.screen = 'map';
+    toast('Fresh test run: full health and 999 gold.');
+    notify(); return;
+  }
+  ensureTestRun();
+  if (kind === 'shop') { genShop(); ui.screen = 'shop'; }
+  else if (kind === 'camp') ui.screen = 'camp';
+  else if (kind === 'event') { startSpecificEvent(value); return; }
+  else if (kind === 'puzzle') { startPuzzle(value); return; }
+  else if (kind === 'combat') { startCombat(value || 'dig'); ui.cutscene = null; return; }
+  else if (kind === 'boss') {
+    run.stratum = clamp(Number(value) || 0, 0, STRATA.length - 1);
+    genMapForStratum(); startCombat('boss'); ui.cutscene = null; return;
+  } else if (kind === 'reward') {
+    const rewardKind = value || 'dig';
+    run.combat = null;
+    run.reward = {
+      gold: rewardKind === 'boss' ? 150 : rewardKind === 'elite' ? 90 : 50,
+      kind: rewardKind, fullClear: true, cards: rollCardReward(true), cardTaken: false,
+      gadget: randPick(Object.keys(GADGETS)), trinket: rewardKind === 'elite' ? unownedTrinket() : null,
+      bossTrinkets: rewardKind === 'boss' ? ['lamp', 'dowsingrod'].filter(k => !run.trinkets.includes(k)) : null,
+    };
+    ui.screen = 'reward';
+  } else if (kind === 'cutscene') {
+    ui.screen = 'map'; queueCutscene(value, { stratum: run.stratum });
+  } else if (kind === 'map') ui.screen = 'map';
+  else if (kind === 'victory') ui.screen = 'victory';
+  else if (kind === 'gameover') { run.hp = 0; ui.screen = 'gameover'; }
+  notify();
+}
+
+export function testRefill() {
+  ensureTestRun();
+  run.gold = 999; run.hp = run.maxHp;
+  if (run.combat) { run.combat.energy = run.combat.maxEnergy; run.combat.picks = run.combat.maxPicks; }
+  toast('Test resources refilled.');
+  notify();
 }
 
 /* ================= score ================= */
 export function score() {
   return run.floors * 10 + run.stratum * 50 + run.fullClears * 25 + Math.floor(run.gold / 2) + run.hp;
+}
+
+function recordDailyRunEnd(won) {
+  if (!run?.daily || run.dailyRecorded) return;
+  run.dailyRecorded = true;
+  recordDailyResult(run.daily, { won, score: score(), cls: run.cls });
 }

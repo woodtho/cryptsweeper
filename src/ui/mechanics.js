@@ -1,4 +1,9 @@
 export const MECHANICS = {
+  health: { name: 'Health', summary: 'Damage that gets through your defenses removes Health. Reaching zero ends the descent.', related: ['block', 'plating'] },
+  gold: { name: 'Gold', summary: 'Currency carried during this run and spent at merchant shops.', related: [] },
+  deck: { name: 'Deck', summary: 'Every card in your current run. Tap the deck count to inspect it.', related: ['energy', 'exhaust'] },
+  mines: { name: 'Mines Remaining', summary: 'Estimated hidden mines: total mines still on the board minus your placed flags.', related: ['flag', 'verified flag', 'full clear'] },
+  turn: { name: 'Turn', summary: 'The current combat round. Ending a turn lets every surviving enemy carry out its shown intent.', related: ['energy', 'block'] },
   reveal: { name: 'Reveal', summary: 'Open a hidden tile. A safe zero may cascade into neighboring tiles.', related: ['picks', 'instinct', 'full clear'] },
   detonate: { name: 'Detonate', summary: 'Trigger and remove a mine. Enemy-directed detonations are controlled; player detonations deal mine damage.', related: ['plating', 'instinct', 'full clear'] },
   scan: { name: 'Scan', summary: 'Learn whether a hidden tile is safe or mined without opening it.', related: ['verified flag', 'reveal', 'insight'] },

@@ -3,6 +3,9 @@ apply plugin: 'com.android.application'
 def packageJson = new groovy.json.JsonSlurper().parseText(file('../../package.json').text)
 def versionParts = packageJson.version.tokenize('.').collect { it as int }
 def appVersionCode = versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+def uploadKeystore = rootProject.file('cryptsweeper-upload.jks')
+def uploadPassword = System.getenv('CRYPTSWEEPER_UPLOAD_PASSWORD')
+def hasUploadSigning = uploadKeystore.exists() && uploadPassword
 
 android {
     namespace = "com.woodtho.cryptsweeper"
@@ -20,10 +23,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasUploadSigning) {
+                storeFile uploadKeystore
+                storePassword uploadPassword
+                keyAlias 'cryptsweeper-upload'
+                keyPassword uploadPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasUploadSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

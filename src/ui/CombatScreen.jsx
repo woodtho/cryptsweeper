@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { CARDS, GADGETS } from '../engine/data.js';
+import { CARDS, GADGETS, TRINKETS } from '../engine/data.js';
 import {
   run, ui, cbt, board, curTarget, effCost, endTurn,
-  clickHandCard, cancelTargeting, selectEnemy, useGadget, toggleFlagMode,
+  clickHandCard, cancelTargeting, selectEnemy, useGadget,
   openPileModal, LAIR_COLORS,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
+import { enemyIcon } from './enemyIcons.jsx';
 import { BoardView } from './BoardView.jsx';
 import { CardView } from './CardView.jsx';
 
@@ -14,7 +15,7 @@ const SPEC_TEXT = {
   row: 'a row', anytile: 'any tile',
 };
 
-function EnemyView({ e, idx, hitMode, onHover }) {
+function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji }) {
   const pct = Math.max(0, (e.hp / e.maxHp) * 100);
   const targeted = curTarget() === e;
   const buried = e.data.buried;
@@ -25,11 +26,11 @@ function EnemyView({ e, idx, hitMode, onHover }) {
   }).length;
   const myFx = ui.dmg.filter(d => d.kind === 'enemy' && d.idx === idx);
   const wasHit = myFx.some(d => d.amount > 0);
-  const cls = ['enemy', targeted ? 'targeted' : '', e.hp <= 0 ? 'dead' : '',
+  const cls = ['enemy', targeted ? 'targeted' : '', focused ? 'focused' : '', e.hp <= 0 ? 'dead' : '',
     hitMode === 'sure' ? 'willhit' : '', hitMode === 'maybe' ? 'willhit-maybe' : '',
     wasHit ? 'ehit' : ''].filter(Boolean).join(' ');
   return (
-    <div className={cls} onClick={() => selectEnemy(idx)}
+    <div className={cls} onClick={() => onFocus(idx)}
       onMouseEnter={() => onHover(idx)} onMouseLeave={() => onHover(-1)}>
       {targeted && !buried && <div className="targetchip">⌖ TARGET</div>}
       {myFx.map((d, k) => (
@@ -38,7 +39,7 @@ function EnemyView({ e, idx, hitMode, onHover }) {
           {d.amount > 0 ? `−${d.amount}` : d.note}
         </span>
       ))}
-      <div className="art">{buried ? '🕳️' : e.def.emoji}</div>
+      <div className="art">{buried ? '🕳️' : emoji}</div>
       <div className="einfo">
         <div className="ename">
           {e.def.name}
@@ -64,7 +65,19 @@ function EnemyView({ e, idx, hitMode, onHover }) {
   );
 }
 
-export function CombatScreen() {
+function EnemyToken({ e, idx, selected, onClick, emoji }) {
+  if (e.hp <= 0) return null;
+  const intentIcon = e.intent?.cls === 'atk' ? '⚔' : e.intent?.cls === 'defend' ? '🛡' : '⛏';
+  return <button type="button" className={`enemy-token ${selected ? 'selected' : ''}`} onClick={() => onClick(idx)}
+    aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} health. ${e.intent?.label || 'No intent'}`}>
+    <span className="enemy-token-art">{e.data.buried ? '🕳️' : emoji}</span>
+    <span className="enemy-token-hp">❤ {e.hp}</span>
+    <span className={`enemy-token-intent ${e.intent?.cls || ''}`} title={e.intent?.label}>{intentIcon}</span>
+    {curTarget() === e && !e.data.buried && <span className="enemy-token-target">⌖</span>}
+  </button>;
+}
+
+export function CombatScreen({ preferences = {} }) {
   const c = cbt();
   const b = board();
   const logRef = useRef(null);
@@ -77,6 +90,10 @@ export function CombatScreen() {
   const [ghosts, setGhosts] = useState([]);                   // flying copies of departed cards
   const [hoverHits, setHoverHits] = useState(null);           // hit-mode of the hovered hand card
   const [hoverLair, setHoverLair] = useState(-1);             // hovered enemy -> highlight its lair
+  const [focusedEnemy, setFocusedEnemy] = useState(-1);
+  const [showLog, setShowLog] = useState(false);
+  const [showHand, setShowHand] = useState(false);
+  const [showItems, setShowItems] = useState(false);
   if (seenRef.current.combat !== c) {
     seenRef.current = { combat: c, ids: new Set() };
     nodesRef.current = new Map();
@@ -120,6 +137,37 @@ export function CombatScreen() {
     if (activeHits === 'all') return 'sure';
     return 'maybe'; // random
   };
+  const focusEnemy = idx => {
+    selectEnemy(idx);
+    setFocusedEnemy(current => current === idx ? -1 : idx);
+  };
+  const enemyRoster = (className, keyPrefix, compact = false) => <div className={`enemy-roster ${className}`}>
+    <div className="enemy-roster-head"><b>Enemies</b><small>Tap to target and focus</small></div>
+    <div className="enemy-roster-list">
+      {compact ? c.enemies.map((e, i) => (
+        <EnemyToken key={`${keyPrefix}-${i}`} e={e} idx={i} selected={focusedEnemy === i} onClick={focusEnemy}
+          emoji={enemyIcon(e.key, e.def, preferences)} />
+      )) : c.enemies.map((e, i) => (
+        <EnemyView key={`${keyPrefix}-${i}`} e={e} idx={i} hitMode={hitModeFor(e)} onHover={setHoverLair}
+          focused={focusedEnemy === i} onFocus={focusEnemy} emoji={enemyIcon(e.key, e.def, preferences)} />
+      ))}
+    </div>
+    {compact && focusedEnemy >= 0 && c.enemies[focusedEnemy]?.hp > 0 && <div className="enemy-detail-popover">
+      <button type="button" className="enemy-detail-close" onClick={() => setFocusedEnemy(-1)} aria-label="Close enemy details">×</button>
+      <EnemyView e={c.enemies[focusedEnemy]} idx={focusedEnemy} hitMode={hitModeFor(c.enemies[focusedEnemy])}
+        onHover={setHoverLair} focused onFocus={focusEnemy}
+        emoji={enemyIcon(c.enemies[focusedEnemy].key, c.enemies[focusedEnemy].def, preferences)} />
+    </div>}
+  </div>;
+  const itemEntries = [
+    ...run.trinkets.map(key => ({ id: `trinket:${key}`, key, kind: 'trinket', def: TRINKETS[key] })),
+    ...run.gadgets.map(key => ({ id: `gadget:${key}`, key, kind: 'gadget', def: GADGETS[key] })),
+  ].reduce((entries, item) => {
+    const found = entries.find(entry => entry.id === item.id);
+    if (found) found.count++;
+    else entries.push({ ...item, count: 1 });
+    return entries;
+  }, []);
 
   return (
     <>
@@ -129,14 +177,20 @@ export function CombatScreen() {
         {(run.cls === 'surveyor' || c.insight > 0) && (
           <span className="stat" data-mechanic="insight" style={{ color: 'var(--n2)' }}>👁 <b>{c.insight}</b> Insight</span>
         )}
-        <span className="seg" title="hidden mines − flags">☀ {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
+        <span className="seg" data-mechanic="mines" tabIndex="0" title="hidden mines − flags">☀ {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
         <span className="seg" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}>▦ {String(safeLeft).padStart(2, '0')}</span>
         <span className="seg" data-mechanic="max picks" title="current / max picks" style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}>⛏ {c.picks}/{c.maxPicks}</span>
-        <span className="seg" title="turn">T{String(c.turn).padStart(2, '0')}</span>
+        <span className="seg" data-mechanic="turn" tabIndex="0" title="turn">T{String(c.turn).padStart(2, '0')}</span>
+        <span className="seg energy-stat" data-mechanic="energy" tabIndex="0">⚡ {c.energy}</span>
+        <button className="header-pile" onClick={() => openPileModal('draw')} title="Open draw pile">🂠 {c.draw.length}</button>
+        <button className="header-pile" onClick={() => openPileModal('discard')} title="Open discard pile">♻ {c.discard.length}</button>
+        {c.exhaust.length > 0 && <button className="header-pile" onClick={() => openPileModal('exhaust')} title="Open exhaust pile">✕ {c.exhaust.length}</button>}
         {!c.instinctUsed && (
           <span className="stat dim" data-mechanic="instinct">🐾 instinct ready</span>
         )}
       </TopBar>
+
+      {enemyRoster('mobile-enemy-roster', 'mobile', true)}
 
       {t && (
         <div className="hint">
@@ -157,59 +211,47 @@ export function CombatScreen() {
       <div className="combat">
         <div className="boardcol">
           <BoardView mode="combat" hiliteLair={hoverLair} />
-          <div className="boardinfo">
-            <button className="btn" onClick={toggleFlagMode}
-              style={ui.flagMode ? { borderColor: 'var(--flag)', color: 'var(--flag)' } : undefined}>
-              ⚑ Flag mode: {ui.flagMode ? 'ON' : 'off'}
-            </button>
-            <span className="dim">tap Flag mode or long-press a tile to flag · ⛏ {c.picks}/{c.maxPicks} current / max picks</span>
-          </div>
-          <div className="legend">
-            <b>⚑</b> flag · <b>◆</b> scanned safe · <b>☠</b> scanned mine · <b>💣</b> primed ·
-            <b> ▼</b> incoming mines · <b>▦</b> entombed · <b>✸</b> crater ·
-            tinted region = enemy <b data-mechanic="lair">lair</b> (dig it to wound its owner)
-          </div>
         </div>
-        <div className="sidecol">
-          <div className="targethint">
-            ⌖ marks your target — click an enemy to switch it.
-            Cards say who they hit: <b>⌖ target</b> · <b>✸ random</b> · <b>☄ all</b>.
-            <br />⛏ Each enemy nests in a tinted <b>lair</b>: revealing its tiles wounds it
-            (numbers hit harder), detonating its mines deals 10. Kill it and its lair crumbles open.
+        <div className="sidecol" aria-label="Enemies and combat tools">
+          {enemyRoster('desktop-enemy-roster', 'desktop')}
+          <div className="combat-utility-row">
+            {itemEntries.length > 0 && <button type="button" className="item-toggle" onClick={() => setShowItems(x => !x)} aria-expanded={showItems}>
+                <span className="item-toggle-bag">🎒</span>
+                <span className="item-preview">
+                  {itemEntries.slice(0, 4).map(item => <span className="item-preview-icon" key={item.id}>{item.def.emoji}<small>{item.count}</small></span>)}
+                  {itemEntries.length > 4 && <b>+{itemEntries.length - 4}</b>}
+                </span>
+                <span className="item-total">{itemEntries.reduce((sum, item) => sum + item.count, 0)}</span>
+                <span>{showItems ? '▲' : '▼'}</span>
+              </button>}
+            <button className={`btn log-toggle ${showLog ? 'active' : ''}`} onClick={() => setShowLog(x => !x)}>☷ Log {showLog ? '▲' : '▼'}</button>
           </div>
-          {c.enemies.map((e, i) => (
-            <EnemyView key={i} e={e} idx={i} hitMode={hitModeFor(e)} onHover={setHoverLair} />
-          ))}
-          {run.gadgets.length > 0 && (
-            <div className="gadgetrow">
-              Gadgets:
-              {run.gadgets.map((g, i) => (
-                <button key={`${g}-${i}`} className="gadget" title={GADGETS[g].desc} onClick={() => useGadget(g)}>
-                  {GADGETS[g].emoji} {GADGETS[g].name}
-                </button>
-              ))}
-            </div>
-          )}
+          {showItems && <div className="item-tray">
+              {itemEntries.map(item => item.kind === 'gadget'
+                ? <button key={item.id} className="item-tray-entry usable" onClick={() => { setShowItems(false); useGadget(item.key); }}>
+                    <span>{item.def.emoji}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count} · Use</i>
+                  </button>
+                : <div key={item.id} className="item-tray-entry">
+                    <span>{item.def.emoji}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count}</i>
+                  </div>)}
+            </div>}
           {c.powersPlayed.length > 0 && (
             <div className="gadgetrow dim">Powers: {c.powersPlayed.map(p => CARDS[p.key].name).join(', ')}</div>
           )}
-          <div className="log" ref={logRef}>
-            {c.log.map((x, i) => <div key={i} className="entry">{x}</div>)}
-          </div>
+          {showLog && <div className="log" ref={logRef}>
+            {c.log.length ? c.log.map((x, i) => <div key={i} className="entry">{x}</div>) : <div className="entry">The crypt is quiet.</div>}
+          </div>}
         </div>
       </div>
 
-      <div className="handzone">
-        <div className="pilerow">
-          <span className="energyorb" data-mechanic="energy">{c.energy}⚡</span>
-          <span className="pile" onClick={() => openPileModal('draw')}>Draw: {c.draw.length}</span>
-          <span className="pile" onClick={() => openPileModal('discard')}>Discard: {c.discard.length}</span>
-          {c.exhaust.length > 0 && (
-            <span className="pile" data-mechanic="exhaust" onClick={() => openPileModal('exhaust')}>Exhaust: {c.exhaust.length}</span>
-          )}
-          <button className="btn primary" style={{ marginLeft: 'auto' }} onClick={endTurn}>END TURN ▸</button>
+      <div className={`hand-drawer ${showHand ? 'open' : ''}`}>
+        <div className="combat-primary-actions">
+          <button className="btn hand-toggle" aria-expanded={showHand} onClick={() => setShowHand(x => !x)}>
+            {showHand ? '▼ Hide cards' : `🃏 Show cards (${c.hand.length})`}
+          </button>
+          <button className="btn primary end-turn" onClick={endTurn}>END TURN ▸</button>
         </div>
-        <div className="hand">
+        {showHand && <div className="handzone"><div className="hand">
           {c.hand.map((card, i) => {
             const def = CARDS[card.key];
             const affordable = def.cost != null && effCost(card) <= c.energy;
@@ -236,7 +278,7 @@ export function CombatScreen() {
               </div>
             );
           })}
-        </div>
+        </div></div>}
       </div>
       {ghosts.map(g => (
         <div key={`ghost-${g.id}`} className={`cardghost ${g.mode}`}

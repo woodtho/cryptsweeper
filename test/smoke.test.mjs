@@ -7,12 +7,15 @@ import {
   startPuzzle, puzzleClick, devourRing, hitEnemy, checkNNPhase,
   detonateForCards, fleeCombat,
   SHAPES, annexTiles, addMineAt, clickTile, PICKS_PER_TURN,
-  saveRun, listSaves, loadRun, deleteSave,
+  saveRun, listSaves, loadRun, deleteSave, goHome,
   scanTile, addConstruct,
-  campTrainPicks,
+  campTrainPicks, closeCutscene, closeModal,
+  EVENT_CATALOG, eventChoice, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
+  toggleLightsCell, toggleNonogramCell, answerSequence,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
+import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import { observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep } from '../src/bot/gameBot.js';
 import { decorateMechanics } from '../src/ui/mechanics.js';
 
@@ -47,6 +50,9 @@ for (const shape of SHAPES) {
 /* 2 — run + map */
 newRun('surveyor');
 T('run created, 10-card deck', R() && R().deck.length === 10);
+T('new run queues the opening cutscene', ui.cutscene?.id === 'opening');
+closeCutscene();
+T('cutscene can be dismissed through engine state', ui.cutscene === null);
 T('map has 12 rows', R().map.nodes.length === 12);
 T('boss node exists', R().map.nodes[11][2] === 'boss');
 T('start nodes reachable', reachableNodes().length > 0);
@@ -183,14 +189,69 @@ T('shop card purchase adds to deck', R().deck.length === deckPreShop + 1 && R().
 
 /* 9 — puzzle event */
 startPuzzle();
-T('puzzle board 6x6, 4 mines', R().puzzle.board.cells.length === 36 && R().puzzle.board.cells.filter(x => x.mine).length === 4);
+T('puzzle board 6x6, 4-5 mines', R().puzzle.board.cells.length === 36 && [4, 5].includes(R().puzzle.board.cells.filter(x => x.mine).length));
 for (let i = 0; i < 36; i++) { const cell = R().puzzle.board.cells[i]; if (!cell.mine && !cell.revealed) puzzleClick(i); }
 T('puzzle solvable by full sweep', R().puzzle.solved === true);
+{
+  const layout = () => { startPuzzle(); return R().puzzle.board.cells.map(c => (c.mine ? 1 : 0)).join(''); };
+  T('honest puzzles vary between visits', new Set(Array.from({ length: 6 }, layout)).size > 1);
+  let honest = true;
+  for (let n = 0; n < 10; n++) {
+    startPuzzle();
+    const cells = R().puzzle.board.cells;
+    const mines = new Set(cells.map((c, i) => (c.mine ? i : -1)).filter(i => i >= 0));
+    // any revealed zero-cell floods the same opening region the player starts with
+    const opening = cells.findIndex((c, i) => c.revealed && neighborsOf(i, 6).every(j => !cells[j].mine));
+    if (solveScore(mines, 6, opening) < 1) honest = false;
+  }
+  T('every generated puzzle is provable without guessing', honest);
+}
+T('event catalog contains exactly 100 discoverable encounters', Object.keys(EVENT_CATALOG).length === 100);
+T('all events have titles, descriptions, and at least two choices', Object.values(EVENT_CATALOG).every(event => event.title && event.text && event.choices?.length >= 2));
+startPuzzle('sudoku');
+T('Sudoku puzzle has a persisted 4x4 solution and givens', R().puzzle.type === 'sudoku' && R().puzzle.values.length === 16 && R().puzzle.givens.length > 0);
+R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
+checkLogicPuzzle();
+T('Sudoku can be solved through engine actions', R().puzzle.solved === true);
+startPuzzle('crossword');
+T('crossword puzzle has a persisted 3x3 grid and clues', R().puzzle.type === 'crossword' && R().puzzle.values.length === 9 && R().puzzle.clues.length === 3);
+R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
+checkLogicPuzzle();
+T('crossword can be solved through engine actions', R().puzzle.solved === true);
+startPuzzle('mines-hard');
+T('late Minesweeper expands to a no-guess 8x8 board with fewer scans', R().puzzle.board.cells.length === 64 && R().puzzle.scans === 1);
+startPuzzle('sudoku-hard');
+T('late Sudoku expands to a standard 9x9 board', R().puzzle.size === 9 && R().puzzle.values.length === 81);
+R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
+checkLogicPuzzle();
+T('9x9 Sudoku resolves through the shared puzzle engine', R().puzzle.solved === true);
+startPuzzle('crossword-medium');
+T('middle-depth crossword expands to a 4x4 word square', R().puzzle.size === 4 && R().puzzle.values.length === 16);
+startPuzzle('sequence-medium');
+answerSequence(R().puzzle.answer);
+T('sequence puzzles resolve an answer', R().puzzle.solved === true);
+startPuzzle('lights-hard');
+const lightsBefore = R().puzzle.values.join('');
+toggleLightsCell(0);
+T('Lights Out uses cross-shaped presses on a 4x4 board', R().puzzle.size === 4 && R().puzzle.values.join('') !== lightsBefore);
+startPuzzle('nonogram');
+R().puzzle.solution.forEach((value, i) => { if (value) toggleNonogramCell(i); });
+checkLogicPuzzle();
+T('nonogram clues have a complete solvable 5x5 answer', R().puzzle.solved === true && R().puzzle.rowClues.length === 5);
+testLaunch('event', 'monty');
+T('test lab can launch a named event directly', ui.screen === 'event' && R().event === 'monty' && R().testMode === true);
+testLaunch('event', 'mean-median');
+const eventGold = R().gold;
+eventChoice('correct');
+T('data-driven event choices resolve rewards and explanations', R().gold > eventGold && ui.modal?.html.includes('median'));
+closeModal();
 
 /* 10 — boss machinery: collapser devour + nn99 gate */
 startCombat('boss');
 const boss = cbt().enemies[0];
 T('stratum-1 boss is the Collapser', boss.key === 'collapser');
+T('boss combat queues its introduction once', ui.cutscene?.id === 'boss-intro-0');
+closeCutscene();
 const preVoid = board().cells.filter(x => x.void).length;
 devourRing();
 if (R().combat && !cbt().over) {
@@ -287,6 +348,18 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   T('named save can be deleted', !listSaves().some(s => s.slot === 'slot1'));
 }
 
+/* 13b — Continue (the autosave) resumes gameplay after returning home */
+{
+  const key = 'cryptsweeper.save.v1.auto';
+  goHome();
+  T('going home leaves a resumable autosave', JSON.parse(localStorage.getItem(key)).screen !== 'title');
+  T('continue resumes into gameplay', loadRun('auto') && ui.screen !== 'title');
+  const legacy = JSON.parse(localStorage.getItem(key));
+  legacy.screen = 'title'; // saves written before the goHome fix look like this
+  localStorage.setItem(key, JSON.stringify(legacy));
+  T('title-stamped legacy autosave still resumes', loadRun('auto') && ui.screen !== 'title');
+}
+
 /* 14 — the daily challenge seed is repeatable */
 {
   const signature = () => JSON.stringify({ nodes: R().map.nodes, edges: Object.fromEntries(Object.entries(R().map.edges).map(([k, v]) => [k, [...v]])) });
@@ -294,6 +367,22 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   const first = signature();
   newRun('surveyor', { daily: '2026-07-19' });
   T('same daily seed generates the same map', signature() === first);
+}
+
+/* 14b — daily records: attempts, results, on-time vs archive clears */
+{
+  const today = dailyDateKey();
+  newRun('surveyor', { daily: '2026-01-05' });
+  T('starting a daily records an attempt', loadDailyRecords()['2026-01-05']?.attempts === 1);
+  recordDailyResult('2026-01-05', { won: true, score: 120, cls: 'surveyor' });
+  let rec = loadDailyRecords()['2026-01-05'];
+  T('archive clear is recorded but not on-time', rec.won === true && rec.onTime === false && rec.best === 120);
+  recordDailyResult('2026-01-05', { won: false, score: 200, cls: 'sapper' });
+  rec = loadDailyRecords()['2026-01-05'];
+  T('best score improves and a win stays won', rec.won === true && rec.best === 200 && rec.cls === 'sapper');
+  recordDailyAttempt(today);
+  recordDailyResult(today, { won: true, score: 90, cls: 'surveyor' });
+  T('clearing today counts as on the day', loadDailyRecords()[today].onTime === true);
 }
 
 /* 15 — Delver identities: unique decks, passives, and expanded pools */
