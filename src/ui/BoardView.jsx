@@ -49,6 +49,10 @@ function Tile({ i, mode, hiliteLair }) {
       if (shown > 0) { cls.push(`numc${shown}`); content = String(shown); }
     }
   } else {
+    if (cell.grub) {
+      cls.push('grub'); content = '🪱';
+      title.push('Grubber burrow — reveal this tile to unearth it');
+    }
     if (cell.flag) {
       cls.push('flag'); if (cell.flag === 2) cls.push('verified'); content = '⚑';
       title.push(cell.flag === 2 ? 'Verified flag — this IS a mine' : 'Flag (your annotation, unverified)');

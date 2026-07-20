@@ -100,9 +100,11 @@ export function loadRun(slot) {
     run = payload.run;
     run.upgrades ??= 0;
     run.winRecorded ??= false;
+    run.pickBonus ??= 0;
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
       if (run.combat.picks == null) run.combat.picks = PICKS_PER_TURN;
+      if (run.combat.maxPicks == null) run.combat.maxPicks = PICKS_PER_TURN + run.pickBonus + (run.trinkets.includes('pitons') ? 1 : 0);
       run.combat.powers = {
         powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
         blastDividend: false, blastDividendUsed: false, stonechoir: false,
@@ -165,7 +167,7 @@ export function newRun(clsKey, options = {}) {
     deck, trinkets: [cls.trinket], gadgets: [],
     stratum: 0, map: null, pos: null, visited: {},
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
-    surveyNext: false, seenEvents: [], combat: null, upgrades: 0, winRecorded: false,
+    surveyNext: false, seenEvents: [], combat: null, upgrades: 0, pickBonus: 0, winRecorded: false,
     reward: null, shop: null, event: null, puzzle: null,
     daily: options.daily || null,
     rngState: options.daily ? dailySeed(options.daily) : null,
@@ -934,6 +936,7 @@ export function scrambleMines(n) {
 }
 
 export function setLie() {
+  if (!run?.combat) return;
   const b = board();
   const cand = b.cells.map((_, i) => i).filter(i => b.cells[i].revealed && !b.cells[i].void && numAt(i) > 0);
   cbt().lie = cand.length ? { tile: randPick(cand), delta: random() < 0.5 ? 1 : -1 } : null;
@@ -941,6 +944,7 @@ export function setLie() {
 export function clearLie() { if (run.combat) cbt().lie = null; }
 
 export function primeTile() {
+  if (!run?.combat) return;
   const b = board();
   const mines = hiddenIdx().filter(i => b.cells[i].mine);
   const others = hiddenIdx().filter(i => !b.cells[i].mine);
@@ -953,6 +957,7 @@ export function primeTile() {
 }
 
 export function resolvePrimed() {
+  if (!run?.combat) return;
   const c = cbt(), b = board();
   const p = c.primed;
   if (p == null) return;
@@ -1012,6 +1017,31 @@ export function gainBlock(n) { if (!run?.combat) return; cbt().block += n; sfx('
 export function gainPlating(n) { if (!run?.combat) return; cbt().plating += n; sfx('plating'); log(`⛨ +${n} Plating`); }
 export function gainEnergy(n) { if (run?.combat) cbt().energy += n; }
 export function gainInsight(n) { if (run?.combat) cbt().insight += n; }
+export function gainPicks(n) {
+  if (!run?.combat || n <= 0) return;
+  cbt().picks += n;
+  toast(`Trailblaze: +${n} pick${n === 1 ? '' : 's'}`);
+}
+export function gainMaxPicks(n) {
+  if (!run?.combat || n <= 0) return;
+  cbt().maxPicks += n;
+  cbt().picks += n;
+  toast(`Long stride: +${n} max pick${n === 1 ? '' : 's'} this combat`);
+}
+export function loseMaxPicks(n) {
+  if (!run?.combat || n <= 0) return 0;
+  const lost = Math.min(n, Math.max(0, cbt().maxPicks - 1));
+  cbt().maxPicks -= lost;
+  cbt().picks = Math.min(cbt().picks, cbt().maxPicks);
+  if (lost) toast(`Overextended: −${lost} max pick${lost === 1 ? '' : 's'} this combat`, true);
+  return lost;
+}
+export function spendPicks(n = Infinity) {
+  if (!run?.combat) return 0;
+  const spent = Math.min(cbt().picks, n);
+  cbt().picks -= spent;
+  return spent;
+}
 export function loseHP(n) {
   run.hp -= n;
   pushDmg({ kind: 'player', amount: n });
@@ -1042,6 +1072,7 @@ export function drawCards(n) {
 }
 
 export function enemyAttack(e, n) {
+  if (!run?.combat) return;
   const c = cbt();
   const soak = Math.min(c.block, n);
   c.block -= soak;
@@ -1169,6 +1200,7 @@ export function startCombat(kind) {
     draw: shuffle(run.deck.map(c => ({ ...c }))),
     energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0),
     block: 0, plating: 0, insight: 0, turn: 0,
+    maxPicks: PICKS_PER_TURN + (run.pickBonus || 0) + (hasT('pitons') ? 1 : 0),
     revealedThisTurn: 0, sumThisTurn: 0, chordedThisTurn: false, minesDetonated: 0,
     powers: {
       powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
@@ -1218,7 +1250,7 @@ export function startCombat(kind) {
     shuffle(hiddenIdx()).slice(0, 3).forEach(i => scanTile(i));
     log('🔷 Hex Key scans 3 tiles.');
   }
-  if (hasT('wardplate')) c.plating = 4;
+  if (hasT('wardplate')) c.plating = 2;
   assignLairs();
   c.setup = false;
   ui.screen = 'combat';
@@ -1226,14 +1258,14 @@ export function startCombat(kind) {
   startTurn();
 }
 
-export const PICKS_PER_TURN = 3;
+export const PICKS_PER_TURN = 4;
 
 function startTurn() {
   const c = cbt();
   c.turn++;
-  c.block = run.cls === 'warden' && c.turn > 1 ? Math.floor(c.block / 2) : 0;
+  c.block = run.cls === 'warden' && c.turn > 1 ? Math.floor(c.block / 4) : 0;
   c.energy = c.maxEnergy;
-  c.picks = PICKS_PER_TURN;
+  c.picks = c.maxPicks;
   c.revealedThisTurn = 0; c.sumThisTurn = 0; c.chordedThisTurn = false;
   c.powers.sixthUsed = false;
   c.classState.passiveUsed = false;
@@ -1505,7 +1537,7 @@ function combatVictory() {
 function rollCardReward(upgraded) {
   const pool = Object.keys(CARDS).filter(k => {
     const d = CARDS[k];
-    return d.cls === run.cls && ['common', 'uncommon', 'rare'].includes(d.rarity);
+    return (d.cls === run.cls || d.cls === 'neutral') && ['common', 'uncommon', 'rare'].includes(d.rarity);
   });
   const byRarity = r => pool.filter(k => CARDS[k].rarity === r);
   const picks = [];
@@ -1577,6 +1609,12 @@ export function campSurvey() {
   toast('Surveyed: your next combat starts 25% revealed.');
   ui.screen = 'map'; notify();
 }
+export function campTrainPicks() {
+  if ((run.pickBonus || 0) >= 2) { toast('Your run is already at the +2 pick training cap.', true); return; }
+  run.pickBonus = (run.pickBonus || 0) + 1;
+  toast(`Trail training: permanent +1 max pick per turn (${PICKS_PER_TURN + run.pickBonus} base)`);
+  ui.screen = 'map'; notify();
+}
 export function campUpgrade() {
   const upgradable = run.deck.filter(c => !c.up && CARDS[c.key].cost != null);
   if (!upgradable.length) { toast('Nothing to upgrade.', true); return; }
@@ -1592,7 +1630,7 @@ export function doUpgrade(deckIdx) {
 }
 
 export function genShop() {
-  const pool = Object.keys(CARDS).filter(k => CARDS[k].cls === run.cls && ['common', 'uncommon', 'rare'].includes(CARDS[k].rarity));
+  const pool = Object.keys(CARDS).filter(k => (CARDS[k].cls === run.cls || CARDS[k].cls === 'neutral') && ['common', 'uncommon', 'rare'].includes(CARDS[k].rarity));
   const cards = shuffle(pool).slice(0, 5).map(k => ({
     key: k,
     price: CARDS[k].rarity === 'rare' ? 130 + randInt(30) : CARDS[k].rarity === 'uncommon' ? 70 + randInt(20) : 45 + randInt(15),

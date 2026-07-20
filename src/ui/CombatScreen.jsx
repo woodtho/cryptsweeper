@@ -124,17 +124,17 @@ export function CombatScreen() {
   return (
     <>
       <TopBar>
-        <span className="stat">🛡 <b>{c.block}</b></span>
-        <span className="stat" style={{ color: 'var(--n4)' }}>⛨ <b>{c.plating}</b></span>
+        <span className="stat" data-mechanic="block">🛡 <b>{c.block}</b></span>
+        <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}>⛨ <b>{c.plating}</b></span>
         {(run.cls === 'surveyor' || c.insight > 0) && (
-          <span className="stat" style={{ color: 'var(--n2)' }}>👁 <b>{c.insight}</b> Insight</span>
+          <span className="stat" data-mechanic="insight" style={{ color: 'var(--n2)' }}>👁 <b>{c.insight}</b> Insight</span>
         )}
         <span className="seg" title="hidden mines − flags">☀ {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
-        <span className="seg" title="safe tiles left — reveal them all to FULL CLEAR: the board collapses for 50 damage to ALL enemies, then re-seals" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}>▦ {String(safeLeft).padStart(2, '0')}</span>
-        <span className="seg" title="picks — free digs left this turn. Card effects (reveals, scans, detonations, chords) never cost picks." style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}>⛏ {c.picks}</span>
+        <span className="seg" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}>▦ {String(safeLeft).padStart(2, '0')}</span>
+        <span className="seg" data-mechanic="max picks" title="current / max picks" style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}>⛏ {c.picks}/{c.maxPicks}</span>
         <span className="seg" title="turn">T{String(c.turn).padStart(2, '0')}</span>
         {!c.instinctUsed && (
-          <span className="stat dim" title="Once per combat, a revealed mine is flagged instead of detonating.">🐾 instinct ready</span>
+          <span className="stat dim" data-mechanic="instinct">🐾 instinct ready</span>
         )}
       </TopBar>
 
@@ -162,12 +162,12 @@ export function CombatScreen() {
               style={ui.flagMode ? { borderColor: 'var(--flag)', color: 'var(--flag)' } : undefined}>
               ⚑ Flag mode: {ui.flagMode ? 'ON' : 'off'}
             </button>
-            <span className="dim">right-click also flags · ⛏ {c.picks} free digs left</span>
+            <span className="dim">tap Flag mode or long-press a tile to flag · ⛏ {c.picks}/{c.maxPicks} current / max picks</span>
           </div>
           <div className="legend">
             <b>⚑</b> flag · <b>◆</b> scanned safe · <b>☠</b> scanned mine · <b>💣</b> primed ·
             <b> ▼</b> incoming mines · <b>▦</b> entombed · <b>✸</b> crater ·
-            tinted region = enemy <b>lair</b> (dig it to wound its owner)
+            tinted region = enemy <b data-mechanic="lair">lair</b> (dig it to wound its owner)
           </div>
         </div>
         <div className="sidecol">
@@ -201,11 +201,11 @@ export function CombatScreen() {
 
       <div className="handzone">
         <div className="pilerow">
-          <span className="energyorb">{c.energy}⚡</span>
+          <span className="energyorb" data-mechanic="energy">{c.energy}⚡</span>
           <span className="pile" onClick={() => openPileModal('draw')}>Draw: {c.draw.length}</span>
           <span className="pile" onClick={() => openPileModal('discard')}>Discard: {c.discard.length}</span>
           {c.exhaust.length > 0 && (
-            <span className="pile" onClick={() => openPileModal('exhaust')}>Exhaust: {c.exhaust.length}</span>
+            <span className="pile" data-mechanic="exhaust" onClick={() => openPileModal('exhaust')}>Exhaust: {c.exhaust.length}</span>
           )}
           <button className="btn primary" style={{ marginLeft: 'auto' }} onClick={endTurn}>END TURN ▸</button>
         </div>

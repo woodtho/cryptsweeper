@@ -1,5 +1,6 @@
 import { CARDS } from '../engine/data.js';
 import { effCost } from '../engine/engine.js';
+import { decorateMechanics } from './mechanics.js';
 
 const TYPE_GLYPHS = { Attack: '▲', Skill: '◆', Power: '⬢', Status: '✕', Curse: '✕' };
 const HIT_LABELS = { target: '⌖ target', random: '✸ random', all: '☄ all' };
@@ -22,7 +23,7 @@ export function CardView({ card, onClick, inCombat = false, selected = false, di
         {def.rarity} · {def.type}
         {def.hits ? <span className={`hitmode hm-${def.hits}`}> · {HIT_LABELS[def.hits]}</span> : null}
       </div>
-      <div className="rules" dangerouslySetInnerHTML={{ __html: def.text(card.up) }} />
+      <div className="rules" dangerouslySetInnerHTML={{ __html: decorateMechanics(def.text(card.up)) }} />
     </div>
   );
 }

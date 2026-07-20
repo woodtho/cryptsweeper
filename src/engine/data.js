@@ -4,7 +4,8 @@
 import {
   cbt, board, shuffle, randPick, randInt,
   revealTile, hitEnemy, hitRandom, hitAll, curTarget, atk,
-  gainBlock, gainPlating, gainEnergy, gainInsight, drawCards, loseHP,
+  gainBlock, gainPlating, gainEnergy, gainInsight, gainPicks, gainMaxPicks,
+  loseMaxPicks, spendPicks, drawCards, loseHP,
   detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
   chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
   highestRevealedNumber, toast, log, fleeCombat,
@@ -70,10 +71,10 @@ export const CLASSES = {
     deck: ['probe','probe','probe','brace','brace','brace','exp_archivist_0','exp_archivist_0','exp_archivist_1','exp_archivist_2'],
   },
   warden: {
-    name: 'THE WARDEN', hp: 88, sig: 'exp_warden_0', trinket: 'wardplate',
-    role: '88 HP · block retention · "stone remembers pressure"',
+    name: 'THE WARDEN', hp: 82, sig: 'exp_warden_0', trinket: 'wardplate',
+    role: '82 HP · block retention · "stone remembers pressure"',
     blurb: 'Builds defenses that persist between turns, then converts accumulated Block and Plating into crushing board control.',
-    passive: '<b>Hold Fast:</b> retain half your Block between turns.',
+    passive: '<b>Hold Fast:</b> retain one quarter of your Block between turns.',
     deck: ['probe','probe','probe','brace','brace','brace','exp_warden_0','exp_warden_0','exp_warden_1','exp_warden_2'],
   },
   hexwright: {
@@ -490,12 +491,12 @@ function expansionCard(cls, name, i) {
   switch (i % 19) {
     case 0: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?dmg+4:dmg}.`, play:u=>hitEnemy(curTarget(),atk(u?dmg+4:dmg)) };
     case 1: return { ...base, type:'Attack', hits:'target', targets:['hidden'], text:u=>`${kwR('Reveal')} a tile. If safe, deal ${u?dmg+5:dmg}.`, play:(u,t)=>{const r=revealTile(t[0],'card-safe');if(r.safe)hitEnemy(curTarget(),atk(u?dmg+5:dmg));} };
-    case 2: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwS('Scan')} a tile. Draw ${u?2:1}.`, play:(u,t)=>{scanTile(t[0]);drawCards(u?2:1);} };
+    case 2: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwS('Scan')} a tile. Draw ${u?2:1}.${u?' Gain 1 pick.':''}`, play:(u,t)=>{scanTile(t[0]);drawCards(u?2:1);if(u)gainPicks(1);} };
     case 3: return { ...base, type:'Skill', targets:[], text:u=>`Gain ${u?guard+4:guard} Block.`, play:u=>gainBlock(u?guard+4:guard) };
     case 4: return { ...base, type:'Skill', targets:[], text:u=>`Gain ${u?Math.ceil(guard/2)+2:Math.ceil(guard/2)} ${kwG('Plating')}.`, play:u=>gainPlating(u?Math.ceil(guard/2)+2:Math.ceil(guard/2)) };
     case 5: return { ...base, type:'Attack', hits:'random', targets:['hidden'], text:u=>`${kwS('Defuse')} a tile. Mine: deal ${u?dmg+6:dmg+2} to a random enemy. Safe: reveal it.`, play:(u,t)=>{if(defuseTile(t[0]))hitRandom(atk(u?dmg+6:dmg+2));} };
     case 6: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwG('Entomb')} a tile and gain ${u?guard+3:guard} Block.`, play:(u,t)=>{entombTile(t[0]);gainBlock(u?guard+3:guard);} };
-    case 7: return { ...base, type:'Skill', targets:[], text:u=>`${kwS('Scan')} ${u?scans+2:scans} random hidden tiles.`, play:u=>shuffle(hiddenIdx()).slice(0,u?scans+2:scans).forEach(scanTile) };
+    case 7: return { ...base, type:'Skill', targets:[], text:u=>`${kwS('Scan')} ${u?scans+2:scans} random hidden tiles. Gain 1 pick.`, play:u=>{shuffle(hiddenIdx()).slice(0,u?scans+2:scans).forEach(scanTile);gainPicks(1);} };
     case 8: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?4:3} per flagged tile.`, play:u=>hitEnemy(curTarget(),atk(flaggedIdx().length*(u?4:3))) };
     case 9: return { ...base, type:'Attack', hits:'all', targets:['hidden'], text:u=>`${kwD('Detonate')} from cover. Mine: deal ${u?dmg+5:dmg} to ALL; safe: reveal it.`, play:(u,t)=>{if(detonateForCards(t[0]))hitAll(atk(u?dmg+5:dmg));else revealTile(t[0],'card-safe');} };
     case 10:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?dmg+3:dmg-1} to ALL enemies.`, play:u=>hitAll(atk(u?dmg+3:dmg-1)) };
@@ -506,7 +507,7 @@ function expansionCard(cls, name, i) {
     case 15:return { ...base, type:'Attack', hits:'target', targets:['hidden','hidden'], optionalTargets:true, text:u=>`${kwR('Reveal')} up to 2 tiles. Deal ${u?5:3} per safe tile.`, play:(u,t)=>{let safe=0;t.forEach(i=>{if(revealTile(i,'card-safe').safe)safe++;});hitEnemy(curTarget(),atk(safe*(u?5:3)));} };
     case 16:return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?3:2} per tile revealed this turn.`, play:u=>hitEnemy(curTarget(),atk(cbt().revealedThisTurn*(u?3:2))) };
     case 17:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?4:3} per scanned mine to ALL enemies.`, play:u=>hitAll(atk(hiddenIdx().filter(i=>board().cells[i].scan==='mine').length*(u?4:3))) };
-    default:return { ...base, type:'Skill', targets:[], exhaust:true, text:u=>`${kwS('Scan')} ${u?7:5} tiles; deal that many damage to ALL. Exhaust.`, play:u=>{const picks=shuffle(hiddenIdx()).slice(0,u?7:5);picks.forEach(scanTile);hitAll(atk(picks.length));} };
+    default:return { ...base, type:'Skill', targets:[], exhaust:true, text:u=>`${kwS('Scan')} ${u?7:5} tiles; deal that many damage to ALL.${u?' Gain +1 max pick this combat.':''} Exhaust.`, play:u=>{const picks=shuffle(hiddenIdx()).slice(0,u?7:5);picks.forEach(scanTile);hitAll(atk(picks.length));if(u)gainMaxPicks(1);} };
   }
 }
 
@@ -515,10 +516,10 @@ for (const [cls, names] of Object.entries(EXPANSION_NAMES)) {
 }
 
 Object.assign(CARDS, {
-  steadyhand: { name:'Steady Hand',type:'Skill',rarity:'common',cls:'neutral',cost:[1,0],targets:[],text:u=>`Gain ${u?8:5} Block.${u?' Costs 0.':''}`,play:u=>gainBlock(u?8:5) },
-  lanternloan: { name:'Lantern Loan',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],text:u=>`${kwS('Scan')} ${u?3:2} random tiles.`,play:u=>shuffle(hiddenIdx()).slice(0,u?3:2).forEach(scanTile) },
-  hardlesson: { name:'Hard Lesson',type:'Attack',rarity:'uncommon',cls:'neutral',cost:[1,1],hits:'target',targets:[],text:u=>`Deal ${u?4:3} per mine detonated this combat.`,play:u=>hitEnemy(curTarget(),atk(cbt().minesDetonated*(u?4:3))) },
-  emergencyexit: { name:'Emergency Exit',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],text:u=>`Gain ${u?10:7} Plating and draw 2.`,play:u=>{gainPlating(u?10:7);drawCards(2);} },
+  steadyhand: { name:'Steady Hand',type:'Skill',rarity:'common',cls:'neutral',cost:[1,0],targets:[],text:u=>`Gain ${u?7:4} Block and ${u?3:2} picks.${u?' Costs 0.':''}`,play:u=>{gainBlock(u?7:4);gainPicks(u?3:2);} },
+  lanternloan: { name:'Lantern Loan',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],text:u=>`${kwS('Scan')} ${u?3:2} random tiles. Gain 1 pick.${u?' Raise max picks by 1 this combat.':''}`,play:u=>{shuffle(hiddenIdx()).slice(0,u?3:2).forEach(scanTile);gainPicks(1);if(u)gainMaxPicks(1);} },
+  hardlesson: { name:'Hard Lesson',type:'Attack',rarity:'uncommon',cls:'neutral',cost:[0,0],hits:'target',targets:[],can:()=>cbt().picks>0,canMsg:'No picks left to spend.',text:u=>`Spend up to 3 picks. Deal ${u?8:6} per pick spent.`,play:u=>hitEnemy(curTarget(),atk(spendPicks(3)*(u?8:6))) },
+  emergencyexit: { name:'Emergency Exit',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],text:u=>`Lose 1 max pick this combat. Gain ${u?16:12} Plating and draw 2.`,play:u=>{loseMaxPicks(1);gainPlating(u?16:12);drawCards(2);} },
 });
 
 /* ---------------- trinkets ---------------- */
@@ -533,7 +534,7 @@ export const TRINKETS = {
   loadedcoin:    { name: 'Loaded Coin', emoji: '🪙', tier: 'starter', desc: 'At combat start, one random mine is verified-flagged.' },
   fieldkit:      { name: 'Field Kit', emoji: '🩹', tier: 'starter', desc: '+8 max HP.' },
   indexcard:     { name: 'Index Card', emoji: '🗂️', tier: 'starter', desc: 'Draw 1 extra card on the first turn of combat.' },
-  wardplate:     { name: 'Ward Plate', emoji: '🛡️', tier: 'starter', desc: 'Begin combat with 4 Plating.' },
+  wardplate:     { name: 'Ward Plate', emoji: '🛡️', tier: 'starter', desc: 'Begin combat with 2 Plating.' },
   hexkey:        { name: 'Hex Key', emoji: '🔷', tier: 'starter', desc: 'At combat start, Scan 3 random tiles.' },
   gravebell:     { name: 'Grave Bell', emoji: '🔔', tier: 'starter', desc: 'Instinct can save you twice each combat.' },
   luckycompass:  { name: 'Lucky Compass', emoji: '🧭', tier: 'common',
@@ -544,6 +545,8 @@ export const TRINKETS = {
     desc: 'At combat start, one random mine is verified-flagged.' },
   tally:         { name: 'Tally Counter', emoji: '🧮', tier: 'uncommon',
     desc: 'Every 25 safe tiles revealed, gain 1 max HP.' },
+  pitons:        { name: "Climber's Pitons", emoji: '🧗', tier: 'uncommon',
+    desc: 'Gain +1 pick at the start of every turn.' },
   canary:        { name: "Miner's Canary", emoji: '🐤', tier: 'rare',
     desc: 'Once per combat, a single detonation against you is capped at 10 damage.' },
   lamp:          { name: 'Overclocked Lamp', emoji: '🔦', tier: 'boss',

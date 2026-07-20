@@ -1,7 +1,7 @@
 import readline from 'node:readline';
 import { CLASSES } from '../engine/data.js';
 import { newRun } from '../engine/engine.js';
-import { observe, step, runContinuous } from './gameBot.js';
+import { observe, legalActions, act, step, runContinuous } from './gameBot.js';
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -16,13 +16,17 @@ function execute(message) {
       if (!CLASSES[message.class || 'sapper']) throw new Error(`Unknown class: ${message.class}`);
       newRun(message.class || 'sapper', message.seed ? { daily: message.seed } : {});
       return observe();
-    case 'state': return observe();
+    case 'state': return observe({ revealMines: Boolean(message.revealMines) });
+    case 'actions': return legalActions();
+    case 'act': return act(message.action);
     case 'step': return step(message);
     case 'run': return runContinuous(message);
     case 'help': return {
       commands: [
         { cmd: 'new', class: 'sapper', seed: 'optional deterministic seed' },
         { cmd: 'state' },
+        { cmd: 'actions' },
+        { cmd: 'act', action: { type: 'enter-node', r: 0, c: 2 } },
         { cmd: 'step', policy: 'oracle|honest' },
         { cmd: 'run', policy: 'oracle|honest', maxSteps: 5000 },
       ],

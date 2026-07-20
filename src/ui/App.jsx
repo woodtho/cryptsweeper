@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App as NativeApp } from '@capacitor/app';
 import { useGame } from './useGame.js';
 import {
-  run, ui, cbt, endTurn, cancelTargeting, closeModal, toggleFlagMode,
+  run, ui, cbt, endTurn, cancelTargeting, closeModal, toggleFlagMode, goHome,
 } from '../engine/engine.js';
 import { isMuted, toggleMuted } from '../engine/sfx.js';
 import { applyPreferences, loadPreferences, savePreferences } from '../engine/preferences.js';
@@ -9,6 +11,7 @@ import { TitleScreen, MapScreen, RewardScreen, CampScreen, ShopScreen, EventScre
 import { CombatScreen } from './CombatScreen.jsx';
 import { ModalHost } from './ModalHost.jsx';
 import { Toasts } from './Toasts.jsx';
+import { MechanicTooltip } from './MechanicTooltip.jsx';
 
 export function App() {
   useGame();
@@ -33,6 +36,22 @@ export function App() {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let listener;
+    NativeApp.addListener('backButton', () => {
+      if (document.querySelector('.mechanic-tooltip')) {
+        window.dispatchEvent(new Event('cryptsweeper:close-tooltip'));
+        return;
+      }
+      if (ui.modal) { closeModal(); return; }
+      if (ui.targeting || ui.gadgetTargeting) { cancelTargeting(); return; }
+      if (!run || ui.screen === 'title') { NativeApp.exitApp(); return; }
+      goHome();
+    }).then(handle => { listener = handle; });
+    return () => listener?.remove();
   }, []);
 
   /* mine detonations / heavy hits rattle the whole crypt */
@@ -78,6 +97,7 @@ export function App() {
         <Toasts />
         <ModalHost />
       </div>
+      <MechanicTooltip />
     </>
   );
 }

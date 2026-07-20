@@ -8,9 +8,9 @@
       "wins": 0,
       "winRate": 0,
       "avgHp": 0,
-      "avgFloors": 29.8,
-      "avgScore": 845,
-      "avgSteps": 640.7,
+      "avgFloors": 33.1,
+      "avgScore": 986.6,
+      "avgSteps": 781.1,
       "endings": {
         "gameover": 10
       }
@@ -21,9 +21,9 @@
       "wins": 0,
       "winRate": 0,
       "avgHp": 0,
-      "avgFloors": 20.6,
-      "avgScore": 606.2,
-      "avgSteps": 502,
+      "avgFloors": 22.7,
+      "avgScore": 676.2,
+      "avgSteps": 571.7,
       "endings": {
         "gameover": 10
       }
@@ -31,14 +31,15 @@
     {
       "class": "terraformer",
       "runs": 10,
-      "wins": 0,
-      "winRate": 0,
-      "avgHp": 0,
-      "avgFloors": 21.6,
-      "avgScore": 740.2,
-      "avgSteps": 692.6,
+      "wins": 4,
+      "winRate": 0.4,
+      "avgHp": 12.2,
+      "avgFloors": 30.9,
+      "avgScore": 1071.5,
+      "avgSteps": 1034.7,
       "endings": {
-        "gameover": 10
+        "victory": 4,
+        "gameover": 6
       }
     },
     {
@@ -47,9 +48,9 @@
       "wins": 0,
       "winRate": 0,
       "avgHp": 0,
-      "avgFloors": 32,
-      "avgScore": 902,
-      "avgSteps": 757.6,
+      "avgFloors": 33.1,
+      "avgScore": 954.6,
+      "avgSteps": 799.6,
       "endings": {
         "gameover": 10
       }
@@ -57,28 +58,29 @@
     {
       "class": "gambler",
       "runs": 10,
-      "wins": 0,
-      "winRate": 0,
-      "avgHp": 0,
-      "avgFloors": 34.5,
-      "avgScore": 943.5,
-      "avgSteps": 880.8,
+      "wins": 2,
+      "winRate": 0.2,
+      "avgHp": 8.7,
+      "avgFloors": 33.1,
+      "avgScore": 1013.3,
+      "avgSteps": 825.7,
       "endings": {
-        "gameover": 10
+        "gameover": 8,
+        "victory": 2
       }
     },
     {
       "class": "chirurgeon",
       "runs": 10,
-      "wins": 1,
-      "winRate": 0.1,
-      "avgHp": 2.9,
-      "avgFloors": 34.4,
-      "avgScore": 957.5,
-      "avgSteps": 898.1,
+      "wins": 2,
+      "winRate": 0.2,
+      "avgHp": 0.9,
+      "avgFloors": 34.5,
+      "avgScore": 1068.1,
+      "avgSteps": 950.7,
       "endings": {
-        "gameover": 9,
-        "victory": 1
+        "gameover": 8,
+        "victory": 2
       }
     },
     {
@@ -87,9 +89,9 @@
       "wins": 0,
       "winRate": 0,
       "avgHp": 0,
-      "avgFloors": 23.6,
-      "avgScore": 712.2,
-      "avgSteps": 584,
+      "avgFloors": 28.8,
+      "avgScore": 898.1,
+      "avgSteps": 719.5,
       "endings": {
         "gameover": 10
       }
@@ -97,29 +99,29 @@
     {
       "class": "warden",
       "runs": 10,
-      "wins": 3,
-      "winRate": 0.3,
-      "avgHp": 13.7,
-      "avgFloors": 32.4,
-      "avgScore": 980.9,
-      "avgSteps": 1019.1,
+      "wins": 6,
+      "winRate": 0.6,
+      "avgHp": 18.3,
+      "avgFloors": 35.4,
+      "avgScore": 1121.2,
+      "avgSteps": 1031.8,
       "endings": {
-        "gameover": 7,
-        "victory": 3
+        "victory": 6,
+        "gameover": 4
       }
     },
     {
       "class": "hexwright",
       "runs": 10,
-      "wins": 1,
-      "winRate": 0.1,
-      "avgHp": 1.2,
-      "avgFloors": 29.4,
-      "avgScore": 798.7,
-      "avgSteps": 685,
+      "wins": 3,
+      "winRate": 0.3,
+      "avgHp": 6.9,
+      "avgFloors": 35.7,
+      "avgScore": 990.7,
+      "avgSteps": 826.6,
       "endings": {
-        "gameover": 9,
-        "victory": 1
+        "gameover": 7,
+        "victory": 3
       }
     },
     {
@@ -128,9 +130,9 @@
       "wins": 0,
       "winRate": 0,
       "avgHp": 0,
-      "avgFloors": 27.1,
-      "avgScore": 714.5,
-      "avgSteps": 548.2,
+      "avgFloors": 30.3,
+      "avgScore": 803,
+      "avgSteps": 651.7,
       "endings": {
         "gameover": 10
       }

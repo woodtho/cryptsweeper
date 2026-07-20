@@ -3,7 +3,7 @@ import { CLASSES, TRINKETS, GADGETS, STRATA } from '../engine/data.js';
 import {
   run, ui, MAP_ROWS, newRun, reachableNodes, enterNode, score, resetToTitle,
   takeRewardCard, takeRewardTrinket, takeBossTrinket, takeRewardGadget, finishReward,
-  campHeal, campUpgrade, campSurvey,
+  campHeal, campUpgrade, campSurvey, campTrainPicks, PICKS_PER_TURN,
   buyShopCard, buyShopTrinket, buyShopGadget, buyRemoval, gotoMap,
   eventChoice, toggleFlagMode, togglePuzzleScan,
   listSaves, loadRun, saveRun, deleteSave,
@@ -22,6 +22,8 @@ import archivistPortrait from '../assets/delvers/archivist.webp';
 import wardenPortrait from '../assets/delvers/warden.webp';
 import hexwrightPortrait from '../assets/delvers/hexwright.webp';
 import revenantPortrait from '../assets/delvers/revenant.webp';
+import ratMerchantPortrait from '../assets/npcs/rat-merchant.webp';
+import { decorateMechanics } from './mechanics.js';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = { play: 'Choose your Delver', how: 'How to play', saves: 'Saved descents', settings: 'Settings', daily: 'Daily challenge' };
@@ -31,6 +33,74 @@ const DELVER_PORTRAITS = {
   archivist: archivistPortrait, warden: wardenPortrait, hexwright: hexwrightPortrait,
   revenant: revenantPortrait,
 };
+
+const BOSS_AFTERMATH = [
+  {
+    name: 'The Collapser', mark: '🕳️',
+    lines: [
+      ['narrator', 'The last stones settle. For the first time in an age, the passage ahead holds.'],
+      ['player', 'One seam quiet. Two more below.'],
+    ],
+  },
+  {
+    name: 'The Fogfather', mark: '🌁️',
+    lines: [
+      ['narrator', 'The fog thins into silver threads, revealing a shaft that was never on the map.'],
+      ['player', 'Good. I was running out of sensible ways down.'],
+    ],
+  },
+  {
+    name: 'NN-99', mark: '🛰️',
+    lines: [
+      ['narrator', 'NN-99 counts down through broken numbers, then falls silent. Something deeper answers once.'],
+      ['player', 'The seam is quiet. The mine is not.'],
+    ],
+  },
+];
+
+function NarrativeCutscene({ kind, lines, title, mark, onDone }) {
+  const [beat, setBeat] = useState(0);
+  const [speaker, text] = lines[beat];
+  const isMerchant = kind === 'merchant';
+  const advance = () => {
+    if (beat < lines.length - 1) setBeat(beat + 1);
+    else onDone();
+  };
+  return (
+    <div className="cutscene-overlay" role="dialog" aria-modal="true" aria-label={title}>
+      <section className={`cutscene ${kind}`}>
+        <div className="cutscene-visual">
+          <img className={`cutscene-main-art ${isMerchant ? '' : 'player-main'}`}
+            src={isMerchant ? ratMerchantPortrait : DELVER_PORTRAITS[run.cls]}
+            alt={isMerchant ? 'The Rat Merchant at his underground stall' : `${CLASSES[run.cls].name}, the delver`} />
+          {isMerchant ? (
+            <div className={`cutscene-player ${speaker === 'player' ? 'speaking' : ''}`}>
+              <img src={DELVER_PORTRAITS[run.cls]} alt={CLASSES[run.cls].name} />
+            </div>
+          ) : (
+            <div className="cutscene-bossmark" aria-label={title}><span>{mark}</span><small>DEFEATED</small></div>
+          )}
+          <div className="cutscene-vignette" />
+        </div>
+        <div className="cutscene-dialogue">
+          <div className="cutscene-speaker">
+            {speaker === 'player' ? CLASSES[run.cls].name : speaker === 'merchant' ? 'Rat Merchant' : title}
+          </div>
+          <p>{text}</p>
+          <div className="cutscene-actions">
+            <button className="cutscene-skip" onClick={onDone}>Skip</button>
+            <button className="btn primary" onClick={advance}>
+              {beat < lines.length - 1 ? 'Continue' : isMerchant ? 'See the wares' : 'Claim the spoils'} ▸
+            </button>
+          </div>
+        </div>
+        <div className="cutscene-progress" aria-hidden="true">
+          {lines.map((_, i) => <i key={i} className={i <= beat ? 'on' : ''} />)}
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function localDateKey() {
   const d = new Date();
@@ -52,7 +122,7 @@ function DelverPicker({ daily = null }) {
             <div className="role">{c.role}</div>
             <div className="hp">❤ {c.hp} HP</div>
             <p>{c.blurb}</p>
-            <div className="passive" dangerouslySetInnerHTML={{ __html: c.passive }} />
+            <div className="passive" dangerouslySetInnerHTML={{ __html: decorateMechanics(c.passive) }} />
           </div>
           <div className="trink">
             Starts with: {TRINKETS[c.trinket].emoji} <b>{TRINKETS[c.trinket].name}</b> — {TRINKETS[c.trinket].desc}
@@ -149,16 +219,16 @@ function HowToPlay() {
     <div>
       <h2>Dig. Read. Survive.</h2>
         <ul style={{ fontSize: 14, lineHeight: 1.6 }}>
-          <li><b>Left-click</b> a hidden tile to <span className="kw reveal">Reveal</span> it — but you only get <b>⛏ 3 free digs per turn</b> (a cascade counts as one). Flags are free and unlimited: <b>right-click</b> or Flag mode.</li>
+          <li><b>Left-click</b> a hidden tile to <span className="kw reveal">Reveal</span> it — you get <b data-mechanic="picks">⛏ 4 free digs per turn</b> (a cascade counts as one), and cards or trinkets can grant more. <b data-mechanic="flag">Flags</b> are free and unlimited: <b>right-click</b> or Flag mode.</li>
           <li>Cards are your powered tools: their reveals, scans, defusals, chords, and detonations <b>never cost picks</b>. When the picks run out, the deck keeps digging.</li>
           <li>Boards come in shapes — crosses, diamonds, donuts, caverns — and both sides can reshape them: enemies <b>Excavate</b> new mined ground; your cards can annex safe tiles or bury fresh mines.</li>
-          <li>Numbers count adjacent mines. Revealing a mine <span className="kw detonate">Detonates</span> it: mine damage <b>pierces Block</b> — only <span className="kw gridk">Plating</span> stops it.</li>
+          <li>Numbers count adjacent mines. Revealing a mine <span className="kw detonate">Detonates</span> it: <span data-mechanic="mine damage">mine damage</span> <b data-mechanic="block">pierces Block</b> — only <span className="kw gridk">Plating</span> stops it.</li>
           <li>Each turn: 3⚡, draw 5. Cards reveal, scan, defuse, detonate, and edit tiles — and hurt the enemies beside the board.</li>
           <li>The ⌖ TARGET marker shows who your attacks hit — click an enemy to switch. Each card's label says who it strikes: <b>⌖ target</b>, <b>✸ random</b>, or <b>☄ all</b>; hover a card to see exactly who it will hit.</li>
           <li>Enemies attack you <i>and</i> the board: lay mines, fog tiles, scramble your reads — always telegraphed.</li>
           <li>Every enemy nests in a tinted <b>⛏ lair</b> on the board. Revealing a safe lair tile wounds its owner by the tile's number; a mine detonating in a lair deals 10 to it; entombing deals 3. Kill an enemy and its lair <b>crumbles open</b> — mines defused, tiles revealed. Sweeping is fighting.</li>
-          <li><b>Full Clear</b> the board (reveal every safe tile — the green ▦ counter) to collapse it: <b>50 damage to ALL enemies</b> and an upgraded card reward. The crypt then re-seals with a fresh board — <b>only killing every enemy wins the fight</b>.</li>
-          <li>Once per combat, <b>Instinct</b> saves you from one revealed mine (Depth 0 training wheel).</li>
+          <li><b data-mechanic="full clear">Full Clear</b> the board (reveal every safe tile — the green ▦ counter) to collapse it: <b>50 damage to ALL enemies</b> and an upgraded card reward. The crypt then re-seals with a fresh board — <b>only killing every enemy wins the fight</b>.</li>
+          <li>Once per combat, <b data-mechanic="instinct">Instinct</b> saves you from one revealed mine (Depth 0 training wheel).</li>
         </ul>
     </div>
     <aside className="controls-card">
@@ -226,8 +296,14 @@ export function MapScreen() {
 /* ---------------- reward ---------------- */
 export function RewardScreen() {
   const r = run.reward;
+  const [showAftermath, setShowAftermath] = useState(r.kind === 'boss');
+  const aftermath = BOSS_AFTERMATH[run.stratum];
   return (
     <>
+      {showAftermath && aftermath && (
+        <NarrativeCutscene kind="boss" title={aftermath.name} mark={aftermath.mark}
+          lines={aftermath.lines} onDone={() => setShowAftermath(false)} />
+      )}
       <TopBar />
       <div className="screenpanel">
         <h2>{r.fullClear ? '★ FULL CLEAR — ' : ''}Victory</h2>
@@ -297,6 +373,14 @@ export function CampScreen() {
             <span className="cname">Survey</span>
             <div className="cdesc">Your next combat's board starts 25% pre-revealed.</div>
           </div>
+          <div className={`choice ${(run.pickBonus || 0) >= 2 ? 'disabled' : ''}`} onClick={campTrainPicks}>
+            <span className="cname">Trail Training</span>
+            <div className="cdesc">
+              {(run.pickBonus || 0) >= 2
+                ? `Training mastered: ${PICKS_PER_TURN + run.pickBonus} base max picks each turn.`
+                : `Permanently gain +1 max pick each turn this run (currently ${PICKS_PER_TURN + (run.pickBonus || 0)}; cap +2).`}
+            </div>
+          </div>
         </div>
       </div>
     </>
@@ -306,8 +390,18 @@ export function CampScreen() {
 /* ---------------- shop ---------------- */
 export function ShopScreen() {
   const s = run.shop;
+  const [showIntro, setShowIntro] = useState(true);
+  const merchantLines = [
+    ['merchant', 'Easy now, delver. Nothing on my shelves bites unless you haggle.'],
+    ['player', 'I need tools, not teeth.'],
+    ['merchant', 'Then we understand one another. Dig gold, spend gold, eh?'],
+  ];
   return (
     <>
+      {showIntro && (
+        <NarrativeCutscene kind="merchant" title="The Rat Merchant" lines={merchantLines}
+          onDone={() => setShowIntro(false)} />
+      )}
       <TopBar />
       <div className="screenpanel">
         <h2>💰 The Rat Merchant</h2>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CRYPTSWEEPER</string>
+    <string name="title_activity_main">CRYPTSWEEPER</string>
+    <string name="package_name">com.woodtho.cryptsweeper</string>
+    <string name="custom_url_scheme">com.woodtho.cryptsweeper</string>
+</resources>

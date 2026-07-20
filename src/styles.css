@@ -44,6 +44,10 @@
   --flavor: Georgia, "Times New Roman", serif;
 
   --tile: 40px;
+  --app-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --app-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --app-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
 
   /* chamfer shapes */
   --octo: polygon(
@@ -55,7 +59,14 @@
   --dia: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input, textarea { -webkit-user-select: text; user-select: text; }
 html, body { margin: 0; padding: 0; }
 html { color-scheme: dark; }
 body {
@@ -68,6 +79,7 @@ body {
   letter-spacing: .015em;
   line-height: 1.5;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 /* faint diagonal striations — old pick-marks in the stone */
 body::before {
@@ -87,7 +99,17 @@ body::after {
   background: radial-gradient(ellipse 90% 90% at 50% 35%, transparent 45%, rgba(2,3,5,.62) 100%);
   z-index: 3;
 }
-#app { max-width: 1180px; margin: 0 auto; padding: 12px 16px 70px; position: relative; z-index: 4; }
+#app {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding:
+    calc(12px + var(--app-safe-top))
+    calc(16px + var(--app-safe-right))
+    calc(70px + var(--app-safe-bottom))
+    calc(16px + var(--app-safe-left));
+  position: relative;
+  z-index: 4;
+}
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--abyss-0); }
@@ -569,9 +591,37 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .card .typeline { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--bone-dim); border-left: 3px solid var(--class-accent); padding-left: 6px; }
 .card .rules { font-size: 12.5px; line-height: 1.42; }
 .card .upg, .upg { color: var(--moss); }
-.kw { font-family: var(--mono); font-weight: 700; font-size: .92em; }
+.kw, .mechanic-term { font-family: var(--mono); font-weight: 700; font-size: .92em; cursor: help; text-decoration: underline dotted rgba(207,201,184,.5); text-underline-offset: 3px; }
+.mechanic-term { color: var(--candle); }
 .kw.reveal { color: var(--n1); } .kw.detonate { color: var(--blood-hi); }
 .kw.scan { color: var(--moss); } .kw.gridk { color: var(--hexp); } .kw.goldk { color: var(--candle); }
+
+.mechanic-tooltip {
+  position: fixed; z-index: 1000; width: min(310px, calc(100vw - 28px));
+  transform: translateX(-50%); pointer-events: none;
+  padding: 12px 14px; border: 1px solid var(--candle);
+  background: linear-gradient(155deg, #1c2028, #0c0f14 72%);
+  box-shadow: 0 12px 34px rgba(0,0,0,.72), inset 0 0 18px rgba(201,151,59,.06);
+  color: var(--bone); font-size: 12.5px; line-height: 1.45;
+}
+.mechanic-tooltip.locked { pointer-events: auto; border-color: var(--n1); box-shadow: 0 12px 38px rgba(0,0,0,.78), 0 0 0 2px rgba(108,150,232,.18); }
+.mechanic-tooltip-head { display: flex; justify-content: space-between; align-items: center; color: var(--candle); font: 700 13px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; }
+.mechanic-tooltip-head > span { display: flex; align-items: center; gap: 7px; }
+.mechanic-tooltip-head kbd { color: var(--abyss-0); background: var(--candle); border: 0; padding: 3px 6px; font: 700 10px/1 var(--mono); }
+.mechanic-tooltip.locked .mechanic-tooltip-head kbd { background: var(--n1); }
+.mechanic-tooltip-close {
+  width: 30px; height: 30px; padding: 0; border: 1px solid var(--etch-hi);
+  background: var(--stone-2); color: var(--bone); cursor: pointer;
+  font: 22px/1 var(--display);
+}
+.mechanic-tooltip-close:hover, .mechanic-tooltip-close:focus { border-color: var(--blood-hi); color: var(--blood-hi); }
+.mechanic-tooltip p { margin: 9px 0 7px; color: var(--bone); }
+.mechanic-pin-hint, .mechanic-related > span { display: block; color: var(--bone-dim); font: 10px/1.3 var(--mono); }
+.mechanic-related { border-top: 1px solid var(--etch); padding-top: 8px; }
+.mechanic-related small { display: block; color: var(--bone-dim); font: 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 7px; }
+.mechanic-related > div { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.mechanic-related button { border: 1px solid #51617d; background: #171d28; color: var(--n1); padding: 4px 7px; cursor: help; font: 10px/1 var(--mono); }
+.mechanic-related button:hover, .mechanic-related button:focus { border-color: var(--n1); background: #202b3d; }
 
 .gadgetrow { display: flex; gap: 8px; align-items: center; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; }
 .gadget {
@@ -602,7 +652,11 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
   background: rgba(4, 5, 8, .86);
   z-index: 50;
   display: flex; align-items: center; justify-content: center;
-  padding: 16px;
+  padding:
+    calc(16px + var(--app-safe-top))
+    calc(16px + var(--app-safe-right))
+    calc(16px + var(--app-safe-bottom))
+    calc(16px + var(--app-safe-left));
 }
 .modal {
   --cut: 14px;
@@ -611,6 +665,54 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 }
 .modal h2 { font-family: var(--display); margin: 0 0 4px; font-size: 19px; letter-spacing: .12em; text-transform: uppercase; }
 .modal .sub { color: var(--bone-dim); font-size: 13.5px; margin-bottom: 16px; }
+
+/* ================= short narrative cutscenes ================= */
+.cutscene-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  padding:
+    calc(14px + var(--app-safe-top))
+    calc(14px + var(--app-safe-right))
+    calc(14px + var(--app-safe-bottom))
+    calc(14px + var(--app-safe-left));
+  background: rgba(3, 4, 7, .92);
+  backdrop-filter: blur(5px);
+}
+.cutscene {
+  width: min(760px, 100%); max-height: 100%; overflow: auto;
+  position: relative; border: 1px solid var(--candle);
+  background: var(--abyss-0);
+  box-shadow: 0 22px 70px rgba(0,0,0,.9), 0 0 36px rgba(201,151,59,.12);
+  animation: modalin .22s ease-out;
+}
+.cutscene-visual { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #07090d; }
+.cutscene-main-art { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 32%; filter: saturate(.88) contrast(1.08); }
+.cutscene-main-art.player-main { object-position: center 25%; }
+.cutscene-vignette { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 45%, rgba(3,4,7,.9)), radial-gradient(ellipse at center, transparent 45%, rgba(3,4,7,.55)); }
+.cutscene-player {
+  position: absolute; right: 4%; bottom: 5%; width: 24%; aspect-ratio: 3 / 4;
+  overflow: hidden; border: 2px solid var(--etch-hi); background: var(--stone-2);
+  box-shadow: 0 8px 24px rgba(0,0,0,.75); transform: translateY(3px); opacity: .8;
+  transition: transform .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.cutscene-player.speaking { border-color: var(--candle); transform: translateY(0); opacity: 1; }
+.cutscene-player img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 25%; }
+.cutscene-bossmark {
+  position: absolute; left: 5%; top: 8%; width: 104px; height: 104px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid var(--blood-hi); background: rgba(8,9,12,.82); transform: rotate(-2deg);
+  box-shadow: 0 0 28px rgba(179,55,44,.22);
+}
+.cutscene-bossmark span { font-size: 42px; line-height: 1; filter: grayscale(.3); }
+.cutscene-bossmark small { margin-top: 8px; color: var(--blood-hi); font: 700 9px/1 var(--mono); letter-spacing: .18em; }
+.cutscene-dialogue { position: relative; padding: 16px 18px 14px; border-top: 1px solid var(--etch); background: linear-gradient(145deg, #171b23, #0b0d11); }
+.cutscene-speaker { color: var(--candle); font: 700 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; }
+.cutscene-dialogue p { min-height: 48px; margin: 9px 0 12px; font: 17px/1.45 var(--flavor); color: var(--bone); }
+.cutscene-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.cutscene-skip { margin-right: auto; border: 0; background: transparent; color: var(--bone-dim); padding: 10px; font: 11px/1 var(--mono); text-decoration: underline; cursor: pointer; }
+.cutscene-progress { position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; z-index: 3; }
+.cutscene-progress i { display: block; width: 18px; height: 3px; background: var(--etch-hi); }
+.cutscene-progress i.on { background: var(--candle); }
 .cardpick { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
 .cardpick .card:hover { --edge: var(--candle); }
 .choicelist { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
@@ -628,7 +730,7 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .choice.disabled { opacity: .4; cursor: default; }
 
 .toastwrap {
-  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  position: fixed; top: calc(12px + var(--app-safe-top)); left: 50%; transform: translateX(-50%);
   z-index: 100; display: flex; flex-direction: column; gap: 6px; align-items: center;
   pointer-events: none; width: max-content; max-width: calc(100vw - 24px);
 }
@@ -870,7 +972,13 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 /* ================= mobile ================= */
 @media (max-width: 720px) {
   body { font-size: 14.5px; }
-  #app { padding: 8px 8px 8px; }
+  #app {
+    padding:
+      calc(8px + var(--app-safe-top))
+      calc(8px + var(--app-safe-right))
+      calc(12px + var(--app-safe-bottom))
+      calc(8px + var(--app-safe-left));
+  }
   .topbar { gap: 6px 14px; font-size: 12px; padding: 8px 12px; }
   .topbar .stat b { font-size: 13.5px; }
   .board { padding: 8px; gap: 2px; }
@@ -884,8 +992,8 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 
   /* sticky, horizontally scrolling hand */
   .handzone {
-    position: sticky; bottom: 0; z-index: 20;
-    margin: 12px -8px 0; padding: 10px 8px 10px;
+    position: sticky; bottom: var(--app-safe-bottom); z-index: 20;
+    margin: 12px -8px 0; padding: 10px 8px calc(10px + var(--app-safe-bottom));
     background: linear-gradient(transparent, var(--abyss-0) 22%);
   }
   .hand {
@@ -901,7 +1009,11 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
   .handslot:hover { transform: none; }
   .handslot { flex: none; }
   .hand { align-items: stretch; padding-top: 4px; }
-  .sndbtn { top: auto; bottom: 12px; right: 10px; }
+  .sndbtn {
+    top: auto;
+    bottom: calc(12px + var(--app-safe-bottom));
+    right: calc(10px + var(--app-safe-right));
+  }
   .pilerow { gap: 10px; font-size: 12px; }
   .energyorb { width: 46px; height: 46px; font-size: 13.5px; }
 
@@ -914,4 +1026,30 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
   .classgrid { grid-template-columns: 1fr; }
   .delver-art { height: 220px; }
   .mapicon { transform: none; font-size: 18px; }
+
+  .mechanic-tooltip {
+    left: calc(10px + var(--app-safe-left)) !important;
+    right: calc(10px + var(--app-safe-right));
+    top: auto !important;
+    bottom: calc(10px + var(--app-safe-bottom));
+    width: auto; transform: none; pointer-events: auto;
+    padding: 14px 14px 16px; font-size: 13.5px;
+  }
+  .mechanic-tooltip-head kbd, .mechanic-pin-hint { display: none; }
+  .mechanic-related > span { display: none; }
+
+  .cutscene-overlay {
+    padding:
+      calc(8px + var(--app-safe-top))
+      calc(8px + var(--app-safe-right))
+      calc(8px + var(--app-safe-bottom))
+      calc(8px + var(--app-safe-left));
+  }
+  .cutscene { width: 100%; }
+  .cutscene-visual { aspect-ratio: 4 / 3; }
+  .cutscene-dialogue { padding: 14px 14px 12px; }
+  .cutscene-dialogue p { min-height: 58px; font-size: 16px; }
+  .cutscene-player { width: 29%; right: 4%; }
+  .cutscene-bossmark { width: 82px; height: 82px; }
+  .cutscene-bossmark span { font-size: 32px; }
 }

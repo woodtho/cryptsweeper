@@ -9,10 +9,12 @@ import {
   SHAPES, annexTiles, addMineAt, clickTile, PICKS_PER_TURN,
   saveRun, listSaves, loadRun, deleteSave,
   scanTile, addConstruct,
+  campTrainPicks,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
-import { observe as botObserve, step as botStep } from '../src/bot/gameBot.js';
+import { observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep } from '../src/bot/gameBot.js';
+import { decorateMechanics } from '../src/ui/mechanics.js';
 
 let failures = 0;
 const storage = new Map();
@@ -243,7 +245,7 @@ startCombat('dig');
     board().cells.filter(x => !x.void).length === playable1 + 3
     && board().cells.filter(x => !x.void && x.scan === 'safe' && !x.mine).length >= 3);
 
-  T('turn starts with 3 picks', cc.picks === PICKS_PER_TURN);
+  T('turn starts with 4 picks', cc.picks === PICKS_PER_TURN && PICKS_PER_TURN === 4);
   let used = 0;
   while (cc.picks > 0 && used < 10) {
     const t = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
@@ -251,14 +253,14 @@ startCombat('dig');
     clickTile(t);
     used++;
   }
-  T('3 free clicks consume all picks', cc.picks === 0 && used === 3);
-  const fourth = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
-  if (fourth != null) {
-    clickTile(fourth);
-    T('4th free click is rejected', !board().cells[fourth].revealed);
-    revealTile(fourth, 'card-safe');
-    T('card reveals bypass the pick limit', board().cells[fourth].revealed);
-  } else console.log('skip  4th-click test (no hidden safe tile left)');
+  T('4 free clicks consume all picks', cc.picks === 0 && used === 4);
+  const extra = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
+  if (extra != null) {
+    clickTile(extra);
+    T('5th free click is rejected', !board().cells[extra].revealed);
+    revealTile(extra, 'card-safe');
+    T('card reveals bypass the pick limit', board().cells[extra].revealed);
+  } else console.log('skip  5th-click test (no hidden safe tile left)');
   endTurn();
   if (R().combat && !cbt().over) T('picks reset next turn', cbt().picks === PICKS_PER_TURN);
 }
@@ -309,7 +311,7 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
 
   newRun('surveyor'); startCombat('dig');
   const energy0 = cbt().energy, insight0b = cbt().insight;
-  hiddenIdx().slice(0, 4).forEach(scanTile);
+  hiddenIdx().filter(i => !board().cells[i].scan).slice(0, 4).forEach(scanTile);
   T('Surveyor Field Method rewards four fresh scans', cbt().energy === energy0 + 1 && cbt().insight === insight0b + 1);
 
   newRun('terraformer'); startCombat('dig');
@@ -349,6 +351,49 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   const result = botStep({ policy: 'oracle' });
   T('bot observation is serializable', typeof JSON.stringify(before) === 'string');
   T('single-step bot enters exactly one reachable node', result.action.startsWith('enter:') && result.state.run.floors === before.run.floors + 1);
+  newRun('surveyor', { daily: 'llm-controller' });
+  const chosen = botLegalActions().find(action => action.type === 'enter-node');
+  const acted = botAct(chosen);
+  T('LLM controller exposes and executes validated legal actions', chosen && acted.screen === 'combat' && acted.run.floors === 1);
+}
+
+/* 18 — expanded pick economy and mechanic glossary markup */
+{
+  newRun('lamplighter', { daily: 'pick-economy' });
+  startCombat('dig');
+  const picks0 = cbt().picks;
+  CARDS.exp_lamplighter_7.play(0);
+  T('base pick economy starts at four and cards grant temporary picks',
+    picks0 === 4 && cbt().maxPicks === 4 && cbt().picks === 5);
+
+  CARDS.lanternloan.play(1);
+  T('an upgraded card can raise current and max picks for combat',
+    cbt().picks === 7 && cbt().maxPicks === 5);
+  cbt().enemies[0].hp += 100;
+  cbt().enemies[0].maxHp += 100;
+  const enemyHp = cbt().enemies[0].hp;
+  CARDS.hardlesson.play(0);
+  T('pick-spending attacks consume current picks for impact',
+    cbt().picks === 4 && cbt().enemies[0].hp === enemyHp - 18);
+  CARDS.emergencyexit.play(0);
+  T('trade-off cards can lower max picks in exchange for defense',
+    cbt().maxPicks === 4 && cbt().picks === 4 && cbt().plating >= 12);
+
+  newRun('lamplighter', { daily: 'pick-training' });
+  campTrainPicks();
+  campTrainPicks();
+  campTrainPicks();
+  saveRun('pick-training');
+  newRun('lamplighter', { daily: 'pick-training-reset' });
+  loadRun('pick-training');
+  deleteSave('pick-training');
+  startCombat('dig');
+  T('camp training persists and raises max picks for the run up to its cap',
+    R().pickBonus === 2 && cbt().maxPicks === PICKS_PER_TURN + 2 && cbt().picks === PICKS_PER_TURN + 2);
+
+  const marked = decorateMechanics('Gain Block, Scan a tile, then earn a pick for Full Clear.');
+  T('mechanic glossary decorates specific terms with interactive hooks',
+    ['block', 'scan', 'picks', 'full clear'].every(key => marked.includes(`data-mechanic="${key}"`)));
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');

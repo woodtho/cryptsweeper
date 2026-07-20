@@ -13,7 +13,18 @@ npm run deploy   # bump patch version, build, and publish dist/ to gh-pages
 npm test         # headless engine smoke tests (no DOM)
 npm run bot      # JSON-lines bot on stdin/stdout
 npm run balance  # 10 deterministic oracle-policy runs per Delver
+npm run android:sync  # build and copy web assets into the Android project
+npm run android:run   # build and run on an emulator or connected device
+npm run android:open  # open the native project in Android Studio
 ```
+
+## Android app
+
+The native wrapper uses Capacitor 8 with application ID `com.woodtho.cryptsweeper` and supports
+Android 7/API 24 or newer. Install Android Studio and its Android SDK, then run
+`npm run android:sync` after web changes. Use `npm run android:run` for a connected device or
+emulator, or `npm run android:open` to build and sign an APK/AAB in Android Studio. Browser-local
+saves and settings use the Android WebView's persistent local storage inside the installed app.
 
 ## JSON bot
 
@@ -22,11 +33,15 @@ The bot drives the exported game actions used by the UI. Send one JSON object pe
 ```json
 {"cmd":"new","class":"sapper","seed":"optional-seed"}
 {"cmd":"state"}
+{"cmd":"actions"}
+{"cmd":"act","action":{"type":"play-card","handIndex":0}}
 {"cmd":"step","policy":"oracle"}
 {"cmd":"run","policy":"oracle","maxSteps":5000}
 ```
 
-`step` performs exactly one action and returns the new observation. `run` repeats the same
+`actions` returns the currently legal choices and `act` executes a selected choice, allowing an
+external LLM or human controller to reason from visible tiles, enemy intents, deck, rewards, and
+shops. `step` performs one built-in-policy action. `run` repeats the built-in policy
 step policy until victory, defeat, a stall, or the step limit. Use `policy: "honest"` to prevent
 the bot from reading hidden mines; the default `oracle` policy is intended for repeatable combat
 and content balance tests. The latest 100-run snapshot is in `balance-report.json`.
@@ -63,11 +78,14 @@ date-derived deterministic seed so its map and game rolls repeat for that day.
 - **Left-click** — reveal a tile · **Right-click** or Flag mode (`F`) — flag
 - Click an enemy to target it · click a card, then its board target(s)
 - `E` — end turn · `Esc` — cancel targeting / close dialogs
+- Hover or focus a highlighted mechanic for a summary · `T` pins its tooltip so related terms can be explored
 
 ## Implemented
 Ten illustrated Delvers, each with distinct cartoon portrait art, starter deck, combat passive,
 trinket, and card pool · the first three begin available and seven unlock through persistent
-cross-run achievements · 200 uniquely named cards ·
+cross-run achievements · 200 uniquely named cards · a current/max pick economy with temporary
+pick gains, pick-spending attacks, combat-long max-pick trades, trinket bonuses, and camp training
+that permanently raises the run's refill · linked mechanic glossary tooltips ·
 Block vs Plating (mines pierce Block) · **Lairs** — every enemy nests in a tinted board region:
 revealing a safe lair tile wounds its owner by the tile's number, a mine detonating there deals 10,
 entombing deals 3, and killing the owner crumbles its lair open (mines defused, tiles revealed)
@@ -75,7 +93,7 @@ entombing deals 3, and killing the owner crumbles its lair open (mines defused, 
 upgraded card reward, +15g — then the crypt re-seals with a fresh board; only kills win a combat)
 · enemy board attacks (Lay/Fog/Scramble/Prime/Devour, constructs
 soak them) · no-guess board generation (avg 100% provably solvable on 10×10/20) · Instinct safety
-net (Depth 0) · 3 strata with branching tunnel maps, camps (Rest/Smith/Survey), shops, treasure,
+net (Depth 0) · 3 strata with branching tunnel maps, camps (Rest/Smith/Survey/Trail Training), shops, treasure,
 3 events incl. the Honest Puzzle · elites (Ossuary Warden, The Miscounter, Detonata) and bosses
 (The Collapser, The Fogfather, three-phase NN-99).
 

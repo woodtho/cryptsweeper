@@ -1,0 +1,16 @@
+{
+  "appId": "com.woodtho.cryptsweeper",
+  "appName": "CRYPTSWEEPER",
+  "webDir": "dist",
+  "backgroundColor": "#0b0d11",
+  "android": {
+    "backgroundColor": "#0b0d11"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "hidden": false
+    }
+  }
+}

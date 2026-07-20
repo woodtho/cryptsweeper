@@ -1,6 +1,7 @@
 import { CARDS } from '../engine/data.js';
 import { run, ui, closeModal, doUpgrade, doRemove } from '../engine/engine.js';
 import { CardView } from './CardView.jsx';
+import { decorateMechanics } from './mechanics.js';
 
 export function ModalHost() {
   const m = ui.modal;
@@ -10,7 +11,7 @@ export function ModalHost() {
     body = (
       <>
         <h2>{m.title}</h2>
-        <div dangerouslySetInnerHTML={{ __html: m.html }} />
+        <div dangerouslySetInnerHTML={{ __html: decorateMechanics(m.html) }} />
         <button className="btn primary" onClick={closeModal}>{m.btn || 'Continue'}</button>
       </>
     );
