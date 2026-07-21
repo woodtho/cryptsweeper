@@ -8,11 +8,12 @@ import {
   loseMaxPicks, spendPicks, drawCards, loseHP,
   detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
   chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
-  highestRevealedNumber, toast, log, fleeCombat,
+  highestRevealedNumber, neighborsOf, numAt, toast, log, fleeCombat,
   enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
   setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
   annexTiles, addMineAt,
 } from './engine.js';
+import { buildCardExpansion500 } from './cardExpansion500.js';
 
 export const STRATA = [
   { name: 'Stratum 1 — The Topsoil Crypts', size: 8,  mines: 10, mineDmg: 8  },
@@ -20,72 +21,83 @@ export const STRATA = [
   { name: 'Stratum 3 — The Machine Seam',   size: 10, mines: 20, mineDmg: 16 },
 ];
 
+/* Persistent curses are unplayable deck cards with combat-setup hooks in the
+   engine. Keeping the numeric tuning here makes new curse types straightforward
+   to add without scattering card-name checks through combat code. */
+export const PERSISTENT_CURSES = {
+  claustrophobia: { name: 'Claustrophobia', boardMines: 2 },
+  vertigo: { name: 'Vertigo', maxPicks: -1, minimum: 1 },
+  exhaustion: { name: 'Exhaustion', cardsPerTurn: -1, minimum: 3 },
+  nightterrors: { name: 'Night Terrors', firstTurnEnergy: -1, minimum: 0 },
+  paranoia: { name: 'Paranoia', falseFlags: 1 },
+};
+
 export const CLASSES = {
   sapper: {
-    name: 'THE SAPPER', hp: 80, sig: 'shortfuse', trinket: 'blastgoggles',
+    name: 'THE SAPPER', hp: 80, picks: 3, sig: 'shortfuse', trinket: 'blastgoggles',
     role: '80 HP · demolitions · "a mine is ammunition"',
     blurb: 'She doesn\'t avoid mines — she spends them. Detonate hidden tiles on purpose, convert blasts into AoE damage, and pay HP for tempo.',
     passive: '<b>Breachcraft:</b> the first controlled detonation each turn deals 4 damage to every enemy.',
     deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'shortfuse', 'shortfuse', 'blastsuit', 'seedcharge'],
   },
   surveyor: {
-    name: 'THE SURVEYOR', hp: 66, sig: 'scancard', trinket: 'dowsingcharm',
+    name: 'THE SURVEYOR', hp: 66, picks: 5, sig: 'scancard', trinket: 'dowsingcharm',
     role: '66 HP · information engine · "a mine is a fact"',
     blurb: 'Fragile, precise, scaling. Gain Insight for every safe reveal and spend it for damage and draw. The class most likely to Full Clear.',
     passive: '<b>Field Method:</b> every fourth newly scanned tile grants 1⚡ and 1 Insight.',
     deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'scancard', 'scancard', 'scancard', 'triangulate', 'fieldnotes'],
   },
   terraformer: {
-    name: 'THE TERRAFORMER', hp: 72, sig: 'entombcard', trinket: 'keystone',
+    name: 'THE TERRAFORMER', hp: 72, picks: 4, sig: 'entombcard', trinket: 'keystone',
     role: '72 HP · board editor · "a mine is terrain"',
     blurb: 'The grid is clay: seal tiles, swap them, and build constructs that act every turn and soak enemy board attacks.',
     passive: '<b>Master Builder:</b> whenever you build a construct, gain 2 Plating.',
     deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'entombcard', 'entombcard', 'sentry', 'faultline'],
   },
   lamplighter: {
-    name: 'THE LAMPLIGHTER', hp: 68, sig: 'exp_lamplighter_0', trinket: 'emberjar',
+    name: 'THE LAMPLIGHTER', hp: 68, picks: 4, sig: 'exp_lamplighter_0', trinket: 'emberjar',
     role: '68 HP · cascades & energy · "bring your own dawn"',
     blurb: 'Turns broad safe openings into explosive tempo, chaining bright cascades into extra energy and sweeping attacks.',
     passive: '<b>Kindle:</b> the first cascade of 4+ tiles each turn grants 1⚡.',
     deck: ['probe','probe','probe','brace','brace','brace','exp_lamplighter_0','exp_lamplighter_0','exp_lamplighter_1','exp_lamplighter_2'],
   },
   gambler: {
-    name: 'THE GAMBLER', hp: 70, sig: 'exp_gambler_0', trinket: 'loadedcoin',
+    name: 'THE GAMBLER', hp: 70, picks: 4, sig: 'exp_gambler_0', trinket: 'loadedcoin',
     role: '70 HP · flags & wagers · "the board always tells"',
     blurb: 'Makes deliberate wagers on hidden tiles, cashing correct flags into cards while turning bad reads into controlled losses.',
     passive: '<b>Lucky Read:</b> the first correct manual flag each turn draws 1 card.',
     deck: ['probe','probe','probe','brace','brace','brace','exp_gambler_0','exp_gambler_0','exp_gambler_1','exp_gambler_2'],
   },
   chirurgeon: {
-    name: 'THE CHIRURGEON', hp: 76, sig: 'exp_chirurgeon_0', trinket: 'fieldkit',
+    name: 'THE CHIRURGEON', hp: 76, picks: 3, sig: 'exp_chirurgeon_0', trinket: 'fieldkit',
     role: '76 HP · pain conversion · "nothing vital was hit"',
     blurb: 'Treats health as a tactical resource, converting the first wound each turn into protection and rebuilding after risky blasts.',
     passive: '<b>Triage:</b> the first time you lose HP each turn, gain 5 Block.',
     deck: ['probe','probe','probe','brace','brace','brace','exp_chirurgeon_0','exp_chirurgeon_0','exp_chirurgeon_1','exp_chirurgeon_2'],
   },
   archivist: {
-    name: 'THE ARCHIVIST', hp: 62, sig: 'exp_archivist_0', trinket: 'indexcard',
+    name: 'THE ARCHIVIST', hp: 62, picks: 5, sig: 'exp_archivist_0', trinket: 'indexcard',
     role: '62 HP · draw & exhaust · "everything is evidence"',
     blurb: 'Cycles aggressively through a fragile deck, finding exact tools and turning exhausted cards into fresh possibilities.',
     passive: '<b>Cross-Reference:</b> the first card Exhausted each turn draws 1.',
     deck: ['probe','probe','probe','brace','brace','brace','exp_archivist_0','exp_archivist_0','exp_archivist_1','exp_archivist_2'],
   },
   warden: {
-    name: 'THE WARDEN', hp: 82, sig: 'exp_warden_0', trinket: 'wardplate',
+    name: 'THE WARDEN', hp: 82, picks: 3, sig: 'exp_warden_0', trinket: 'wardplate',
     role: '82 HP · block retention · "stone remembers pressure"',
     blurb: 'Builds defenses that persist between turns, then converts accumulated Block and Plating into crushing board control.',
     passive: '<b>Hold Fast:</b> retain one quarter of your Block between turns.',
     deck: ['probe','probe','probe','brace','brace','brace','exp_warden_0','exp_warden_0','exp_warden_1','exp_warden_2'],
   },
   hexwright: {
-    name: 'THE HEXWRIGHT', hp: 64, sig: 'exp_hexwright_0', trinket: 'hexkey',
+    name: 'THE HEXWRIGHT', hp: 64, picks: 5, sig: 'exp_hexwright_0', trinket: 'hexkey',
     role: '64 HP · number magic · "three is a weapon"',
     blurb: 'Weaponizes high revealed numbers, stacking Insight and turning dangerous numbered tiles into precise area damage.',
     passive: '<b>Hot Number:</b> revealing a 3+ tile deals 2 damage to ALL enemies.',
     deck: ['probe','probe','probe','brace','brace','brace','exp_hexwright_0','exp_hexwright_0','exp_hexwright_1','exp_hexwright_2'],
   },
   revenant: {
-    name: 'THE REVENANT', hp: 55, sig: 'exp_revenant_0', trinket: 'gravebell',
+    name: 'THE REVENANT', hp: 55, picks: 4, sig: 'exp_revenant_0', trinket: 'gravebell',
     role: '55 HP · death defiance · "already buried once"',
     blurb: 'Walks closest to disaster, using mines and low health for enormous payoffs while refusing one lethal blow each combat.',
     passive: '<b>Not Yet:</b> survive the first lethal hit each combat at 1 HP.',
@@ -107,7 +119,7 @@ export const CARDS = {
   probe: {
     name: 'Probe', type: 'Attack', rarity: 'starter', cls: 'neutral', cost: [1, 1], hits: 'target',
     targets: ['hidden'],
-    text: u => `${kwR('Reveal')} a tile. If safe, deal ${u ? 7 : 4} to the targeted enemy.`,
+    text: u => `${kwR('Reveal')} the chosen hidden tile. If it is safe, deal ${u ? 7 : 4} damage to the targeted enemy.`,
     play: (u, tg) => { const r = revealTile(tg[0], 'reveal'); if (r.safe) hitEnemy(curTarget(), atk(u ? 7 : 4)); },
   },
   brace: {
@@ -119,18 +131,18 @@ export const CARDS = {
 
   /* ----- Sapper ----- */
   shortfuse: {
-    name: 'Short Fuse', type: 'Attack', rarity: 'starter', cls: 'sapper', cost: [1, 1], hits: 'random',
+    name: 'Short Fuse', type: 'Attack', rarity: 'starter', cls: 'sapper', cost: [1, 1], hits: 'mixed',
     targets: ['hidden'],
-    text: u => `${kwD('Detonate')} a hidden tile from cover. Mine: deal ${u ? 14 : 10} to a random enemy. Safe: reveal it, deal ${u ? 6 : 4}.`,
+    text: u => `If the chosen tile is mined, ${kwD('Detonate')} it without taking mine damage and deal ${u ? 14 : 10} damage to a random enemy. If it is safe, reveal it and deal ${u ? 6 : 4} damage to the targeted enemy.`,
     play: (u, tg) => {
       if (detonateForCards(tg[0])) hitRandom(atk(u ? 14 : 10));
       else { revealTile(tg[0], 'card-safe'); hitEnemy(curTarget(), atk(u ? 6 : 4)); }
     },
   },
   controlled: {
-    name: 'Controlled Blast', type: 'Attack', rarity: 'common', cls: 'sapper', cost: [1, 1], hits: 'all',
+    name: 'Controlled Blast', type: 'Attack', rarity: 'common', cls: 'sapper', cost: [1, 1], hits: 'mixed',
     targets: ['hidden'],
-    text: u => `${kwD('Detonate')} a hidden tile. Mine: deal ${u ? 16 : 12} to ALL enemies; take ${u ? 2 : 3}. Safe: deal ${u ? 8 : 5}.`,
+    text: u => `If the chosen tile is mined, ${kwD('Detonate')} it, deal ${u ? 16 : 12} damage to all enemies, and lose ${u ? 2 : 3} HP. If it is safe, reveal it and deal ${u ? 8 : 5} damage to the targeted enemy.`,
     play: (u, tg) => {
       if (detonateForCards(tg[0])) { hitAll(atk(u ? 16 : 12)); loseHP(u ? 2 : 3); }
       else { revealTile(tg[0], 'card-safe'); hitEnemy(curTarget(), atk(u ? 8 : 5)); }
@@ -145,13 +157,13 @@ export const CARDS = {
   fusecutter: {
     name: 'Fuse Cutter', type: 'Skill', rarity: 'common', cls: 'sapper', cost: [1, 1], hits: 'random',
     targets: ['hidden'],
-    text: u => `${kwS('Defuse')} a hidden tile. Mine: remove it safely and deal ${u ? 12 : 8} to a random enemy. Safe: reveal it.`,
+    text: u => `${kwS('Defuse')} the chosen hidden tile. If it is mined, remove the mine and deal ${u ? 12 : 8} damage to a random enemy. If it is safe, reveal it.`,
     play: (u, tg) => { if (defuseTile(tg[0])) hitRandom(atk(u ? 12 : 8)); },
   },
   chaincharge: {
     name: 'Chain Charge', type: 'Attack', rarity: 'uncommon', cls: 'sapper', cost: [2, 2], hits: 'random',
     targets: [],
-    text: u => `${kwD('Detonate')} up to 3 flagged tiles. Each mine deals ${u ? 12 : 9} to a random enemy. Each misflag: take ${u ? 3 : 4}.`,
+    text: u => `${kwD('Detonate')} up to 3 flagged tiles. For each mined tile, deal ${u ? 12 : 9} damage to a random enemy. For each safe tile, reveal it and lose ${u ? 3 : 4} HP.`,
     can: () => flaggedIdx().length > 0,
     canMsg: 'No flagged tiles.',
     play: u => {
@@ -167,7 +179,7 @@ export const CARDS = {
   powderkeg: {
     name: 'Powder Keg', type: 'Power', rarity: 'uncommon', cls: 'sapper', cost: [1, 1], hits: 'all',
     targets: [],
-    text: u => `Whenever a mine detonates — any cause, any target — deal ${u ? 7 : 5} to ALL enemies.`,
+    text: u => `For the rest of this combat, whenever any mine detonates, deal ${u ? 7 : 5} damage to all enemies.`,
     play: u => { cbt().powers.powderkeg += (u ? 7 : 5); },
   },
   munitions: {
@@ -183,7 +195,7 @@ export const CARDS = {
   seedcharge: {
     name: 'Seed Charge', type: 'Skill', rarity: 'common', cls: 'sapper', cost: [1, 0],
     targets: ['hidden'],
-    text: u => `Bury a fresh mine in a hidden tile — ammo for your ${kwD('Detonate')}s (numbers update). If it was already mined: verified-flag it instead.${u ? ' <span class="upg">Costs 0.</span>' : ''}`,
+    text: () => `Add a mine to the chosen hidden tile and update adjacent numbers. If it is already mined, verified-flag it instead.`,
     play: (u, tg) => {
       if (addMineAt(tg[0])) { toast('A fresh charge is buried.'); log('☣ You bury a fresh charge.'); }
       else { verifyFlag(tg[0]); toast('Already mined — flagged it.'); }
@@ -192,13 +204,13 @@ export const CARDS = {
   shockwave: {
     name: 'Shockwave', type: 'Attack', rarity: 'uncommon', cls: 'sapper', cost: [2, 2], hits: 'all',
     targets: [],
-    text: u => `Deal ${u ? 10 : 8} + ${u ? 3 : 2} per mine detonated this combat to ALL enemies.`,
+    text: u => `Deal ${u ? 10 : 8} damage plus ${u ? 3 : 2} damage for each mine detonated this combat to all enemies.`,
     play: u => hitAll(atk((u ? 10 : 8) + (u ? 3 : 2) * cbt().minesDetonated)),
   },
   bigred: {
     name: 'Big Red Button', type: 'Attack', rarity: 'rare', cls: 'sapper', cost: [3, 3], hits: 'random',
     targets: ['row'],
-    text: u => `${kwD('Detonate')} every hidden tile in a chosen row. Mines hit random enemies for ${u ? 10 : 8} each; take ${u ? 2 : 3} per mine.`,
+    text: u => `${kwD('Detonate')} every hidden tile in the chosen row. For each mine, deal ${u ? 10 : 8} damage to a random enemy and lose ${u ? 2 : 3} HP. Reveal safe tiles.`,
     play: (u, tg) => {
       const b = board(), row = tg[0];
       for (let c = 0; c < b.size; c++) {
@@ -213,7 +225,7 @@ export const CARDS = {
   markedcharge: {
     name: 'Marked Charge', type: 'Attack', rarity: 'common', cls: 'sapper', cost: [1, 1], hits: 'target',
     targets: ['hidden'],
-    text: u => `${kwS('Scan')} a tile. Mine: verified-flag it and deal ${u ? 12 : 9}. Safe: reveal it and gain ${u ? 7 : 5} Block.`,
+    text: u => `${kwS('Scan')} the chosen hidden tile. If it is mined, verified-flag it and deal ${u ? 12 : 9} damage to the targeted enemy. If it is safe, reveal it and gain ${u ? 7 : 5} Block.`,
     play: (u, tg) => {
       const i = tg[0], cell = board().cells[i];
       scanTile(i);
@@ -224,13 +236,13 @@ export const CARDS = {
   blastdividend: {
     name: 'Blast Dividend', type: 'Power', rarity: 'uncommon', cls: 'sapper', cost: [1, 0],
     targets: [],
-    text: u => `The first controlled ${kwD('Detonate')} each turn grants 1⚡ and draws 1.${u ? ' <span class="upg">Costs 0.</span>' : ''}`,
+    text: () => `For the rest of this combat, the first controlled ${kwD('Detonate')} each turn grants 1 Energy and draws 1 card.`,
     play: () => { cbt().powers.blastDividend = true; },
   },
   killzone: {
     name: 'Kill Zone', type: 'Attack', rarity: 'rare', cls: 'sapper', cost: [2, 2], hits: 'all',
     targets: [],
-    text: u => `${kwD('Detonate')} up to ${u ? 4 : 3} scanned mines. Each deals ${u ? 11 : 8} to ALL enemies.`,
+    text: u => `${kwD('Detonate')} up to ${u ? 4 : 3} scanned mines. For each mine, deal ${u ? 11 : 8} damage to all enemies.`,
     can: () => hiddenIdx().some(i => board().cells[i].scan === 'mine'),
     canMsg: 'No scanned mines.',
     play: u => {
@@ -247,19 +259,19 @@ export const CARDS = {
   scancard: {
     name: 'Scan', type: 'Skill', rarity: 'starter', cls: 'surveyor', cost: [0, 0],
     targets: ['hidden'],
-    text: u => `${kwS('Scan')} a hidden tile. Draw 1.${u ? ' Gain 1 Insight.' : ''}`,
+    text: u => `${kwS('Scan')} the chosen hidden tile. Draw 1 card.${u ? ' Gain 1 Insight.' : ''}`,
     play: (u, tg) => { scanTile(tg[0]); drawCards(1); if (u) gainInsight(1); },
   },
   triangulate: {
     name: 'Triangulate', type: 'Attack', rarity: 'common', cls: 'surveyor', cost: [1, 1], hits: 'target',
     targets: [],
-    text: u => `Deal damage equal to ${u ? 4 : 3}× the highest number currently revealed.`,
+    text: u => `Deal damage to the targeted enemy equal to ${u ? 4 : 3} times the highest revealed number.`,
     play: u => hitEnemy(curTarget(), atk((u ? 4 : 3) * highestRevealedNumber())),
   },
   deduction: {
     name: 'Deduction', type: 'Attack', rarity: 'common', cls: 'surveyor', cost: [1, 1], hits: 'target',
     targets: [],
-    text: u => `Spend all ${kwS('Insight')}: deal ${u ? 4 : 3} damage per point spent.`,
+    text: u => `Spend all ${kwS('Insight')}. Deal ${u ? 4 : 3} damage to the targeted enemy for each point spent.`,
     can: () => cbt().insight > 0, canMsg: 'No Insight.',
     play: u => { const n = cbt().insight; cbt().insight = 0; hitEnemy(curTarget(), atk((u ? 4 : 3) * n)); },
   },
@@ -267,13 +279,13 @@ export const CARDS = {
     name: 'Survey Stakes', type: 'Skill', rarity: 'common', cls: 'surveyor', cost: [1, 1],
     targets: ['hidden', 'hidden', 'hidden'],
     optionalTargets: true,
-    text: u => `${kwS('Scan')} up to ${u ? 4 : 3} hidden tiles.`,
+    text: u => `${kwS('Scan')} up to 3 chosen hidden tiles.${u ? ' Then Scan 1 additional random hidden tile.' : ''}`,
     play: (u, tg) => { tg.forEach(i => scanTile(i)); if (u && tg.length) scanTile(randPick(hiddenIdx().filter(i => !board().cells[i].scan)) ?? tg[0]); },
   },
   chordcard: {
     name: 'Chord', type: 'Skill', rarity: 'uncommon', cls: 'surveyor', cost: [1, 0],
     targets: ['number'],
-    text: u => `${kwR('Chord')} a revealed number with exactly that many flagged neighbors: reveal all its other neighbors. If nothing detonates, draw 2 and gain 1⚡.${u ? ' <span class="upg">Costs 0.</span>' : ''}`,
+    text: () => `${kwR('Chord')} the chosen revealed number if its value matches its adjacent flags. Reveal its other neighbors. If no mine detonates, draw 2 cards and gain 1 Energy.`,
     play: (u, tg) => {
       const r = chordAt(tg[0]);
       if (!r.ok) { toast('Flag count must match the number', true); return; }
@@ -283,31 +295,31 @@ export const CARDS = {
   sixthsense: {
     name: 'Sixth Sense', type: 'Power', rarity: 'uncommon', cls: 'surveyor', cost: [2, 1],
     targets: [],
-    text: () => `The first mine you would reveal each turn is verified-flagged instead.`,
+    text: () => `For the rest of this combat, the first mine you would reveal each turn is verified-flagged instead.`,
     play: () => { cbt().powers.sixthsense = true; },
   },
   fieldnotes: {
     name: 'Field Notes', type: 'Skill', rarity: 'uncommon', cls: 'surveyor', cost: [1, 1],
     targets: [],
-    text: u => `Draw ${u ? 3 : 2}. Gain 1 ${kwS('Insight')}.`,
+    text: u => `Draw ${u ? 3 : 2} cards. Gain 1 ${kwS('Insight')}.`,
     play: u => { drawCards(u ? 3 : 2); gainInsight(1); },
   },
   pinpoint: {
     name: 'Pinpoint', type: 'Attack', rarity: 'common', cls: 'surveyor', cost: [0, 0], hits: 'target',
     targets: [],
-    text: u => `Deal damage equal to your ${kwS('Insight')}${u ? ' + 3' : ''}. (Doesn’t spend it.)`,
+    text: u => `Deal damage to the targeted enemy equal to your ${kwS('Insight')}${u ? ' plus 3' : ''}. This does not spend Insight.`,
     play: u => hitEnemy(curTarget(), atk(cbt().insight + (u ? 3 : 0))),
   },
   wholepicture: {
     name: 'The Whole Picture', type: 'Attack', rarity: 'rare', cls: 'surveyor', cost: [2, 2], exhaust: true, hits: 'target',
     targets: [],
-    text: u => `Deal damage equal to ${u ? '1.5×' : ''} the sum of all numbers revealed this turn. Exhaust.`,
+    text: u => `Deal damage to the targeted enemy equal to ${u ? '150% of ' : ''}the sum of all numbers revealed this turn${u ? ', rounded down' : ''}. Exhaust.`,
     play: u => hitEnemy(curTarget(), atk(Math.floor(cbt().sumThisTurn * (u ? 1.5 : 1)))),
   },
   crosssection: {
     name: 'Cross Section', type: 'Skill', rarity: 'common', cls: 'surveyor', cost: [1, 1],
     targets: ['row'],
-    text: u => `${kwS('Scan')} up to ${u ? 6 : 5} hidden tiles in a chosen row.`,
+    text: u => `${kwS('Scan')} up to ${u ? 6 : 5} hidden tiles in the chosen row.`,
     play: (u, tg) => {
       const b = board(), row = tg[0];
       const tiles = [];
@@ -321,7 +333,7 @@ export const CARDS = {
   knownquantity: {
     name: 'Known Quantity', type: 'Attack', rarity: 'uncommon', cls: 'surveyor', cost: [1, 1], hits: 'target',
     targets: [],
-    text: u => `Deal ${u ? 6 : 5} per scanned mine + ${u ? 3 : 2} per scanned safe tile. Scans are not consumed.`,
+    text: u => `Deal ${u ? 6 : 5} damage to the targeted enemy for each scanned mine, plus ${u ? 3 : 2} damage for each tile scanned as safe. Scans are not consumed.`,
     can: () => hiddenIdx().some(i => board().cells[i].scan),
     canMsg: 'Nothing is scanned.',
     play: u => {
@@ -334,7 +346,7 @@ export const CARDS = {
   eureka: {
     name: 'Eureka', type: 'Skill', rarity: 'rare', cls: 'surveyor', cost: [2, 1],
     targets: [], exhaust: true,
-    text: u => `Reveal every scanned-safe tile and verified-flag every scanned mine. Exhaust.${u ? ' <span class="upg">Costs 1.</span>' : ''}`,
+    text: () => `Reveal every tile scanned as safe and verified-flag every scanned mine. Exhaust.`,
     can: () => hiddenIdx().some(i => board().cells[i].scan),
     canMsg: 'Nothing is scanned.',
     play: () => {
@@ -352,31 +364,31 @@ export const CARDS = {
   entombcard: {
     name: 'Entomb', type: 'Skill', rarity: 'starter', cls: 'terraformer', cost: [1, 1],
     targets: ['hidden'],
-    text: u => `${kwG('Entomb')} a hidden tile: it can never detonate and counts as revealed for Full Clear.${u ? ' <span class="upg">Gain 3 Block.</span>' : ''}`,
+    text: u => `${kwG('Entomb')} the chosen hidden tile. It can no longer detonate and counts as resolved for Full Clear.${u ? ' Gain 3 Block.' : ''}`,
     play: (u, tg) => { entombTile(tg[0]); if (u) gainBlock(3); },
   },
   sentry: {
     name: 'Sentry', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1], hits: 'random',
     targets: ['open'],
-    text: u => `Build a Sentry on a revealed tile: at end of turn, deal ${u ? 7 : 5} to a random enemy. Enemy board attacks hit constructs first.`,
+    text: u => `Build a Sentry on the chosen revealed tile. At the end of each turn, it deals ${u ? 7 : 5} damage to a random enemy. Enemy board attacks hit constructs first.`,
     play: (u, tg) => addConstruct(tg[0], 'sentry', { dmg: u ? 7 : 5 }),
   },
   faultline: {
     name: 'Fault Line', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1],
     targets: ['hidden', 'hidden'],
-    text: u => `Swap two hidden tiles (contents move with them). Gain ${u ? 6 : 4} Block.`,
+    text: u => `Swap the two chosen hidden tiles. Their contents move with them. Gain ${u ? 6 : 4} Block.`,
     play: (u, tg) => { swapCells(tg[0], tg[1]); gainBlock(u ? 6 : 4); },
   },
   propshaft: {
     name: 'Prop Shaft', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1],
     targets: ['hidden'],
-    text: u => `${kwS('Defuse')} a hidden tile. Mine: remove it safely and gain ${u ? 7 : 5} ${kwG('Plating')}. Safe: reveal it.`,
+    text: u => `${kwS('Defuse')} the chosen hidden tile. If it is mined, remove the mine and gain ${u ? 7 : 5} ${kwG('Plating')}. If it is safe, reveal it.`,
     play: (u, tg) => { if (defuseTile(tg[0])) gainPlating(u ? 7 : 5); },
   },
   scaffold: {
     name: 'Scaffold', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1],
     targets: [],
-    text: u => `Annex ${u ? 4 : 3} safe tiles onto the board's edge, pre-${kwS('Scan')}ned. (More ground: safe digs, Insight, Full Clear takes longer.)`,
+    text: u => `Add ${u ? 4 : 3} safe tiles to the board's edge. They begin scanned as safe and count toward Full Clear.`,
     play: u => {
       const added = annexTiles(u ? 4 : 3, false);
       added.forEach(i => { board().cells[i].scan = 'safe'; });
@@ -387,19 +399,19 @@ export const CARDS = {
   leylines: {
     name: 'Ley Lines', type: 'Power', rarity: 'uncommon', cls: 'terraformer', cost: [1, 1],
     targets: [],
-    text: u => `Whenever a cascade reveals ${u ? 3 : 4}+ tiles, gain 1⚡.`,
+    text: u => `For the rest of this combat, whenever a cascade reveals at least ${u ? 3 : 4} tiles, gain 1 Energy.`,
     play: u => { cbt().powers.leylines = (u ? 3 : 4); },
   },
   bulwark: {
     name: 'Bulwark', type: 'Skill', rarity: 'uncommon', cls: 'terraformer', cost: [2, 2],
     targets: ['open'],
-    text: u => `Build a Bulwark: at end of turn, gain ${u ? 3 : 2} ${kwG('Plating')} and ${u ? 4 : 3} Block.`,
+    text: u => `Build a Bulwark on the chosen revealed tile. At the end of each turn, gain ${u ? 3 : 2} ${kwG('Plating')} and ${u ? 4 : 3} Block.`,
     play: (u, tg) => addConstruct(tg[0], 'bulwark', { plating: u ? 3 : 2, block: u ? 4 : 3 }),
   },
   landslide: {
     name: 'Landslide', type: 'Attack', rarity: 'rare', cls: 'terraformer', cost: [3, 3], hits: 'all',
     targets: [],
-    text: u => `Reveal the entire outer ring; mines there are defused, not detonated. Deal ${u ? 5 : 4} per tile revealed this way to ALL enemies.`,
+    text: u => `Reveal every hidden tile in the outer ring, safely removing its mines. Deal ${u ? 5 : 4} damage to all enemies for each tile revealed this way.`,
     play: u => {
       const b = board(); let n = 0;
       for (let i = 0; i < b.cells.length; i++) {
@@ -417,19 +429,19 @@ export const CARDS = {
   surveyrelay: {
     name: 'Survey Relay', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1],
     targets: ['open'],
-    text: u => `Build a Relay: at end of turn, ${kwS('Scan')} a random tile and gain ${u ? 4 : 2} Block. Enemy board attacks hit constructs first.`,
+    text: u => `Build a Relay on the chosen revealed tile. At the end of each turn, ${kwS('Scan')} a random hidden tile and gain ${u ? 4 : 2} Block. Enemy board attacks hit constructs first.`,
     play: (u, tg) => addConstruct(tg[0], 'relay', { block: u ? 4 : 2 }),
   },
   stonechoir: {
     name: 'Stone Choir', type: 'Power', rarity: 'uncommon', cls: 'terraformer', cost: [2, 1],
     targets: [],
-    text: u => `Your constructs trigger twice at end of turn.${u ? ' <span class="upg">Costs 1.</span>' : ''}`,
+    text: () => `For the rest of this combat, your constructs trigger twice at the end of each turn.`,
     play: () => { cbt().powers.stonechoir = true; },
   },
   citybelow: {
     name: 'The City Below', type: 'Attack', rarity: 'rare', cls: 'terraformer', cost: [2, 2], hits: 'all',
     targets: [],
-    text: u => `Deal ${u ? 13 : 10} per construct to ALL enemies. Gain ${u ? 3 : 2} Plating per construct.`,
+    text: u => `For each construct, deal ${u ? 13 : 10} damage to all enemies and gain ${u ? 3 : 2} Plating.`,
     can: () => board().cells.some(c => c.construct),
     canMsg: 'Build a construct first.',
     play: u => {
@@ -450,11 +462,27 @@ export const CARDS = {
   },
   shrapnel: {
     name: 'Shrapnel', type: 'Curse', rarity: 'special', cls: null, cost: null, unplayable: true,
-    targets: [], text: () => 'Unplayable. When drawn, take 1 damage.', play: () => {},
+    targets: [], text: () => 'Unplayable. When drawn, lose 1 HP.', play: () => {},
   },
   claustrophobia: {
     name: 'Claustrophobia', type: 'Curse', rarity: 'special', cls: null, cost: null, unplayable: true,
     targets: [], text: () => 'Unplayable. While in your deck, boards spawn +2 mines.', play: () => {},
+  },
+  vertigo: {
+    name: 'Vertigo', type: 'Curse', rarity: 'special', cls: null, cost: null, unplayable: true,
+    targets: [], text: () => 'Unplayable. While in your deck, each copy reduces your max Picks by 1, to a minimum of 1.', play: () => {},
+  },
+  exhaustion: {
+    name: 'Exhaustion', type: 'Curse', rarity: 'special', cls: null, cost: null, unplayable: true,
+    targets: [], text: () => 'Unplayable. While in your deck, each copy reduces cards drawn per turn by 1, to a minimum of 3.', play: () => {},
+  },
+  nightterrors: {
+    name: 'Night Terrors', type: 'Curse', rarity: 'special', cls: null, cost: null, unplayable: true,
+    targets: [], text: () => 'Unplayable. While in your deck, each copy removes 1 Energy from your first turn of combat.', play: () => {},
+  },
+  paranoia: {
+    name: 'Paranoia', type: 'Curse', rarity: 'special', cls: null, cost: null, unplayable: true,
+    targets: [], text: () => 'Unplayable. At combat start, each copy flags one safe hidden tile as though it were a mine.', play: () => {},
   },
 };
 
@@ -489,25 +517,25 @@ function expansionCard(cls, name, i) {
   const dmg = 5 + p.attack + (n % 5), guard = 4 + p.guard + (n % 4), scans = 1 + p.scan + (n % 2);
   const base = { name, rarity, cls, cost };
   switch (i % 19) {
-    case 0: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?dmg+4:dmg}.`, play:u=>hitEnemy(curTarget(),atk(u?dmg+4:dmg)) };
-    case 1: return { ...base, type:'Attack', hits:'target', targets:['hidden'], text:u=>`${kwR('Reveal')} a tile. If safe, deal ${u?dmg+5:dmg}.`, play:(u,t)=>{const r=revealTile(t[0],'card-safe');if(r.safe)hitEnemy(curTarget(),atk(u?dmg+5:dmg));} };
-    case 2: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwS('Scan')} a tile. Draw ${u?2:1}.${u?' Gain 1 pick.':''}`, play:(u,t)=>{scanTile(t[0]);drawCards(u?2:1);if(u)gainPicks(1);} };
+    case 0: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?dmg+4:dmg} damage to the targeted enemy.`, play:u=>hitEnemy(curTarget(),atk(u?dmg+4:dmg)) };
+    case 1: return { ...base, type:'Attack', hits:'target', targets:['hidden'], text:u=>`${kwR('Reveal')} the chosen hidden tile. If it is safe, deal ${u?dmg+5:dmg} damage to the targeted enemy.`, play:(u,t)=>{const r=revealTile(t[0],'card-safe');if(r.safe)hitEnemy(curTarget(),atk(u?dmg+5:dmg));} };
+    case 2: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwS('Scan')} the chosen hidden tile. Draw ${u?2:1} card${u?'s and gain 1 pick':''}.`, play:(u,t)=>{scanTile(t[0]);drawCards(u?2:1);if(u)gainPicks(1);} };
     case 3: return { ...base, type:'Skill', targets:[], text:u=>`Gain ${u?guard+4:guard} Block.`, play:u=>gainBlock(u?guard+4:guard) };
     case 4: return { ...base, type:'Skill', targets:[], text:u=>`Gain ${u?Math.ceil(guard/2)+2:Math.ceil(guard/2)} ${kwG('Plating')}.`, play:u=>gainPlating(u?Math.ceil(guard/2)+2:Math.ceil(guard/2)) };
-    case 5: return { ...base, type:'Attack', hits:'random', targets:['hidden'], text:u=>`${kwS('Defuse')} a tile. Mine: deal ${u?dmg+6:dmg+2} to a random enemy. Safe: reveal it.`, play:(u,t)=>{if(defuseTile(t[0]))hitRandom(atk(u?dmg+6:dmg+2));} };
-    case 6: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwG('Entomb')} a tile and gain ${u?guard+3:guard} Block.`, play:(u,t)=>{entombTile(t[0]);gainBlock(u?guard+3:guard);} };
+    case 5: return { ...base, type:'Attack', hits:'random', targets:['hidden'], text:u=>`${kwS('Defuse')} the chosen hidden tile. If it is mined, remove the mine and deal ${u?dmg+6:dmg+2} damage to a random enemy. If it is safe, reveal it.`, play:(u,t)=>{if(defuseTile(t[0]))hitRandom(atk(u?dmg+6:dmg+2));} };
+    case 6: return { ...base, type:'Skill', targets:['hidden'], text:u=>`${kwG('Entomb')} the chosen hidden tile and gain ${u?guard+3:guard} Block.`, play:(u,t)=>{entombTile(t[0]);gainBlock(u?guard+3:guard);} };
     case 7: return { ...base, type:'Skill', targets:[], text:u=>`${kwS('Scan')} ${u?scans+2:scans} random hidden tiles. Gain 1 pick.`, play:u=>{shuffle(hiddenIdx()).slice(0,u?scans+2:scans).forEach(scanTile);gainPicks(1);} };
-    case 8: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?4:3} per flagged tile.`, play:u=>hitEnemy(curTarget(),atk(flaggedIdx().length*(u?4:3))) };
-    case 9: return { ...base, type:'Attack', hits:'all', targets:['hidden'], text:u=>`${kwD('Detonate')} from cover. Mine: deal ${u?dmg+5:dmg} to ALL; safe: reveal it.`, play:(u,t)=>{if(detonateForCards(t[0]))hitAll(atk(u?dmg+5:dmg));else revealTile(t[0],'card-safe');} };
-    case 10:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?dmg+3:dmg-1} to ALL enemies.`, play:u=>hitAll(atk(u?dmg+3:dmg-1)) };
-    case 11:return { ...base, type:'Skill', targets:[], text:u=>`Draw ${u?3:2}.${u?' Gain 1⚡.':''}`, play:u=>{drawCards(u?3:2);if(u)gainEnergy(1);} };
-    case 12:return { ...base, type:'Skill', targets:[], text:u=>`Annex ${u?3:2} safe, pre-${kwS('Scan')}ned tiles.`, play:u=>annexTiles(u?3:2,false).forEach(i=>board().cells[i].scan='safe') };
-    case 13:return { ...base, type:'Skill', targets:['hidden'], text:u=>`Bury a mine; if already mined, verified-flag it.${u?' Gain 5 Block.':''}`, play:(u,t)=>{if(!addMineAt(t[0]))verifyFlag(t[0]);if(u)gainBlock(5);} };
-    case 14:return { ...base, type:'Skill', targets:['row'], text:u=>`${kwS('Scan')} up to ${u?6:4} tiles in a chosen row.`, play:(u,t)=>{const b=board();for(let c=0;c<b.size&&c<(u?6:4);c++){const x=t[0]*b.size+c;if(isHiddenUsable(x))scanTile(x);}} };
-    case 15:return { ...base, type:'Attack', hits:'target', targets:['hidden','hidden'], optionalTargets:true, text:u=>`${kwR('Reveal')} up to 2 tiles. Deal ${u?5:3} per safe tile.`, play:(u,t)=>{let safe=0;t.forEach(i=>{if(revealTile(i,'card-safe').safe)safe++;});hitEnemy(curTarget(),atk(safe*(u?5:3)));} };
-    case 16:return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?3:2} per tile revealed this turn.`, play:u=>hitEnemy(curTarget(),atk(cbt().revealedThisTurn*(u?3:2))) };
-    case 17:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?4:3} per scanned mine to ALL enemies.`, play:u=>hitAll(atk(hiddenIdx().filter(i=>board().cells[i].scan==='mine').length*(u?4:3))) };
-    default:return { ...base, type:'Skill', targets:[], exhaust:true, text:u=>`${kwS('Scan')} ${u?7:5} tiles; deal that many damage to ALL.${u?' Gain +1 max pick this combat.':''} Exhaust.`, play:u=>{const picks=shuffle(hiddenIdx()).slice(0,u?7:5);picks.forEach(scanTile);hitAll(atk(picks.length));if(u)gainMaxPicks(1);} };
+    case 8: return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?4:3} damage to the targeted enemy for each flagged tile.`, play:u=>hitEnemy(curTarget(),atk(flaggedIdx().length*(u?4:3))) };
+    case 9: return { ...base, type:'Attack', hits:'all', targets:['hidden'], text:u=>`If the chosen tile is mined, ${kwD('Detonate')} it without taking mine damage and deal ${u?dmg+5:dmg} damage to all enemies. If it is safe, reveal it.`, play:(u,t)=>{if(detonateForCards(t[0]))hitAll(atk(u?dmg+5:dmg));else revealTile(t[0],'card-safe');} };
+    case 10:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?dmg+3:dmg-1} damage to all enemies.`, play:u=>hitAll(atk(u?dmg+3:dmg-1)) };
+    case 11:return { ...base, type:'Skill', targets:[], text:u=>`Draw ${u?3:2} cards.${u?' Gain 1 Energy.':''}`, play:u=>{drawCards(u?3:2);if(u)gainEnergy(1);} };
+    case 12:return { ...base, type:'Skill', targets:[], text:u=>`Add ${u?3:2} safe tiles to the board's edge. They begin scanned as safe and count toward Full Clear.`, play:u=>annexTiles(u?3:2,false).forEach(i=>board().cells[i].scan='safe') };
+    case 13:return { ...base, type:'Skill', targets:['hidden'], text:u=>`Add a mine to the chosen hidden tile and update adjacent numbers. If it is already mined, verified-flag it instead.${u?' Gain 5 Block.':''}`, play:(u,t)=>{if(!addMineAt(t[0]))verifyFlag(t[0]);if(u)gainBlock(5);} };
+    case 14:return { ...base, type:'Skill', targets:['row'], text:u=>`${kwS('Scan')} up to ${u?6:4} hidden tiles in the chosen row.`, play:(u,t)=>{const b=board(),tiles=[];for(let c=0;c<b.size;c++){const x=t[0]*b.size+c;if(isHiddenUsable(x))tiles.push(x);}tiles.slice(0,u?6:4).forEach(scanTile);} };
+    case 15:return { ...base, type:'Attack', hits:'target', targets:['hidden','hidden'], optionalTargets:true, text:u=>`${kwR('Reveal')} up to 2 chosen hidden tiles. Deal ${u?5:3} damage to the targeted enemy for each safe tile revealed.`, play:(u,t)=>{let safe=0;t.forEach(i=>{if(revealTile(i,'card-safe').safe)safe++;});hitEnemy(curTarget(),atk(safe*(u?5:3)));} };
+    case 16:return { ...base, type:'Attack', hits:'target', targets:[], text:u=>`Deal ${u?3:2} damage to the targeted enemy for each tile revealed this turn.`, play:u=>hitEnemy(curTarget(),atk(cbt().revealedThisTurn*(u?3:2))) };
+    case 17:return { ...base, type:'Attack', hits:'all', targets:[], text:u=>`Deal ${u?4:3} damage to all enemies for each scanned mine.`, play:u=>hitAll(atk(hiddenIdx().filter(i=>board().cells[i].scan==='mine').length*(u?4:3))) };
+    default:return { ...base, type:'Skill', targets:[], exhaust:true, text:u=>`${kwS('Scan')} up to ${u?7:5} random hidden tiles. Deal 1 damage to all enemies for each tile scanned.${u?' Gain 1 max pick for the rest of this combat.':''} Exhaust.`, play:u=>{const picks=shuffle(hiddenIdx()).slice(0,u?7:5);picks.forEach(scanTile);hitAll(atk(picks.length));if(u)gainMaxPicks(1);} };
   }
 }
 
@@ -516,11 +544,19 @@ for (const [cls, names] of Object.entries(EXPANSION_NAMES)) {
 }
 
 Object.assign(CARDS, {
-  steadyhand: { name:'Steady Hand',type:'Skill',rarity:'common',cls:'neutral',cost:[1,0],targets:[],text:u=>`Gain ${u?7:4} Block and ${u?3:2} picks.${u?' Costs 0.':''}`,play:u=>{gainBlock(u?7:4);gainPicks(u?3:2);} },
-  lanternloan: { name:'Lantern Loan',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],text:u=>`${kwS('Scan')} ${u?3:2} random tiles. Gain 1 pick.${u?' Raise max picks by 1 this combat.':''}`,play:u=>{shuffle(hiddenIdx()).slice(0,u?3:2).forEach(scanTile);gainPicks(1);if(u)gainMaxPicks(1);} },
-  hardlesson: { name:'Hard Lesson',type:'Attack',rarity:'uncommon',cls:'neutral',cost:[0,0],hits:'target',targets:[],can:()=>cbt().picks>0,canMsg:'No picks left to spend.',text:u=>`Spend up to 3 picks. Deal ${u?8:6} per pick spent.`,play:u=>hitEnemy(curTarget(),atk(spendPicks(3)*(u?8:6))) },
-  emergencyexit: { name:'Emergency Exit',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],text:u=>`Lose 1 max pick this combat. Gain ${u?16:12} Plating and draw 2.`,play:u=>{loseMaxPicks(1);gainPlating(u?16:12);drawCards(2);} },
+  steadyhand: { name:'Steady Hand',type:'Skill',rarity:'common',cls:'neutral',cost:[1,0],targets:[],text:u=>`Gain ${u?7:4} Block and ${u?3:2} picks.`,play:u=>{gainBlock(u?7:4);gainPicks(u?3:2);} },
+  lanternloan: { name:'Lantern Loan',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],text:u=>`${kwS('Scan')} ${u?3:2} random hidden tiles. Gain 1 pick.${u?' Gain 1 max pick for the rest of this combat.':''}`,play:u=>{shuffle(hiddenIdx()).slice(0,u?3:2).forEach(scanTile);gainPicks(1);if(u)gainMaxPicks(1);} },
+  hardlesson: { name:'Hard Lesson',type:'Attack',rarity:'uncommon',cls:'neutral',cost:[0,0],hits:'target',targets:[],can:()=>cbt().picks>0,canMsg:'No picks left to spend.',text:u=>`Spend up to 3 picks. Deal ${u?8:6} damage to the targeted enemy for each pick spent.`,play:u=>hitEnemy(curTarget(),atk(spendPicks(3)*(u?8:6))) },
+  emergencyexit: { name:'Emergency Exit',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],text:u=>`Lose 1 max pick for the rest of this combat. Gain ${u?16:12} Plating and draw 2 cards.`,play:u=>{loseMaxPicks(1);gainPlating(u?16:12);drawCards(2);} },
 });
+
+Object.assign(CARDS, buildCardExpansion500({
+  cbt, board, shuffle, curTarget, atk, hitEnemy, hitRandom, hitAll,
+  gainBlock, gainPlating, gainEnergy, gainInsight, gainPicks, gainMaxPicks,
+  loseMaxPicks, spendPicks, drawCards, loseHP, revealTile, scanTile, defuseTile,
+  detonateForCards, entombTile, swapCells, addConstruct, chordAt, verifyFlag,
+  hiddenIdx, flaggedIdx, isHiddenUsable, neighborsOf, numAt, annexTiles, addMineAt,
+}));
 
 /* ---------------- trinkets ---------------- */
 export const TRINKETS = {
@@ -585,6 +621,7 @@ const sc = (e, n) => n + 3 * e.scale;
 export const ENEMIES = {
   grubber: {
     name: 'Grubber', emoji: '🪱', hp: 22, home: 0,
+    desc: 'Begins buried beneath a safe tile and Chews for 6 damage. Reveal its marked tile to expose it; once exposed, it attacks for 9 damage.',
     setup: e => {
       const spots = hiddenIdx().filter(i => !board().cells[i].mine);
       e.data.tile = spots.length ? randPick(spots) : null;
@@ -598,6 +635,7 @@ export const ENEMIES = {
   },
   minelayer: {
     name: 'Minelayer Imp', emoji: '👺', hp: 26, home: 0,
+    desc: 'Alternates between an 8-damage attack and planting 2 new mines, favoring the column shown in its intent.',
     next: e => {
       if (e.step % 2 === 0) return { kind: 'attack', cls: 'atk', n: sc(e, 8), label: `Attack ${sc(e, 8)}` };
       const col = randInt(board().size);
@@ -610,11 +648,13 @@ export const ENEMIES = {
   },
   warden: {
     name: 'Stone Warden', emoji: '🗿', hp: 40, home: 0,
+    desc: 'Gains Block equal to half the number of hidden tiles, rounded up, then attacks for 7 damage every turn.',
     next: e => ({ kind: 'fortify', cls: 'atk', n: sc(e, 7), label: `Attack ${sc(e, 7)} · Block ½ hidden tiles` }),
     act: (e, it) => { e.block += Math.ceil(hiddenIdx().length / 2); enemyAttack(e, it.n); },
   },
   wisp: {
     name: 'Fog Wisp', emoji: '👻', hp: 1, home: 1,
+    desc: 'Alternates between re-hiding 3 revealed tiles with Fog and attacking for 4 damage. Fragile, but disruptive if left alive.',
     next: e => e.step % 2 === 0
       ? { kind: 'fog', cls: 'board', n: 3, label: 'Fog 3 tiles' }
       : { kind: 'attack', cls: 'atk', n: sc(e, 4), label: `Attack ${sc(e, 4)}` },
@@ -625,6 +665,7 @@ export const ENEMIES = {
   },
   shade: {
     name: 'Marsh Shade', emoji: '🌫️', hp: 30, home: 1,
+    desc: 'Alternates between a 9-damage attack and Fog that re-hides 2 revealed tiles.',
     next: e => e.step % 2 === 0
       ? { kind: 'attack', cls: 'atk', n: sc(e, 9), label: `Attack ${sc(e, 9)}` }
       : { kind: 'fog', cls: 'board', n: 2, label: 'Fog 2 tiles' },
@@ -635,6 +676,7 @@ export const ENEMIES = {
   },
   tunneler: {
     name: 'Tunneler Grub', emoji: '🐛', hp: 34, home: 1,
+    desc: 'Alternates between an 8-damage attack and excavating 3 new edge tiles containing a mixture of safe ground and mines.',
     next: e => e.step % 2 === 0
       ? { kind: 'attack', cls: 'atk', n: sc(e, 8), label: `Attack ${sc(e, 8)}` }
       : { kind: 'excavate', cls: 'board', n: 3, label: 'Excavate 3 (mined) tiles' },
@@ -648,6 +690,7 @@ export const ENEMIES = {
   },
   clockwork: {
     name: 'Clockwork Sapper', emoji: '🤖', hp: 45, home: 2,
+    desc: 'Cycles through excavating 2 mixed edge tiles, attacking for 12 damage, and planting 2 new mines in the shown column.',
     next: e => {
       const s = e.step % 3;
       if (s === 0) return { kind: 'excavate', cls: 'board', n: 2, label: 'Excavate 2 (mined) tiles' };
@@ -666,6 +709,7 @@ export const ENEMIES = {
   },
   gearhusk: {
     name: 'Gear Husk', emoji: '⚙️', hp: 55, home: 2,
+    desc: 'Alternates between a heavy 14-damage attack and gaining 12 Block.',
     next: e => e.step % 2 === 0
       ? { kind: 'attack', cls: 'atk', n: sc(e, 14), label: `Attack ${sc(e, 14)}` }
       : { kind: 'defend', cls: 'defend', n: 12, label: 'Block 12' },
@@ -675,6 +719,7 @@ export const ENEMIES = {
   /* ----- elites ----- */
   ossuary: {
     name: 'Ossuary Warden', emoji: '💀', hp: 62, home: 0, elite: true,
+    desc: 'Cycles through a 10-damage attack, gaining Block equal to half the hidden tiles while attacking for 6, and planting 2 new mines.',
     next: e => {
       const s = e.step % 3;
       if (s === 0) return { kind: 'attack', cls: 'atk', n: sc(e, 10), label: `Attack ${sc(e, 10)}` };
@@ -690,6 +735,7 @@ export const ENEMIES = {
   },
   miscounter: {
     name: 'The Miscounter', emoji: '🎭', hp: 72, home: 1, elite: true,
+    desc: 'Makes one revealed number lie by ±1 until defeated. It cycles through attacking for 12, re-hiding 3 tiles, and moving 3 unverified mines.',
     setup: () => setLie(),
     onDeath: () => { clearLie(); toast('The numbers correct themselves.'); },
     next: e => {
@@ -707,6 +753,7 @@ export const ENEMIES = {
   },
   detonata: {
     name: 'Detonata', emoji: '🧨', hp: 88, home: 2, elite: true,
+    desc: 'Attacks for 9 damage and primes a hidden tile each turn. Before its next action, an unresolved, unflagged primed mine detonates against you.',
     next: e => ({ kind: 'prime', cls: 'board', n: sc(e, 9), label: `Attack ${sc(e, 9)} · Prime a tile` }),
     act: (e, it) => {
       resolvePrimed();
@@ -719,6 +766,7 @@ export const ENEMIES = {
   /* ----- bosses ----- */
   collapser: {
     name: 'The Collapser', emoji: '🕳️', hp: 95, home: 0, boss: true,
+    desc: 'Alternates between attacking for 10 damage and devouring the board’s outer ring. Hidden mines in the consumed ring detonate for half damage.',
     next: e => e.step % 2 === 0
       ? { kind: 'attack', cls: 'atk', n: 10, label: 'Attack 10' }
       : { kind: 'devour', cls: 'board', label: 'DEVOUR the outer ring' },
@@ -729,6 +777,7 @@ export const ENEMIES = {
   },
   fogfather: {
     name: 'The Fogfather', emoji: '🌁', hp: 135, home: 1, boss: true,
+    desc: 'Cycles through re-hiding 5 revealed tiles, moving 4 unverified mines, and attacking for 18 damage.',
     next: e => {
       const s = e.step % 3;
       if (s === 0) return { kind: 'fog', cls: 'board', n: 5, label: 'Fog 5 tiles' };
@@ -743,6 +792,7 @@ export const ENEMIES = {
   },
   nn99: {
     name: 'NN-99', emoji: '🛰️', hp: 220, home: 2, boss: true, gated: true,
+    desc: 'Only takes damage on turns when you reveal at least 5 tiles or use Chord. It attacks and deploys mines while shifting through larger phase boards.',
     gateNote: 'Only takes damage on turns you revealed 5+ tiles or chorded',
     setup: e => { e.data.phase = 1; },
     next: e => {

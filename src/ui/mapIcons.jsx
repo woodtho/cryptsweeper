@@ -103,50 +103,147 @@ const CORE_MARKS = {
       <circle cx="6.4" cy="16.1" r="1.5" /><circle cx="7.9" cy="17.6" r="1.5" />
     </Mark>
   ),
+  /* dedicated HUD marks — no two tracked resources share a silhouette */
+  heart: (
+    <Mark><path d="M12 20 S3.5 15 3.5 8.8 A4.3 4.3 0 0 1 12 7 A4.3 4.3 0 0 1 20.5 8.8 C20.5 15 12 20 12 20 Z" /></Mark>
+  ),
+  coin: (
+    <Mark><circle cx="12" cy="12" r="8.5" /><path d="M14.8 8.3 Q12.7 6.7 10.3 8 Q8.5 9 10.2 10.8 L13.9 12.7 Q15.8 14.1 13.8 16 Q11.3 17.8 8.8 15.7 M12 5.5 V18.5" /></Mark>
+  ),
+  cardstack: (
+    <Mark><rect x="7" y="4" width="11" height="15" rx="1" /><path d="M7 7 L4 8 V20 H15 M10 8 H15 M10 11 H15" /></Mark>
+  ),
+  shield: (
+    <Mark><path d="M12 3 L20 6 V11 Q20 17 12 21 Q4 17 4 11 V6 Z" /><path d="M12 7 V17 M8 12 H16" /></Mark>
+  ),
+  plate: (
+    <Mark><path d="M8 4 L17 6 L20 11 L16 19 L7 18 L4 11 Z" /><path d="M10 7 L15 8 L17 11 L14 16 L9 15 L7 11 Z" /></Mark>
+  ),
+  insight: (
+    <Mark><path d="M8 14 Q5 11 7 7 Q9 3 13 4 Q18 4 18 9 Q18 12 15 14 V17 H9 V14 Z M9 20 H15" /><path d="M12 7 V11 M9.5 9 H14.5" /></Mark>
+  ),
+  spark: (
+    <Mark><path d="M14 2 L6.5 13 H11 L9.5 22 L18 10 H13.5 Z" /></Mark>
+  ),
+  drawpile: (
+    <Mark><path d="M5 5 H15 V18 H5 Z M8 2 H18 V15" /><path d="M10 8 V14 M7.5 11 L10 14 L12.5 11" /></Mark>
+  ),
+  discardpile: (
+    <Mark><path d="M4 5 H14 V18 H4 Z M7 2 H17 V12" /><path d="M13 15 H21 M18 12 L21 15 L18 18" /></Mark>
+  ),
+  ashcard: (
+    <Mark><path d="M5 3 H17 V20 H5 Z" /><path d="M11 17 Q7 15 9 12 Q10 10 10 7 Q15 10 14 13 Q17 12 16 15 Q15 18 11 17 Z" /></Mark>
+  ),
+  paw: (
+    <Mark><ellipse cx="12" cy="15" rx="5" ry="4" /><circle cx="6.5" cy="10" r="2" /><circle cx="10" cy="6.5" r="2" /><circle cx="14.5" cy="6.5" r="2" /><circle cx="18" cy="10" r="2" /></Mark>
+  ),
+  safetile: (
+    <Mark><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M7 12 L10.5 15.5 L17.5 8.5" /></Mark>
+  ),
+  turnwheel: (
+    <Mark><path d="M18 8 A7 7 0 1 0 19 15 M18 4 V8 H14 M6 16 A7 7 0 0 0 18 8 M6 20 V16 H10" /></Mark>
+  ),
+  menulines: (
+    <Mark><path d="M5 7 H19 M5 12 H19 M5 17 H19" /><circle cx="3" cy="7" r=".7" fill="currentColor" /><circle cx="3" cy="12" r=".7" fill="currentColor" /><circle cx="3" cy="17" r=".7" fill="currentColor" /></Mark>
+  ),
+  pickcounter: (
+    <Mark><path d="M5 19 L15 5 M12 4 H18 V10 M4 14 L10 20 M3 20 H13 M19 14 V20 M16 17 H22" /></Mark>
+  ),
+  bombmark: (
+    <Mark><circle cx="10" cy="15" r="6" /><path d="M14 10 Q16 6 20 8 M19 3 V6 M16.5 4.5 L18.5 6.5 M20.5 4.5 L18.5 6.5 M7 13 L11 17 M11 13 L7 17" /></Mark>
+  ),
+  /* Trail-sign interface marks: compact, scratchable symbols inspired by the
+     visual grammar of historic wayfinding marks without copying their forms. */
+  target: (
+    <Mark><circle cx="12" cy="12" r="6" /><path d="M12 2 V7 M12 17 V22 M2 12 H7 M17 12 H22 M10 12 H14" /></Mark>
+  ),
+  bag: (
+    <Mark><path d="M7 8 Q12 5 17 8 L19 20 H5 Z M9 8 Q9 3 12 3 Q15 3 15 8 M8 13 L11 16 L16 11" /></Mark>
+  ),
+  log: (
+    <Mark><path d="M5 4 H17 L20 7 V20 H5 Z M17 4 V8 H20 M8 10 H16 M8 14 H15 M8 18 H13" /></Mark>
+  ),
+  cards: (
+    <Mark><path d="M5 6 L16 3 L20 17 L9 20 Z M8 7 L15 5 M10 11 L17 9 M11 15 L18 13 M4 9 L7 20" /></Mark>
+  ),
+  items: (
+    <Mark><path d="M4 9 H20 V20 H4 Z M8 9 V6 Q12 2 16 6 V9 M12 9 V20 M4 13 H20" /></Mark>
+  ),
+  services: (
+    <Mark><path d="M4 19 L10 13 M8 6 L12 10 L17 5 M14 4 L18 8 M7 16 L10 19 M15 14 L20 19" /></Mark>
+  ),
+  puzzle: (
+    <Mark><path d="M4 5 H10 V9 Q12 7 14 9 V5 H20 V11 H16 Q18 13 16 15 H20 V20 H14 V16 Q12 18 10 16 V20 H4 V14 H8 Q6 12 8 10 H4 Z" /></Mark>
+  ),
+  scan: (
+    <Mark><path d="M3 11 Q12 3 21 11 Q12 19 3 11 Z M16 16 L21 21" /><circle cx="12" cy="11" r="2.5" /></Mark>
+  ),
+  upgrade: (
+    <Mark><path d="M4 20 H9 V15 H14 V10 H19 M15 6 L19 10 L15 14 M6 17 L8 19" /></Mark>
+  ),
+  victory: (
+    <Mark><path d="M5 4 H19 V9 Q19 15 12 17 Q5 15 5 9 Z M9 17 V21 M15 17 V21 M7 21 H17 M9 9 L11 11 L15 7" /></Mark>
+  ),
+  bossRelic: (
+    <Mark><circle cx="12" cy="11" r="5" /><path d="M12 2 V5 M4 4 L7 7 M20 4 L17 7 M5 15 L3 20 L9 18 L12 22 L15 18 L21 20 L19 15" /></Mark>
+  ),
+  campmark: (
+    <Mark><path d="M5 19 V9 L12 4 L19 9 V19 M3 19 H21 M9 19 V13 H15 V19 M7 7 L4 4" /></Mark>
+  ),
+  buried: (
+    <Mark><path d="M3 7 H21 M6 7 V18 Q9 22 12 18 Q15 14 18 18 M9 11 H15 M12 7 V14" /></Mark>
+  ),
+  lair: (
+    <Mark><path d="M3 19 Q5 7 12 5 Q19 7 21 19 M7 19 Q8 12 12 11 Q16 12 17 19 M10 16 H14" /></Mark>
+  ),
+  attack: (
+    <Mark><path d="M4 20 L18 6 M13 4 H20 V11 M6 14 L10 18 M4 16 L8 20" /></Mark>
+  ),
+  defend: (
+    <Mark><path d="M4 5 H20 V14 Q17 19 12 21 Q7 19 4 14 Z M8 8 V15 M12 8 V18 M16 8 V15 M4 11 H20" /></Mark>
+  ),
+  crater: (
+    <Mark><path d="M3 15 Q7 9 12 14 Q17 8 21 15 M5 18 Q9 14 12 18 Q15 14 19 18 M8 7 L6 4 M16 7 L18 4" /></Mark>
+  ),
+  sentry: (
+    <Mark><path d="M7 21 L10 13 H14 L17 21 M9 13 V7 H15 V13 M8 7 L12 3 L16 7 M10 9 H14" /></Mark>
+  ),
+  bulwark: (
+    <Mark><path d="M3 20 V8 L7 5 L11 8 L15 5 L21 9 V20 M3 15 H21 M8 20 V14 M16 20 V14" /></Mark>
+  ),
+  relay: (
+    <Mark><path d="M12 21 V9 M8 21 H16 M9 9 L12 5 L15 9 M6 7 Q12 1 18 7 M3 5 Q12 -2 21 5" /></Mark>
+  ),
+  grubmark: (
+    <Mark><path d="M3 17 Q6 8 11 14 Q15 20 21 9 M5 14 L3 11 M10 13 L9 9 M15 15 L17 12" /><circle cx="21" cy="9" r="1.5" /></Mark>
+  ),
+  eventmark: (
+    <Mark><path d="M5 20 V8 L10 4 L14 8 L19 4 V15 M5 12 H12 M12 12 L17 17 M17 17 H21 M17 17 V21" /></Mark>
+  ),
+  shopmark: (
+    <Mark><path d="M4 9 H20 V20 H4 Z M3 9 L6 4 H18 L21 9 M7 9 V12 M12 9 V12 M17 9 V12 M8 20 V15 H13 V20" /></Mark>
+  ),
 };
 
-export const VECTOR_THEMES = {
-  stone: { label: 'Etched Stone', frame: 'stone' }, iron: { label: 'Black Iron', frame: 'iron' },
-  bone: { label: 'Ossuary', frame: 'bone' }, thorn: { label: 'Briar', frame: 'thorn' },
-  crystal: { label: 'Hex Crystal', frame: 'crystal' }, clock: { label: 'Clockwork', frame: 'clock' },
-  abyss: { label: 'Abyssal', frame: 'abyss' }, candle: { label: 'Candlelit', frame: 'candle' },
-  royal: { label: 'Old Kingdom', frame: 'royal' }, blood: { label: 'Blood Sigils', frame: 'blood' },
-};
-
-function Frame({ kind }) {
-  if (kind === 'iron') return <path d="M4 7 L8 3 H16 L20 7 V17 L16 21 H8 L4 17 Z M7 5 l2 2 M17 5 l-2 2 M7 19 l2-2 M17 19 l-2-2" />;
-  if (kind === 'bone') return <><circle cx="12" cy="12" r="9" /><path d="M3 9 H5 M19 9 H21 M3 15 H5 M19 15 H21" /></>;
-  if (kind === 'thorn') return <path d="M12 2 L15 5 L19 4 L20 8 L23 12 L20 16 L19 20 L15 19 L12 22 L9 19 L5 20 L4 16 L1 12 L4 8 L5 4 L9 5 Z" />;
-  if (kind === 'crystal') return <path d="M12 1.5 L21 8 L18 19 L12 22.5 L6 19 L3 8 Z M3 8 H21 M6 19 L9 8 L12 1.5 L15 8 L18 19" />;
-  if (kind === 'clock') return <><circle cx="12" cy="12" r="9" /><path d="M12 1 V4 M12 20 V23 M1 12 H4 M20 12 H23 M4.2 4.2 L6.3 6.3 M17.7 17.7 L19.8 19.8 M19.8 4.2 L17.7 6.3 M6.3 17.7 L4.2 19.8" /></>;
-  if (kind === 'abyss') return <path d="M18.5 4 Q8 4 6 12 Q8 20 18.5 20 Q13 17 13 12 Q13 7 18.5 4 Z M20 9 l2 3 -2 3" />;
-  if (kind === 'candle') return <path d="M5 21 V9 Q5 3 12 2 Q19 3 19 9 V21 M3 21 H21 M12 2 Q14 5 12 7 Q10 5 12 2" />;
-  if (kind === 'royal') return <path d="M4 4 H20 V14 Q20 20 12 22 Q4 20 4 14 Z M4 8 L8 5 L12 8 L16 5 L20 8" />;
-  if (kind === 'blood') return <path d="M4 3 H20 V18 L16 21 L12 18 L8 22 L4 18 Z M7 3 V7 M17 3 V9" />;
-  return <path d="M3 8 V3 H8 M16 3 H21 V8 M21 16 V21 H16 M8 21 H3 V16" />;
-}
-
-export function themedVector(mark, theme) {
-  const core = mark?.props?.children;
-  return <Mark><Frame kind={theme} /><g transform="translate(3 3) scale(.75)">{core}</g></Mark>;
-}
-
-const themedMarks = {};
-for (const [theme, def] of Object.entries(VECTOR_THEMES)) {
-  for (const [name, mark] of Object.entries(CORE_MARKS)) themedMarks[`${theme}-${name}`] = themedVector(mark, def.frame);
-}
-
-export const MARKS = { ...CORE_MARKS, ...themedMarks };
+export const MARKS = { ...CORE_MARKS };
 export const MARK_NAMES = Object.keys(MARKS);
 
-const MAP_BASE = { dig: 'picks', elite: 'fangskull', event: 'eye', shop: 'scales', treasure: 'gem', camp: 'fire', boss: 'crown' };
-export const MAP_VECTOR_STYLES = Object.fromEntries(Object.entries(VECTOR_THEMES).map(([key, def]) => [key, {
-  label: def.label, vector: true,
-  icons: Object.fromEntries(Object.entries(MAP_BASE).map(([type, mark]) => [type, `svg:${key}-${mark}`])),
-}]));
+/* Native emoji families plus the hand-drawn Delver's Marks. */
+const LEGACY_MAP_ICON_STYLES = {
+  emoji: { label: 'Emoji', icons: { dig: '⚔️', elite: '☠️', event: '🔮', shop: '🛒', treasure: '💰', camp: '🏕️', boss: '👑' } },
+  crypt: { label: 'Graveyard', icons: { dig: '⛏️', elite: '🧟', event: '🦇', shop: '🐀', treasure: '⚱️', camp: '🕯️', boss: '😈' } },
+  marks: { label: "Delver's Marks", icons: { dig: 'svg:picks', elite: 'svg:fangskull', event: 'svg:eye', shop: 'svg:scales', treasure: 'svg:gem', camp: 'svg:fire', boss: 'svg:crown' } },
+  dungeon: { label: 'Dungeon', icons: { dig: '🗡️', elite: '👹', event: '🎲', shop: '🧙', treasure: '🏆', camp: '⛺', boss: '🐉' } },
+  deepwild: { label: 'Deep wild', icons: { dig: '🪓', elite: '🦂', event: '🍄', shop: '🐌', treasure: '💎', camp: '🌙', boss: '🕷️' } },
+  sunken: { label: 'Sunken', icons: { dig: '🤿', elite: '🦈', event: '🐚', shop: '🦀', treasure: '🪙', camp: '🏮', boss: '🐙' } },
+  arcane: { label: 'Arcane', icons: { dig: '🪄', elite: '🧛', event: '✨', shop: '🧿', treasure: '📜', camp: '🌛', boss: '🧞' } },
+  gearworks: { label: 'Gearworks', icons: { dig: '🔧', elite: '🤖', event: '🎰', shop: '⚖️', treasure: '🔋', camp: '🔌', boss: '🛸' } },
+  beasts: { label: 'Beasts', icons: { dig: '🐾', elite: '🐺', event: '🦉', shop: '🦝', treasure: '🥚', camp: '🐈‍⬛', boss: '🐻' } },
+};
+export const MAP_ICON_STYLES = { ...LEGACY_MAP_ICON_STYLES, mixer: { label: 'Mix & Match', icons: LEGACY_MAP_ICON_STYLES.emoji.icons } };
 
-/* Resolve a style icon: 'svg:name' tokens become the drawn mark, anything else
-   (emoji, rune glyphs, custom text) passes through untouched. */
+/* Resolve a style icon: 'svg:name' tokens become the drawn mark, while emoji
+   and custom text pass through untouched. */
 export function resolveMapIcon(icon, prefs = null) {
   if (typeof icon === 'string' && icon.startsWith('atlas:')) return resolveAtlasIcon(icon, prefs);
   if (typeof icon === 'string' && icon.startsWith('svg:')) return MARKS[icon.slice(4)] || '?';

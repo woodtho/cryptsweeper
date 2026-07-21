@@ -6,7 +6,9 @@ const AC = typeof window !== 'undefined' ? (window.AudioContext || window.webkit
 let ctx = null;
 let master = null;
 let muted = false;
+let volume = 1;
 try { muted = typeof localStorage !== 'undefined' && localStorage.getItem('cs_muted') === '1'; } catch { /* private mode */ }
+try { volume = Math.max(0, Math.min(1, Number(localStorage.getItem('cs_sfx_volume') ?? 1))); } catch { /* private mode */ }
 const lastPlayed = {};
 
 function ensure() {
@@ -14,7 +16,7 @@ function ensure() {
   if (!ctx) {
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.4;
+    master.gain.value = 0.4 * volume;
     master.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume();
@@ -29,6 +31,13 @@ export function setMuted(next) {
 }
 export function toggleMuted() {
   return setMuted(!muted);
+}
+export function getSfxVolume() { return volume; }
+export function setSfxVolume(next) {
+  volume = Math.max(0, Math.min(1, Number(next)));
+  if (master && ctx) master.gain.setTargetAtTime(0.4 * volume, ctx.currentTime, 0.03);
+  try { localStorage.setItem('cs_sfx_volume', String(volume)); } catch { /* private mode */ }
+  return volume;
 }
 
 function tone({ f = 440, f2, t = 0.12, type = 'sine', g = 0.18, when = 0 }) {

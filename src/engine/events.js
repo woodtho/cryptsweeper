@@ -1,8 +1,8 @@
 /* Additional event content. The engine resolves the compact outcome metadata so
    this bank can grow without adding another branch to eventChoice for each room. */
 
-/* Reference notes preserve the factual explanation for the post-choice reveal.
-   They are never exposed as questions or answer keys. */
+/* Design-only reference notes preserve the factual source material for audits.
+   Live event views and results never expose these questions, answer keys, or explanations. */
 const REFERENCE_NOTES = [
   ['mean-median', '⚖️', 'The Crooked Average', 'One delver has 100 gold; nine have none. Which best describes the typical purse?', 'Median: 0 gold', 'Mean: 10 gold', 'Mode: 100 gold', 'The median resists the single extreme purse; the mean is pulled upward.'],
   ['gambler-fallacy', '🪙', 'Five Tails in the Dust', 'A fair coin has landed tails five times. What is the chance of heads next?', '50%', 'More than 50%', 'Less than 50%', 'Independent flips do not remember the previous streak.'],
@@ -174,6 +174,113 @@ const CONCEPT_NAMES = {
   'secretary-torch': 'Secretary problem', 'overgrazed-moss': 'Tragedy of the commons', bystander: 'Bystander effect',
   'hawk-dove': 'Hawk–Dove Game', 'battle-sexes': 'Battle of the Sexes', 'network-effect': 'Network effects', 'principal-agent': 'Principal–agent problem',
 };
+
+/* Review-driven presentation revisions. These replace labels that state the
+   analytical lesson with concrete actions the player can actually take. */
+export const EVENT_ACTION_REVISIONS = {
+  commons: ['Take one basket', 'Strip the mature bed'],
+  auction: ['Submit the lower sealed bid', 'Submit the higher sealed bid'],
+  survivorship: ['Plate the scarred panels', 'Plate the unscarred panels'],
+  'dominant-strategy': ['Sign the iron contract', 'Sign the ivory contract'],
+  anchoring: ['Make a counteroffer aloud', 'Write a sealed counteroffer'],
+  confirmation: ['Follow the marked route', 'Open the sealed side passage'],
+  'base-rate': ['Enter quarantine', 'Return to the district clinic'],
+  prosecutor: ['Hand the suspect to the guard', 'Refuse the guard'],
+  'false-positive': ['Search every alarmed room', 'Silence the outer alarms'],
+  'oracle-information': ['Choose a tunnel now', 'Buy the oracle’s clue'],
+  'adverse-selection': ['Raise every premium', 'Close enrollment'],
+  'information-cascade': ['Take the left passage', 'Take the right passage'],
+  endowment: ['Sell the trinket', 'Keep the trinket'],
+  framing: ['Choose the first inscription', 'Choose the second inscription'],
+  decoy: ['Buy the bronze pickaxe', 'Buy the iron pickaxe'],
+  escalation: ['Seal the failing tunnel', 'Fund another support beam'],
+  bandit: ['Pull a different lever', 'Pull the lever that paid once'],
+  'stopping-chests': ['Open the next chest', 'Take the current chest'],
+  'secretary-torch': ['Dismiss this applicant', 'Hire this applicant'],
+  'hawk-dove': ['Approach with your weapon lowered', 'Charge the cache'],
+  'battle-sexes': ['Go to the forge', 'Go to the archive'],
+  'network-effect': ['Take the common rune', 'Take the solitary rune'],
+  'principal-agent': ['Offer a share of the haul', 'Pay the posted wage'],
+  'mean-median': ['Fill every bowl equally', 'Fill bowls by purse mark'],
+  matching: ['Shake a coin beneath a cup', 'Place a coin by hand'],
+  'large-numbers': ['Send the crew to the old seam', 'Send scouts into the new field'],
+  simpson: ['Stock one tonic for both wards', 'Stock a different tonic in each ward'],
+  'regression-mean': ['Sign a permanent contract', 'Sign a one-route contract'],
+  'p-value': ['Break the old ward', 'Repeat the rune trial'],
+  confidence: ['Pack the narrow expedition kit', 'Pack the broad expedition kit'],
+  permutations: ['Turn the seals in ledger order', 'Try the scratched sequence first'],
+  combinations: ['Send the two top-ranked delvers', 'Send the locksmith and medic'],
+  'central-limit': ['Hire the scout company', 'Hire the master surveyor'],
+  'normal-rule': ['Enter a central shaft', 'Enter a distant shaft'],
+  variance: ['Enter the chalk-marked route', 'Enter the red-marked route'],
+  'standard-deviation': ['Order the standard crate', 'Order the reserve crate'],
+  'chicken-game': ['Keep the brake lever free', 'Lock the brake lever forward'],
+  'mixed-strategy': ['Shake the coin in a cup', 'Place your favoured face'],
+  condorcet: ['Post the current route', 'Hold three more route votes'],
+  arrow: ['Post fixed tally rules', 'Hand the route seal to the captain'],
+  availability: ['Reinforce the collapsed arch', 'Reinforce the injury stair'],
+  'loss-aversion': ['Put the purse behind the ward', 'Stake the purse at the table'],
+  'expected-maximum': ['Pocket the first die', 'Pay for the second die'],
+  'sealed-urn': ['Draw from the glass urn', 'Draw from the sealed urn'],
+  'bridge-commitment': ['Raise a signal lantern', 'Lock the brake lever'],
+  'map-auction': ['Submit the lower map bid', 'Submit the higher map bid'],
+  'expedition-vote': ['Post the voting order', 'Give the chair the route cards'],
+  'ration-pool': ['Mark your true ration', 'Mark a larger ration'],
+  'cursed-coin': ['Sell the coin', 'Keep flipping the coin'],
+  'mine-insurance': ['Sign the partial policy', 'Sign the full policy'],
+  'single-file': ['Take the numbered place', 'Step ahead of the queue'],
+  volunteer: ['Ring the bell', 'Remain in the alcove'],
+  centipede: ['Pass the cache onward', 'Take the cache'],
+  'trust-game': ['Send five coins', 'Send the whole purse'],
+  'dictator-game': ['Leave half the cache', 'Take the cache'],
+  'coordination-bells': ['Ring the carved bell', 'Ring the plain bell'],
+  'minority-game': ['Take the unmarked tunnel', 'Take yesterday’s quiet tunnel'],
+  lemons: ['Open the lantern for inspection', 'Seal the lantern crate'],
+  'moral-hazard': ['Split the blast contract', 'Fund the largest blast'],
+  'free-rider': ['Lift rubble with the crew', 'Walk through the cleared gap'],
+  'credible-threat': ['Cross the guard line', 'Pay the guard'],
+  'commitment-device': ['Set the ration-box timer', 'Leave the latch open'],
+  'common-knowledge': ['Strike the public gong', 'Whisper to each delver'],
+  'focal-point': ['Enter the carved gate', 'Enter a plain gate'],
+  'winner-curse': ['Pay for an appraisal', 'Pay the winning invoice'],
+  hyperbolic: ['Lock eleven coins until tomorrow', 'Take ten coins now'],
+  'status-quo': ['Remove the route marker', 'Follow the marked route'],
+  'explore-exploit': ['Open an untested shaft', 'Return to the paying vein'],
+  'overgrazed-moss': ['Post a harvest limit', 'Fill your sacks now'],
+  bystander: ['Climb down to the caller', 'Remain with the crowd'],
+};
+
+export const EVENT_TEXT_REVISIONS = {
+  corpse: 'A dead cartographer lies beneath a fallen survey pole. Annotated maps remain clenched in one hand; an empty burial alcove waits nearby.',
+  matching: 'The merchant sets two tarnished coins on the table. He wins when the faces match and watches your hands while you choose.',
+  sunkcost: 'Three days of digging have left a dry shaft, a tired crew, and one unopened wall. A modest known seam lies one camp away.',
+  auction: 'A relic goes to sealed bids. Its worth to your expedition is clear; the rival bids are not.',
+  ruin: 'The house offers another double-or-nothing round. Your current winnings sit within reach.',
+  'dominant-strategy': 'Two sealed contracts lie beside a rival buyer’s covered choice. The iron seal and ivory seal promise different settlements.',
+  'normal-rule': 'Most chalk marks cluster near the map’s central shafts. A few distant marks carry richer ore tallies.',
+  variance: 'The chalk route has paid similar purses on every trip. The red route has returned crews empty-handed or laden with ore.',
+  'standard-deviation': 'A supplier’s delivery ledger ranges from punctual carts to delays longer than the camp’s present stores.',
+  'common-knowledge': 'Every delver can see the mark. No one moves while the chamber remains silent.',
+  'focal-point': 'Separated crews must choose one reunion gate. One gate alone bears a crown of white antlers.',
+  framing: 'Two inscriptions describe the same sealed bargain in different words.',
+  decoy: 'Bronze and iron pickaxes sit beside a third tool that is heavier, duller, and nearly the same price as the iron one.',
+  hyperbolic: 'Eleven coins can be locked until tomorrow. Ten coins are already loose on the table.',
+  'status-quo': 'One route bears an old official marker. The surrounding passages show equally fresh tracks.',
+  'information-cascade': 'Two earlier delvers went left. A faint scratch on your own map points right.',
+  'network-effect': 'Most nearby crews carry the common communication rune. A solitary rune has a clearer tone but no matching receivers here.',
+};
+export const EVENT_TITLE_REVISIONS = {
+  shrine: 'The Two-Door Shrine',
+  'dominant-strategy': 'The Iron and Ivory Contracts',
+  'p-value': 'The Small Rune Trial',
+  'standard-deviation': 'The Delayed Cart',
+  'risk-aversion': 'The Two Supply Offers',
+  pareto: 'The Reassigned Passage',
+  'expected-maximum': 'The Second Die',
+  'winner-curse': 'The Winning Invoice',
+  decoy: 'Three Pickaxes',
+  'hawk-dove': 'Two Hands at the Cache',
+};
 function conceptName(id) {
   return CONCEPT_NAMES[id] || id.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ');
 }
@@ -182,16 +289,18 @@ function makeDecision(entry, index) {
   const [id, text, actionA, descA, actionB, descB] = entry;
   const note = REFERENCE_NOTES.find(candidate => candidate[0] === id);
   const [, emoji, title, , , , , explanation] = note;
+  const labels = EVENT_ACTION_REVISIONS[id] || [actionA, actionB];
+  const revisedText = EVENT_TEXT_REVISIONS[id] || text;
   return [id, {
-    emoji, title, text, extra: true, behavioral: true,
+    emoji, title: EVENT_TITLE_REVISIONS[id] || title, text: revisedText, extra: true, behavioral: true,
     concept: conceptName(id), explanation, profile: index % 8,
     actions: [
-      { key: 'a', label: actionA, desc: descA },
-      { key: 'b', label: actionB, desc: descB },
+      { key: 'a', label: labels[0], desc: '' },
+      { key: 'b', label: labels[1], desc: '' },
     ],
     choices: [
-      { key: 'a', label: actionA, desc: descA },
-      { key: 'b', label: actionB, desc: descB },
+      { key: 'a', label: labels[0], desc: '' },
+      { key: 'b', label: labels[1], desc: '' },
       { key: 'observe', label: 'Gather one more observation', desc: 'Spend a little time or gold to reveal part of the hidden situation.' },
     ],
   }];
@@ -199,16 +308,18 @@ function makeDecision(entry, index) {
 
 function makeDilemma(entry, index) {
   const [id, emoji, title, text, prudent, prudentDesc, risky, riskyDesc, explanation] = entry;
+  const labels = EVENT_ACTION_REVISIONS[id] || [prudent, risky];
+  const revisedText = EVENT_TEXT_REVISIONS[id] || text;
   return [id, {
-    emoji, title, text, extra: true, behavioral: true,
+    emoji, title: EVENT_TITLE_REVISIONS[id] || title, text: revisedText, extra: true, behavioral: true,
     concept: conceptName(id), explanation, profile: (index + 3) % 8,
     actions: [
-      { key: 'a', label: prudent, desc: 'Commit to this action before the other parties and hidden outcomes are revealed.' },
-      { key: 'b', label: risky, desc: 'Take the competing action before the other parties and hidden outcomes are revealed.' },
+      { key: 'a', label: labels[0], desc: '' },
+      { key: 'b', label: labels[1], desc: '' },
     ],
     choices: [
-      { key: 'a', label: prudent, desc: 'Commit resources to this approach.' },
-      { key: 'b', label: risky, desc: 'Commit resources to the competing approach.' },
+      { key: 'a', label: labels[0], desc: '' },
+      { key: 'b', label: labels[1], desc: '' },
       { key: 'observe', label: 'Look for another signal', desc: 'Pay for information before committing.' },
     ],
   }];
@@ -220,11 +331,12 @@ export const EXTRA_EVENT_CATALOG = Object.fromEntries([
 ]);
 
 function coreSpec(id, emoji, title, concept, text, explanation, profile, a, b) {
+  const labels = EVENT_ACTION_REVISIONS[id] || [a[0], b[0]];
   return [id, {
-    emoji, title, concept, text, explanation, profile, extra: true, behavioral: true,
-    actions: [{ key: 'a', label: a[0], desc: a[1] }, { key: 'b', label: b[0], desc: b[1] }],
+    emoji, title: EVENT_TITLE_REVISIONS[id] || title, concept, text: EVENT_TEXT_REVISIONS[id] || text, explanation, profile, extra: true, behavioral: true,
+    actions: [{ key: 'a', label: labels[0], desc: '' }, { key: 'b', label: labels[1], desc: '' }],
     choices: [
-      { key: 'a', label: a[0], desc: a[1] }, { key: 'b', label: b[0], desc: b[1] },
+      { key: 'a', label: labels[0], desc: '' }, { key: 'b', label: labels[1], desc: '' },
       { key: 'observe', label: 'Gather one more observation', desc: 'Pay for information before committing.' },
     ],
   }];
@@ -248,7 +360,7 @@ export const CORE_BEHAVIORAL_EVENTS = Object.fromEntries([
 function whole(value) { return Math.max(1, Math.round(value)); }
 function signedGold(amount) { return amount >= 0 ? `gain ${amount} gold` : `pay ${Math.abs(amount)} gold`; }
 
-export function createBehavioralEventState(event, context, rolls, gadgetKey = null) {
+export function createBehavioralEventState(event, context, rolls, gadgetKey = null, curseKey = 'claustrophobia', curseName = 'Claustrophobia') {
   const depth = Math.max(0, context.stratum || 0);
   const scale = 1 + depth * .22;
   const lowGold = whole((18 + rolls[0] * 12) * scale);
@@ -263,7 +375,7 @@ export function createBehavioralEventState(event, context, rolls, gadgetKey = nu
   return {
     version: 1, stage: 'choice', observed: false, history: [], profile: event.profile || 0,
     hiddenRoll: rolls[4], secondRoll: rolls[5], lowGold, midGold, highGold, damage, heal, chance,
-    infoCost, infoDamage, investCost, gadgetKey,
+    infoCost, infoDamage, investCost, gadgetKey, curseKey, curseName,
   };
 }
 
@@ -288,7 +400,7 @@ function profileOptions(state) {
     ],
     [
       { effect: { gold: state.lowGold, heal: Math.ceil(state.heal / 2) }, stakes: `Gain ${state.lowGold} gold and recover up to ${Math.ceil(state.heal / 2)} HP.` },
-      { effect: { gold: state.highGold, curse: 'claustrophobia' }, stakes: `Gain ${state.highGold} gold; Claustrophobia enters your deck.` },
+      { effect: { gold: state.highGold, curse: state.curseKey || 'claustrophobia' }, stakes: `Gain ${state.highGold} gold; ${state.curseName || 'Claustrophobia'} enters your deck.` },
     ],
     [
       { effect: { gold: state.midGold }, stakes: `Certain: gain ${state.midGold} gold.` },
@@ -318,13 +430,13 @@ export function behavioralEventView(event, state) {
     : `No gold remains: lose ${state.infoDamage} HP to investigate personally.`;
   const choices = event.actions.map((action, index) => ({
     key: action.key, label: action.label,
-    desc: `${action.desc} ${options[index].stakes}`,
+    desc: state.observed ? options[index].stakes : '',
   }));
   if (canObserve && !state.observed) choices.push({ key: 'observe', label: 'Gather one more observation', desc: observationCost });
   return {
-    text: state.observed ? `${event.text} You paid to inspect the mechanism; its immediate consequence is now visible.` : event.text,
+    text: state.observed ? `${event.text} Fresh scratches inside the mechanism expose what each passage will release.` : event.text,
     choices,
-    stageLabel: state.observed ? 'Evidence gathered · commit' : canObserve ? 'Decision · evidence incomplete' : 'Decision · known tradeoff',
+    stageLabel: state.observed ? 'Mechanism inspected' : 'Decision',
   };
 }
 
@@ -337,7 +449,7 @@ export function resolveBehavioralEvent(event, state, key) {
     return {
       done: false,
       effect: state.infoCost ? { gold: -state.infoCost } : { damage: state.infoDamage },
-      note: state.infoCost ? `You spend ${state.infoCost} gold gathering evidence.` : `The investigation costs ${state.infoDamage} HP.`,
+      note: '',
     };
   }
   const index = event.actions.findIndex(action => action.key === key);
@@ -348,6 +460,5 @@ export function resolveBehavioralEvent(event, state, key) {
   return {
     done: true, effect: option.effect, stakes: option.stakes, action: event.actions[index],
     title: event.title,
-    html: `<p><b>Your decision:</b> ${event.actions[index].label}</p><p>${option.stakes}</p><hr><p><b>What this tested — ${event.concept}</b></p><p>${event.explanation}</p><p class="dim">This was not graded as a remembered answer. The choice traded current resources, uncertainty, and future value inside this run.</p>`,
   };
 }

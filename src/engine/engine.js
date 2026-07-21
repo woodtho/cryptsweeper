@@ -1,19 +1,23 @@
 /* CRYPTSWEEPER — game engine (DOM-free). React subscribes via subscribe/getVersion;
    every exported action mutates state then notify()s. Content data lives in data.js. */
 import {
-  STRATA, CLASSES, CARDS, TRINKETS, GADGETS, ENEMIES, FIGHTS, NN99_PHASES,
+  STRATA, CLASSES, CARDS, TRINKETS, GADGETS, ENEMIES, FIGHTS, NN99_PHASES, PERSISTENT_CURSES,
 } from './data.js';
 import { sfx } from './sfx.js';
 import { recordProgress } from './progression.js';
 import {
   recordEnemySeen, recordEnemyDefeated, recordCardSeen, recordCardOwned, recordCardPlayed,
-  recordItemSeen, recordItemOwned, seedRunCollection,
+  recordItemSeen, recordItemOwned, seedRunCollection, recordDelverProgress,
 } from './collection.js';
 import { recordDailyAttempt, recordDailyResult } from './daily.js';
 import {
   EXTRA_EVENT_CATALOG, CORE_BEHAVIORAL_EVENTS,
   createBehavioralEventState, behavioralEventView, resolveBehavioralEvent,
 } from './events.js';
+import {
+  sudokuShape, solveSudoku, countSudokuSolutions, sudokuDifficulty,
+  nonogramClues, countNonogramSolutions, minimumLightsSolution, validateCrossword,
+} from './puzzleValidation.js';
 
 /* ================= store ================= */
 const listeners = new Set();
@@ -23,6 +27,7 @@ export function getVersion() { return version; }
 function notify() {
   version++;
   recordProgress(run, ui.screen);
+  recordDelverProgress(run, ui.screen);
   /* never stamp 'title' into the autosave — Continue must resume gameplay */
   if (run && ui.screen !== 'title') persistRun('auto');
   for (const cb of listeners) cb();
@@ -118,11 +123,16 @@ export function loadRun(slot) {
       run.puzzle.size ??= 4;
       run.puzzle.boxRows ??= run.puzzle.size === 6 ? 2 : Math.sqrt(run.puzzle.size);
       run.puzzle.boxCols ??= run.puzzle.size === 6 ? 3 : Math.sqrt(run.puzzle.size);
+      run.puzzle.notes ??= Array.from({ length: run.puzzle.size * run.puzzle.size }, () => []);
+      run.puzzle.noteMode ??= false;
+    }
+    if (run.puzzle?.type === 'nonogram') {
+      run.puzzle.values = run.puzzle.values.map(value => value === 1 ? 1 : value === 2 ? 2 : 0);
     }
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
-      if (run.combat.picks == null) run.combat.picks = PICKS_PER_TURN;
-      if (run.combat.maxPicks == null) run.combat.maxPicks = PICKS_PER_TURN + run.pickBonus + (run.trinkets.includes('pitons') ? 1 : 0);
+      if (run.combat.picks == null) run.combat.picks = basePicksFor(run.cls);
+      if (run.combat.maxPicks == null) run.combat.maxPicks = basePicksFor(run.cls) + run.pickBonus + (run.trinkets.includes('pitons') ? 1 : 0);
       run.combat.powers = {
         powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
         blastDividend: false, blastDividendUsed: false, stonechoir: false,
@@ -200,7 +210,7 @@ export function newRun(clsKey, options = {}) {
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
     surveyNext: false, seenEvents: [], combat: null, upgrades: 0, pickBonus: 0, winRecorded: false,
     reward: null, shop: null, event: null, eventState: null, eventHistory: [], puzzle: null, seenCutscenes: [],
-    daily: options.daily || null,
+    daily: options.daily || null, testMode: Boolean(options.testMode),
     rngState: options.daily ? dailySeed(options.daily) : null,
   };
   genMapForStratum();
@@ -312,6 +322,26 @@ export function reachableNodes() {
   const set = m.edges[`${run.pos.r},${run.pos.c}`];
   if (!set) return [];
   return [...set].filter(c => m.nodes[run.pos.r + 1][c] !== undefined).map(c => ({ r: run.pos.r + 1, c }));
+}
+
+/* every node reachable by walking edges downward from (r, c), plus (r, c)
+   itself — the map screen uses this to prune dead branches and to preview a
+   held node's futures */
+export function mapClosure(m, r, c) {
+  const keep = new Set([`${r},${c}`]);
+  let frontier = [[r, c]];
+  while (frontier.length) {
+    const next = [];
+    for (const [fr, fc] of frontier) {
+      for (const nc of m.edges[`${fr},${fc}`] || []) {
+        if (m.nodes[fr + 1]?.[nc] === undefined) continue;
+        const key = `${fr + 1},${nc}`;
+        if (!keep.has(key)) { keep.add(key); next.push([fr + 1, nc]); }
+      }
+    }
+    frontier = next;
+  }
+  return keep;
 }
 
 export function enterNode(r, c) {
@@ -1234,10 +1264,18 @@ function checkWin() {
 
 /* ================= combat setup & turns ================= */
 function minePenalty() {
-  let p = 0;
-  p += 2 * run.deck.filter(c => c.key === 'claustrophobia').length;
+  let p = persistentCurseTotal('boardMines');
   if (hasT('lamp')) p += 4;
   return p;
+}
+
+function curseCopies(key) {
+  return run.deck.filter(card => card.key === key).length;
+}
+
+function persistentCurseTotal(field) {
+  return Object.entries(PERSISTENT_CURSES).reduce((total, [key, curse]) =>
+    total + curseCopies(key) * (Number(curse[field]) || 0), 0);
 }
 
 export function startCombat(kind) {
@@ -1251,7 +1289,8 @@ export function startCombat(kind) {
     draw: shuffle(run.deck.map(c => ({ ...c }))),
     energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0),
     block: 0, plating: 0, insight: 0, turn: 0,
-    maxPicks: PICKS_PER_TURN + (run.pickBonus || 0) + (hasT('pitons') ? 1 : 0),
+    maxPicks: Math.max(PERSISTENT_CURSES.vertigo.minimum, basePicksFor(run.cls) + (run.pickBonus || 0) + (hasT('pitons') ? 1 : 0)
+      + persistentCurseTotal('maxPicks')),
     revealedThisTurn: 0, sumThisTurn: 0, chordedThisTurn: false, minesDetonated: 0,
     powers: {
       powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
@@ -1303,6 +1342,12 @@ export function startCombat(kind) {
     log('🔷 Hex Key scans 3 tiles.');
   }
   if (hasT('wardplate')) c.plating = 2;
+  const falseFlags = persistentCurseTotal('falseFlags');
+  if (falseFlags > 0) {
+    const safe = shuffle(hiddenIdx().filter(i => !b.cells[i].mine && !b.cells[i].flag));
+    safe.slice(0, falseFlags).forEach(i => { b.cells[i].flag = 1; });
+    if (safe.length) log(`◉ Paranoia marks ${Math.min(falseFlags, safe.length)} safe tile${falseFlags === 1 ? '' : 's'}.`);
+  }
   assignLairs();
   c.setup = false;
   ui.screen = 'combat';
@@ -1312,12 +1357,14 @@ export function startCombat(kind) {
 }
 
 export const PICKS_PER_TURN = 4;
+export function basePicksFor(clsKey) { return CLASSES[clsKey]?.picks ?? PICKS_PER_TURN; }
 
 function startTurn() {
   const c = cbt();
   c.turn++;
   c.block = run.cls === 'warden' && c.turn > 1 ? Math.floor(c.block / 4) : 0;
   c.energy = c.maxEnergy;
+  if (c.turn === 1) c.energy = Math.max(PERSISTENT_CURSES.nightterrors.minimum, c.energy + persistentCurseTotal('firstTurnEnergy'));
   c.picks = c.maxPicks;
   c.revealedThisTurn = 0; c.sumThisTurn = 0; c.chordedThisTurn = false;
   c.powers.sixthUsed = false;
@@ -1327,7 +1374,9 @@ function startTurn() {
   c.classState.painUsed = false;
   c.classState.exhaustUsed = false;
   c.powers.blastDividendUsed = false;
-  drawCards(5 + (hasT('indexcard') && c.turn === 1 ? 1 : 0) - (hasT('emberjar') && c.turn > 1 ? 1 : 0));
+  const normalDraw = 5 + (hasT('indexcard') && c.turn === 1 ? 1 : 0) - (hasT('emberjar') && c.turn > 1 ? 1 : 0)
+    + persistentCurseTotal('cardsPerTurn');
+  drawCards(Math.max(PERSISTENT_CURSES.exhaustion.minimum, normalDraw));
   updateGlow();
   notify();
 }
@@ -1685,7 +1734,7 @@ export function campSurvey() {
 export function campTrainPicks() {
   if ((run.pickBonus || 0) >= 2) { toast('Your run is already at the +2 pick training cap.', true); return; }
   run.pickBonus = (run.pickBonus || 0) + 1;
-  toast(`Trail training: permanent +1 max pick per turn (${PICKS_PER_TURN + run.pickBonus} base)`);
+  toast(`Trail training: permanent +1 max pick per turn (${basePicksFor(run.cls) + run.pickBonus} base)`);
   ui.screen = 'map'; notify();
 }
 export function campUpgrade() {
@@ -1874,7 +1923,10 @@ function prepareEventState(key) {
   const event = EVENT_CATALOG[key];
   if (!event?.behavioral) { run.eventState = null; return; }
   const rolls = Array.from({ length: 6 }, () => random());
-  run.eventState = createBehavioralEventState(event, run, rolls, randPick(Object.keys(GADGETS)));
+  const curseKey = randPick(Object.keys(PERSISTENT_CURSES));
+  run.eventState = createBehavioralEventState(
+    event, run, rolls, randPick(Object.keys(GADGETS)), curseKey, PERSISTENT_CURSES[curseKey].name,
+  );
 }
 
 export function currentEventView() {
@@ -1910,38 +1962,67 @@ export function startSpecificEvent(key) {
 }
 
 function applyEventEffect(effect = {}) {
-  if (effect.gold) run.gold = Math.max(0, run.gold + effect.gold);
-  if (effect.damage) run.hp = Math.max(1, run.hp - effect.damage);
-  if (effect.maxHp) { run.maxHp += effect.maxHp; run.hp = Math.min(run.maxHp, run.hp + effect.maxHp); }
-  if (effect.heal) run.hp = Math.min(run.maxHp, run.hp + effect.heal);
+  const lines = [];
+  if (effect.gold) {
+    const before = run.gold;
+    run.gold = Math.max(0, run.gold + effect.gold);
+    const changed = run.gold - before;
+    if (changed > 0) lines.push(`Gain ${changed} gold.`);
+    else if (changed < 0) lines.push(`Lose ${Math.abs(changed)} gold.`);
+  }
+  if (effect.damage) {
+    const before = run.hp;
+    run.hp = Math.max(1, run.hp - effect.damage);
+    lines.push(`Lose ${before - run.hp} HP.`);
+  }
+  if (effect.maxHp) {
+    run.maxHp += effect.maxHp;
+    run.hp = Math.min(run.maxHp, run.hp + effect.maxHp);
+    lines.push(`Gain ${effect.maxHp} max HP.`);
+  }
+  if (effect.heal) {
+    const before = run.hp;
+    run.hp = Math.min(run.maxHp, run.hp + effect.heal);
+    lines.push(`Recover ${run.hp - before} HP.`);
+  }
   if (effect.curse && CARDS[effect.curse]) {
     run.deck.push(mkCard(effect.curse));
     recordCardOwned(effect.curse);
+    lines.push(`Add ${CARDS[effect.curse].name} to your deck.`);
   }
   if (effect.upgrade) {
     const eligible = run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null);
     const card = randPick(eligible);
-    if (card) { card.up = 1; run.upgrades = (run.upgrades || 0) + 1; }
-    else run.gold += 15;
+    if (card) {
+      card.up = 1; run.upgrades = (run.upgrades || 0) + 1;
+      lines.push(`Upgrade ${CARDS[card.key].name}.`);
+    } else {
+      run.gold += 15;
+      lines.push('Gain 15 gold.');
+    }
   }
   if (effect.gadget && GADGETS[effect.gadget]) {
     if (run.gadgets.length < 3) {
       run.gadgets.push(effect.gadget);
       recordItemOwned(`gadget:${effect.gadget}`);
-    } else run.gold += 20;
+      lines.push(`Gain ${GADGETS[effect.gadget].name}.`);
+    } else {
+      run.gold += 20;
+      lines.push('Gain 20 gold.');
+    }
   }
+  return lines;
 }
 
 export function eventChoice(which) {
-  const st = STRATA[run.stratum];
   const behavioral = EVENT_CATALOG[run.event];
   if (behavioral?.behavioral) {
     if (!run.eventState) prepareEventState(run.event);
     const result = resolveBehavioralEvent(behavioral, run.eventState, which);
     if (!result) return;
-    applyEventEffect(result.effect);
+    const consequenceLines = applyEventEffect(result.effect);
     if (!result.done) {
-      toast(result.note);
+      toast(consequenceLines.join(' '));
       notify();
       return;
     }
@@ -1950,123 +2031,12 @@ export function eventChoice(which) {
       id: run.event, choice: which, observed: run.eventState.observed,
       stratum: run.stratum, floor: run.floors,
     });
-    run.eventState.result = { title: `${behavioral.emoji} ${result.title}`, html: result.html };
-    eventResult(`${behavioral.emoji} ${result.title}`, result.html);
+    const html = `<p>${result.action.label}. The chamber answers.</p>${consequenceLines.map(line => `<p><b>${line}</b></p>`).join('')}`;
+    run.eventState.result = { title: `${behavioral.emoji} ${result.title}`, html };
+    eventResult(`${behavioral.emoji} ${result.title}`, html);
     return;
   }
-  if (run.event === 'shrine') {
-    if (which === 'walk') { ui.screen = 'map'; notify(); return; }
-    if (random() < 0.5) {
-      const g = randPick(Object.keys(GADGETS));
-      if (run.gadgets.length < 3) run.gadgets.push(g);
-      run.gold += 30;
-      openModal({
-        kind: 'info', title: '🚪 The prize!', btn: 'Continue', next: 'map',
-        html: `<p>Behind the door: <b>${GADGETS[g].emoji} ${GADGETS[g].name}</b> and <b class="gold">+30 gold</b>.</p>`,
-      });
-    } else {
-      const dmg = Math.floor(st.mineDmg * 1.5);
-      run.hp = Math.max(1, run.hp - dmg);
-      openModal({
-        kind: 'info', title: '🚪 The blast.', btn: 'Limp on', next: 'map',
-        html: `<p>Wrong door. You take <b class="flagc">${dmg} damage</b>.</p>`,
-      });
-    }
-  } else if (run.event === 'corpse') {
-    if (which === 'take') {
-      const t = run.trinkets.includes('canary') ? null : 'canary';
-      if (t) run.trinkets.push(t); else run.gold += 60;
-      run.deck.push(mkCard('claustrophobia'));
-      openModal({
-        kind: 'info', title: '🪦 You take the maps', btn: 'Continue', next: 'map',
-        html: `<p>${t ? `Gained <b>🐤 Miner's Canary</b>.` : 'Gained <b class="gold">60 gold</b>.'} …and <b class="flagc">Claustrophobia</b> haunts your deck. Boards spawn +2 mines.</p>`,
-      });
-    } else {
-      run.maxHp += 3; run.hp += 3;
-      openModal({
-        kind: 'info', title: '🪦 You bury him', btn: 'Continue', next: 'map',
-        html: `<p>The crypt approves. <b style="color:var(--n2)">+3 max HP</b>.</p>`,
-      });
-    }
-  } else if (run.event === 'monty') {
-    const chance = which === 'switch' ? 2 / 3 : 1 / 3;
-    if (random() < chance) {
-      run.gold += 65;
-      eventResult('🐐 The coffer!', `<p>The gold was behind your ${which === 'switch' ? 'new' : 'original'} door. <b class="gold">+65 gold</b>.</p><p>Switching wins whenever your first pick was wrong: <b>2 chances in 3</b>. Staying keeps the original 1-in-3 chance.</p>`);
-    } else {
-      eventResult('🐐 A very ordinary goat', `<p>No coffer this time. ${which === 'switch' ? 'Switching was still the stronger decision' : 'Staying kept only the original chance'}: good strategy changes the odds, not the outcome of every trial.</p>`);
-    }
-  } else if (run.event === 'prisoners') {
-    const other = random() < 0.55 ? 'cooperate' : 'defect';
-    if (which === 'cooperate' && other === 'cooperate') { run.gold += 40; eventResult('⛓️ Mutual cooperation', '<p>You both keep faith and split the cache. <b class="gold">+40 gold</b>. Repeated games can make trust rational.</p>'); }
-    else if (which === 'defect' && other === 'cooperate') { run.gold += 70; eventResult('⛓️ Temptation pays — today', '<p>You seize the whole cache. <b class="gold">+70 gold</b>. A one-shot defection pays, but your reputation would poison a repeated game.</p>'); }
-    else if (which === 'cooperate') { run.hp = Math.max(1, run.hp - 12); eventResult('⛓️ Betrayed', '<p>The other prisoner defects. You take <b class="flagc">12 damage</b>. Mutual cooperation is best together, but is not a dominant strategy in a one-shot game.</p>'); }
-    else { run.hp = Math.max(1, run.hp - 7); eventResult('⛓️ Mutual defection', '<p>Both of you lunge for the cache and trigger the ward. You take <b class="flagc">7 damage</b>. Rational individual choices can produce a worse shared result.</p>'); }
-  } else if (run.event === 'birthday') {
-    if (which === '23') { run.gold += 45; eventResult('🎂 Correct: 23', '<p>With 23 people there are 253 possible pairs, pushing the chance of at least one shared birthday just above 50%. <b class="gold">+45 gold</b>.</p>'); }
-    else { run.hp = Math.max(1, run.hp - 5); eventResult('🎂 Mind the number of pairs', '<p>The answer is <b>23</b>, not half the number of calendar days. Pairwise comparisons grow much faster than the group.</p>'); }
-  } else if (run.event === 'bayes') {
-    if (which === '9') { run.gold += 50; eventResult('🧪 Base rates remembered', '<p>Among 1,000 delvers: about 9 sick people test positive, while about 99 healthy people falsely test positive. That makes the posterior roughly <b>8–9%</b>. <b class="gold">+50 gold</b>.</p>'); }
-    else { run.hp = Math.max(1, run.hp - 6); eventResult('🧪 A false alarm', '<p>The test is sensitive, but the disease is rare. False positives greatly outnumber true positives; the answer is only about <b>9%</b>.</p>'); }
-  } else if (run.event === 'secretary') {
-    if (which === '37') { run.gold += 45; eventResult('📜 The 37% rule', '<p>Observe roughly the first 1/e of candidates, then choose the next who beats everyone seen so far. This maximizes the chance of selecting the single best candidate. <b class="gold">+45 gold</b>.</p>'); }
-    else { run.gold += 8; eventResult('📜 Commitment at the wrong time', '<p>The classic optimal-stopping solution samples about <b>37%</b> first. Choosing immediately lacks information; waiting to the end wastes the option to act.</p><p class="gold">The clerk pays 8 gold for the attempt.</p>'); }
-  } else if (run.event === 'commons') {
-    if (which === 'one') { run.gold += 30; run.maxHp += 2; run.hp += 2; eventResult('🍄 A sustainable harvest', '<p>You take a fair share and leave spores behind. <b class="gold">+30 gold</b> and <b>+2 max HP</b>.</p>'); }
-    else if (which === 'strip') { run.gold += 85; run.deck.push(mkCard('claustrophobia')); eventResult('🍄 The commons are bare', '<p><b class="gold">+85 gold</b>, but private incentive has destroyed the shared resource. <b class="flagc">Claustrophobia</b> enters your deck.</p>'); }
-    else { const heal = Math.max(1, Math.floor(run.maxHp * .25)); run.hp = Math.min(run.maxHp, run.hp + heal); eventResult('🍄 Spores for the next delver', `<p>You restore the bed and rest beside it. <b>+${heal} HP</b>.</p>`); }
-  } else if (run.event === 'matching') {
-    const merchant = random() < .5 ? 'heads' : 'tails';
-    if (which !== merchant) { run.gold += 40; eventResult('🪙 Mismatch — you win', `<p>The merchant showed ${merchant}. <b class="gold">+40 gold</b>. In matching pennies, randomizing 50/50 prevents exploitation.</p>`); }
-    else { run.hp = Math.max(1, run.hp - 5); eventResult('🪙 Match — the merchant wins', `<p>The merchant also showed ${merchant}. You take <b class="flagc">5 damage</b>. No fixed choice is superior; a predictable pattern can be exploited.</p>`); }
-  } else if (run.event === 'sunkcost') {
-    if (which === 'leave') { const heal = Math.max(1, Math.floor(run.maxHp * .2)); run.hp = Math.min(run.maxHp, run.hp + heal); eventResult('🕳️ The past stays buried', `<p>You judge the next day on its own merits and recover <b>${heal} HP</b>. Past effort is unrecoverable and should not dictate the next choice.</p>`); }
-    else if (random() < .35) { run.gold += 90; eventResult('🕳️ A lucky seam', '<p>The next swing finds ore. <b class="gold">+90 gold</b>. The outcome is fortunate; “we already spent so much” was still not useful evidence.</p>'); }
-    else { run.hp = Math.max(1, run.hp - 10); eventResult('🕳️ Another dry day', '<p>You take <b class="flagc">10 damage</b>. More investment cannot recover a sunk cost unless the future prospects independently justify it.</p>'); }
-  } else if (run.event === 'auction') {
-    if (which === '45') { run.gold += 50; eventResult('🔨 Truthful bidding', '<p>In a private-value second-price auction, bidding your true value is the dominant strategy: your bid decides whether you win, while someone else’s bid sets the price. <b class="gold">+50 gold</b>.</p>'); }
-    else if (which === '25') { run.gold += 10; eventResult('🔨 Outbid', '<p>You lose a relic you would have profitably bought between 25 and 45 gold. The auctioneer returns your stake plus <b class="gold">10 gold</b>.</p>'); }
-    else { run.gold = Math.max(0, run.gold - 20); eventResult('🔨 Winner’s curse', '<p>You risk winning when the price exceeds your 45-gold value. <b class="flagc">-20 gold</b>. Aggression cannot create value.</p>'); }
-  } else if (run.event === 'ruin') {
-    if (which === 'cash') { run.gold += 35; eventResult('🎲 You leave with something', '<p>You bank <b class="gold">+35 gold</b>. Even fair repeated bets approach eventual ruin when one player has finite funds and never stops.</p>'); }
-    else if (random() < .5) { run.gold += 90; eventResult('🎲 Double', '<p>The die favors you this round. <b class="gold">+90 gold</b>. A win does not remove the long-run ruin risk of repeated play.</p>'); }
-    else { run.hp = Math.max(1, run.hp - 18); eventResult('🎲 Nothing', '<p>The wager breaks against you for <b class="flagc">18 damage</b>. A fair expected value does not mean a safe path.</p>'); }
-  } else if (EVENT_CATALOG[run.event]?.extra) {
-    const event = EVENT_CATALOG[run.event];
-    const choice = event.choices.find(option => option.key === which);
-    if (!choice) return;
-    let outcome = '';
-    let title = `${event.emoji} ${event.title}`;
-    if (choice.outcome === 'correct') {
-      run.gold += choice.gold;
-      title = `${event.emoji} Sound reasoning`;
-      outcome = `<b class="gold">+${choice.gold} gold</b>`;
-    } else if (choice.outcome === 'wrong') {
-      run.hp = Math.max(1, run.hp - choice.damage);
-      title = `${event.emoji} A costly assumption`;
-      outcome = `<b class="flagc">${choice.damage} damage</b>`;
-    } else if (choice.outcome === 'prudent') {
-      run.gold += choice.gold;
-      title = `${event.emoji} A sustainable choice`;
-      outcome = `<b class="gold">+${choice.gold} gold</b>`;
-    } else if (choice.outcome === 'risk') {
-      if (random() < choice.chance) {
-        run.gold += choice.gold;
-        title = `${event.emoji} The gamble pays`;
-        outcome = `<b class="gold">+${choice.gold} gold</b>`;
-      } else {
-        run.hp = Math.max(1, run.hp - choice.damage);
-        title = `${event.emoji} The risk arrives`;
-        outcome = `<b class="flagc">${choice.damage} damage</b>`;
-      }
-    } else {
-      const before = run.hp;
-      run.hp = Math.min(run.maxHp, run.hp + choice.heal);
-      title = `${event.emoji} You step away`;
-      outcome = `<b>${run.hp - before} HP recovered</b>`;
-    }
-    eventResult(title, `<p>${outcome}.</p><p>${event.explanation}</p>`);
-  }
+  // Every live catalog entry uses the behavioral decision system above.
 }
 
 /* ----- Honest Puzzle ----- */
@@ -2088,42 +2058,57 @@ function genPuzzle(size, mineCount) {
 }
 
 const digits = text => text.replace(/\s/g, '').split('').map(Number);
+function sudokuTemplate(size, givensText) {
+  const givensGrid = digits(givensText);
+  const [boxRows, boxCols] = sudokuShape(size);
+  const solution = solveSudoku(givensGrid, size, boxRows, boxCols);
+  if (!solution || countSudokuSolutions(givensGrid, size, boxRows, boxCols) !== 1) throw new Error(`Invalid ${size}×${size} Sudoku template`);
+  return {
+    solution, givens: givensGrid.map((value, i) => value ? i : -1).filter(i => i >= 0),
+    rating: sudokuDifficulty(givensGrid, size, boxRows, boxCols),
+  };
+}
 const SUDOKU_PUZZLES = {
-  4: [
-    { solution: digits('1234 3412 2143 4321'), givens: [0, 3, 5, 6, 9, 10, 12, 15] },
-    { solution: digits('4123 2341 1432 3214'), givens: [1, 2, 4, 7, 8, 11, 13, 14] },
-  ],
-  6: [{ solution: digits('123456 456123 234561 561234 345612 612345'), givens: [0, 2, 4, 7, 9, 11, 12, 15, 17, 19, 20, 22, 25, 28, 30, 32, 33, 35] }],
-  9: [{
-    solution: digits('534678912 672195348 198342567 859761423 426853791 713924856 961537284 287419635 345286179'),
-    givens: digits('530070000 600195000 098000060 800060003 400803001 700020006 060000280 000419005 000080079')
-      .map((value, i) => value ? i : -1).filter(i => i >= 0),
-  }],
+  4: [sudokuTemplate(4, '0230 3012 0043 0001')],
+  6: [sudokuTemplate(6, '000050 056103 004061 000204 045000 610000')],
+  9: [sudokuTemplate(9, '800000000 003600000 070090200 050007000 000045700 000100030 001000068 008500010 090000400')],
 };
 
 const CROSSWORD_PUZZLES = {
   3: [
-    { words: ['CAR', 'APE', 'RED'], clues: ['Vehicle', 'Primate', 'Color of a warning flag'] },
-    { words: ['APE', 'PEA', 'EAR'], clues: ['Primate', 'Small green vegetable', 'Organ used to hear'] },
-    { words: ['CAT', 'ARE', 'TEN'], clues: ['Feline', 'Exist', 'Number after nine'] },
+    { words: ['CAR', 'APE', 'RED'], acrossClues: ['Road vehicle', 'Large primate', 'Warning colour'], downClues: ['Automobile', 'Mimic', 'Colour of blood'] },
+    { words: ['APE', 'PEA', 'EAR'], acrossClues: ['Primate', 'Small green vegetable', 'Organ used for listening'], downClues: ['Mimic another person', 'Round garden seed', 'Part of the body used for listening'] },
+    { words: ['CAT', 'ARE', 'TEN'], acrossClues: ['Feline', 'Exist', 'Number after nine'], downClues: ['Household mouser', 'Present form of “be”', 'Pins in a full bowling rack'] },
   ],
   4: [
-    { words: ['BALL', 'AREA', 'LEAD', 'LADY'], clues: ['Round toy', 'Region', 'Guide from the front', 'A woman'] },
-    { words: ['SAND', 'AREA', 'NEAR', 'DART'], clues: ['Desert grains', 'Region', 'Close by', 'A small pointed missile'] },
+    { words: ['BALL', 'AREA', 'LEAD', 'LADY'], acrossClues: ['Round toy', 'Region', 'Guide from the front', 'Woman of rank'], downClues: ['Formal dance', 'Surface measure', 'Metal with symbol Pb', 'Polite form of address'] },
+    { words: ['SAND', 'AREA', 'NEAR', 'DART'], acrossClues: ['Desert grains', 'Region', 'Close by', 'Small pointed missile'], downClues: ['Material in an hourglass', 'Extent of a surface', 'Almost', 'Move suddenly'] },
   ],
-  5: [{ words: ['SATOR', 'AREPO', 'TENET', 'OPERA', 'ROTAS'], clues: ['Latin: sower', 'Name from an ancient word square', 'A principle or belief', 'Musical drama', 'Latin: wheels'] }],
+  5: [{
+    words: ['HEART', 'EMBER', 'ABUSE', 'RESIN', 'TREND'],
+    acrossClues: ['Organ that pumps blood', 'Glowing coal', 'Misuse or mistreatment', 'Sticky tree substance', 'General direction of change'],
+    downClues: ['Core symbol on a playing card', 'Last glowing piece of a fire', 'Treat cruelly', 'Pine secretion', 'Movement over time'],
+  }],
 };
+for (const [size, templates] of Object.entries(CROSSWORD_PUZZLES)) for (const template of templates) {
+  if (!validateCrossword(template, Number(size))) throw new Error(`Invalid ${size}×${size} crossword template`);
+}
 
 const SEQUENCE_PUZZLES = {
+  0: [
+    { prompt: '4, 7, 10, 13, ?', answer: 16, choices: [15, 16, 17, 19], method: 'Add three.' },
+    { prompt: '81, 27, 9, 3, ?', answer: 1, choices: [0, 1, 2, 6], method: 'Divide by three.' },
+    { prompt: '1, 4, 7, 10, 13, ?', answer: 16, choices: [14, 15, 16, 17], method: 'Add three.' },
+  ],
   1: [
-    { prompt: '2, 4, 8, 16, ?', answer: 32, choices: [24, 30, 32, 34], explanation: 'Each term doubles.' },
-    { prompt: '1, 1, 2, 3, 5, ?', answer: 8, choices: [6, 7, 8, 10], explanation: 'Each term is the sum of the previous two.' },
-    { prompt: '3, 6, 11, 18, ?', answer: 27, choices: [25, 26, 27, 29], explanation: 'The gaps are +3, +5, +7, then +9.' },
+    { prompt: '2, 4, 8, 16, ?', answer: 32, choices: [24, 30, 32, 34], method: 'Double each term.' },
+    { prompt: '1, 1, 2, 3, 5, ?', answer: 8, choices: [6, 7, 8, 10], method: 'Add the previous two terms.' },
+    { prompt: '3, 6, 11, 18, ?', answer: 27, choices: [25, 26, 27, 29], method: 'Use successive odd gaps.' },
   ],
   2: [
-    { prompt: '1, 4, 9, 16, 25, ?', answer: 36, choices: [30, 32, 35, 36], explanation: 'These are consecutive square numbers.' },
-    { prompt: '2, 3, 5, 8, 12, 17, ?', answer: 23, choices: [21, 22, 23, 24], explanation: 'The gaps increase from +1 through +6.' },
-    { prompt: '1, 2, 6, 24, ?', answer: 120, choices: [48, 96, 100, 120], explanation: 'Multiply successively by 2, 3, 4, then 5.' },
+    { prompt: '2, 5, 4, 8, 6, 11, 8, ?', answer: 14, choices: [10, 12, 13, 14], method: 'Interleave +2 and +3 sequences.' },
+    { prompt: '1, 2, 6, 15, 31, ?', answer: 56, choices: [47, 52, 56, 63], method: 'Add consecutive squares.' },
+    { prompt: '3, 4, 8, 9, 18, 19, ?', answer: 38, choices: [28, 36, 38, 40], method: 'Alternate plus one and times two.' },
   ],
 };
 
@@ -2135,7 +2120,10 @@ function startMinesPuzzle(difficulty = 0) {
   for (let i = 0; i < size * size; i++) {
     cells.push({ mine: mines.has(i), revealed: false, flag: 0, entombed: false, void: false, ever: false, crater: false, scan: null, construct: null, grub: false, primed: false, glow: false });
   }
-  run.puzzle = { type: 'mines', difficulty, board: { size, cells }, scans: [2, 1, 0][difficulty], scanMode: false, failed: false, solved: false };
+  run.puzzle = {
+    type: 'mines', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty],
+    board: { size, cells }, scans: [2, 1, 0][difficulty], scanMode: false, failed: false, solved: false,
+  };
   puzzleFlood(opening);
 }
 
@@ -2144,8 +2132,11 @@ function startSudokuPuzzle(difficulty = 0) {
   const template = randPick(SUDOKU_PUZZLES[size]);
   const givenSet = new Set(template.givens);
   run.puzzle = {
-    type: 'sudoku', difficulty, size, boxRows: size === 6 ? 2 : Math.sqrt(size), boxCols: size === 6 ? 3 : Math.sqrt(size), solution: template.solution.slice(), givens: template.givens.slice(),
-    values: template.solution.map((value, i) => givenSet.has(i) ? value : 0), failed: false, solved: false,
+    type: 'sudoku', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty], size,
+    boxRows: sudokuShape(size)[0], boxCols: sudokuShape(size)[1], solution: template.solution.slice(), givens: template.givens.slice(),
+    values: template.solution.map((value, i) => givenSet.has(i) ? value : 0),
+    notes: Array.from({ length: size * size }, () => []), noteMode: false, rating: template.rating,
+    failed: false, solved: false,
   };
 }
 
@@ -2153,8 +2144,10 @@ function startCrosswordPuzzle(difficulty = 0) {
   const size = [3, 4, 5][difficulty];
   const template = randPick(CROSSWORD_PUZZLES[size]);
   run.puzzle = {
-    type: 'crossword', difficulty, size, solution: template.words.join('').split(''), values: Array(size * size).fill(''),
-    words: template.words.slice(), clues: template.clues.slice(), failed: false, solved: false,
+    type: 'crossword', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty], size,
+    solution: template.words.join('').split(''), values: Array(size * size).fill(''), words: template.words.slice(),
+    acrossClues: template.acrossClues.slice(), downClues: template.downClues.slice(), locale: 'en-CA',
+    failed: false, solved: false,
   };
 }
 
@@ -2168,44 +2161,74 @@ function toggleCross(values, size, i) {
 
 function startLightsPuzzle(difficulty = 1) {
   const size = difficulty >= 2 ? 4 : 3;
-  const values = Array(size * size).fill(0);
-  const presses = 4 + difficulty * 3;
-  for (let n = 0; n < presses; n++) toggleCross(values, size, randInt(values.length));
-  if (values.every(value => !value)) toggleCross(values, size, Math.floor(values.length / 2));
-  run.puzzle = { type: 'lights', difficulty, size, values, failed: false, solved: false, moves: 0 };
+  const minimum = [2, 4, 7][difficulty];
+  let values = null, solutionMoves = null;
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const candidate = Array(size * size).fill(0);
+    const presses = minimum + 2 + randInt(size + difficulty + 1);
+    for (let n = 0; n < presses; n++) toggleCross(candidate, size, randInt(candidate.length));
+    const moves = minimumLightsSolution(candidate, size);
+    if (moves != null && moves >= minimum) { values = candidate; solutionMoves = moves; break; }
+  }
+  if (!values) {
+    values = difficulty === 2
+      ? '0101001000011000'.split('').map(Number)
+      : Array(size * size).fill(0);
+    if (difficulty !== 2) for (let i = 0; i < minimum; i++) toggleCross(values, size, (i * 3 + 1) % values.length);
+    solutionMoves = minimumLightsSolution(values, size);
+  }
+  run.puzzle = {
+    type: 'lights', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty],
+    size, values, minimumMoves: solutionMoves, failed: false, solved: false, moves: 0,
+  };
 }
 
-function lineClue(line) {
-  const groups = []; let count = 0;
-  for (const value of line) { if (value) count++; else if (count) { groups.push(count); count = 0; } }
-  if (count) groups.push(count);
-  return groups.length ? groups : [0];
-}
-
-function startNonogramPuzzle() {
-  const patterns = [
-    ['10001', '01010', '00100', '01010', '10001'],
-    ['01110', '10001', '10101', '10001', '01110'],
-    ['00100', '01110', '11111', '01110', '00100'],
-  ];
-  const rows = randPick(patterns).map(row => row.split('').map(Number));
-  const solution = rows.flat();
-  const colClues = Array.from({ length: 5 }, (_, c) => lineClue(rows.map(row => row[c])));
-  run.puzzle = { type: 'nonogram', difficulty: 2, size: 5, solution, values: Array(25).fill(0), rowClues: rows.map(lineClue), colClues, failed: false, solved: false };
+function startNonogramPuzzle(difficulty = 1) {
+  const size = difficulty >= 2 ? 7 : 5;
+  let generated = null;
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const density = difficulty === 0 ? .48 : difficulty === 1 ? .44 : .5;
+    const solution = Array.from({ length: size * size }, () => random() < density ? 1 : 0);
+    const { rowClues, colClues } = nonogramClues(solution, size);
+    const lines = [...rowClues, ...colClues];
+    const interactionFloor = [2, 4, 5][difficulty];
+    const nontrivial = lines.every(clue => !(clue.length === 1 && (clue[0] === 0 || clue[0] === size)))
+      && lines.filter(clue => clue.length > 1).length >= interactionFloor;
+    if (nontrivial && countNonogramSolutions(rowClues, colClues, size) === 1) {
+      generated = { solution, rowClues, colClues }; break;
+    }
+  }
+  if (!generated) {
+    const fallbackRows = difficulty >= 2
+      ? ['0001111','0101011','0010001','1111001','0010100','1101001','1110000']
+      : ['00100','01110','11111','01110','00100'];
+    const fallbackSize = fallbackRows.length;
+    const solution = fallbackRows.flatMap(row => row.split('').map(Number));
+    generated = { solution, ...nonogramClues(solution, fallbackSize) };
+  }
+  run.puzzle = {
+    type: 'nonogram', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty],
+    size: Math.sqrt(generated.solution.length), solution: generated.solution,
+    values: Array(generated.solution.length).fill(0), rowClues: generated.rowClues, colClues: generated.colClues,
+    failed: false, solved: false,
+  };
 }
 
 function startSequencePuzzle(difficulty = 1) {
-  const template = randPick(SEQUENCE_PUZZLES[difficulty >= 2 ? 2 : 1]);
-  run.puzzle = { type: 'sequence', difficulty, ...template, choices: shuffle(template.choices), failed: false, solved: false };
+  const template = randPick(SEQUENCE_PUZZLES[difficulty]);
+  run.puzzle = {
+    type: 'sequence', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty],
+    ...template, choices: shuffle(template.choices), failed: false, solved: false,
+  };
 }
 
 export function startPuzzle(type = 'mines') {
   let picked = type;
   if (picked === 'random') {
     const pools = [
-      ['mines', 'mines', 'sudoku', 'crossword'],
-      ['mines-medium', 'sudoku-medium', 'crossword-medium', 'sequence-medium', 'lights-medium'],
-      ['mines-hard', 'sudoku-hard', 'crossword-hard', 'sequence-hard', 'lights-hard', 'nonogram'],
+      ['mines', 'mines', 'sudoku', 'crossword', 'sequence', 'lights', 'nonogram'],
+      ['mines-medium', 'sudoku-medium', 'crossword-medium', 'sequence-medium', 'lights-medium', 'nonogram-medium'],
+      ['mines-hard', 'sudoku-hard', 'crossword-hard', 'sequence-hard', 'lights-hard', 'nonogram-hard'],
     ];
     picked = randPick(pools[clamp(run.stratum, 0, 2)]);
   }
@@ -2215,7 +2238,7 @@ export function startPuzzle(type = 'mines') {
   else if (family === 'crossword') startCrosswordPuzzle(difficulty);
   else if (family === 'sequence') startSequencePuzzle(difficulty);
   else if (family === 'lights') startLightsPuzzle(difficulty);
-  else if (family === 'nonogram') startNonogramPuzzle();
+  else if (family === 'nonogram') startNonogramPuzzle(difficulty);
   else startMinesPuzzle(difficulty);
   ui.screen = 'puzzle';
   ui.flagMode = false;
@@ -2275,11 +2298,24 @@ export function setLogicPuzzleCell(i, value) {
   if (!p || p.failed || p.solved || p.type === 'mines' || i < 0 || i >= p.values.length) return;
   if (p.type === 'sudoku') {
     if (p.givens.includes(i)) return;
-    p.values[i] = clamp(Number(value) || 0, 0, p.size);
+    const number = clamp(Number(value) || 0, 0, p.size);
+    if (p.noteMode && number) {
+      const notes = p.notes[i] || (p.notes[i] = []);
+      p.notes[i] = notes.includes(number) ? notes.filter(note => note !== number) : [...notes, number].sort((a, b) => a - b);
+    } else {
+      p.values[i] = number;
+      p.notes[i] = [];
+    }
   } else if (p.type === 'crossword') {
     p.values[i] = String(value || '').slice(-1).toUpperCase().replace(/[^A-Z]/g, '');
   }
   notify();
+}
+
+export function toggleSudokuNoteMode() {
+  const p = run.puzzle;
+  if (!p || p.type !== 'sudoku' || p.failed || p.solved) return;
+  p.noteMode = !p.noteMode; notify();
 }
 
 export function toggleLightsCell(i) {
@@ -2293,15 +2329,15 @@ export function toggleLightsCell(i) {
 export function toggleNonogramCell(i) {
   const p = run.puzzle;
   if (!p || p.type !== 'nonogram' || p.failed || p.solved) return;
-  p.values[i] = p.values[i] ? 0 : 1;
+  p.values[i] = (p.values[i] + 1) % 3;
   notify();
 }
 
 export function answerSequence(value) {
   const p = run.puzzle;
   if (!p || p.type !== 'sequence' || p.failed || p.solved) return;
-  if (Number(value) === p.answer) { p.solved = true; toast(`★ Correct. ${p.explanation}`); }
-  else { p.failed = true; toast(`The sequence rejects it. ${p.explanation}`, true); }
+  if (Number(value) === p.answer) { p.solved = true; toast('★ The sequence accepts the answer.'); }
+  else { p.failed = true; toast('The sequence rejects the answer.', true); }
   notify();
 }
 
@@ -2309,7 +2345,10 @@ export function checkLogicPuzzle() {
   const p = run.puzzle;
   if (!p || p.type === 'mines' || p.failed || p.solved) return;
   if (p.type !== 'nonogram' && p.values.some(value => value === 0 || value === '')) { toast('Every square needs an answer first.', true); return; }
-  if (p.values.every((value, i) => String(value) === String(p.solution[i]))) {
+  const correct = p.type === 'nonogram'
+    ? p.values.every((value, i) => (value === 1) === (p.solution[i] === 1))
+    : p.values.every((value, i) => String(value) === String(p.solution[i]));
+  if (correct) {
     p.solved = true;
     toast('★ Flawless. The stone offers its secret.');
   } else {
@@ -2329,7 +2368,7 @@ export const TEST_CUTSCENES = [
 ];
 
 function ensureTestRun(cls = 'sapper') {
-  if (!run) newRun(cls);
+  if (!run) newRun(cls, { testMode: true });
   run.testMode = true;
   run.gold = Math.max(run.gold, 999);
   run.hp = run.maxHp;
@@ -2338,7 +2377,7 @@ function ensureTestRun(cls = 'sapper') {
 
 export function testLaunch(kind, value = null) {
   if (kind === 'reset') {
-    newRun(value && CLASSES[value] ? value : 'sapper');
+    newRun(value && CLASSES[value] ? value : 'sapper', { testMode: true });
     run.testMode = true; run.gold = 999; ui.cutscene = null; ui.screen = 'map';
     toast('Fresh test run: full health and 999 gold.');
     notify(); return;

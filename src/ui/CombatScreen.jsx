@@ -177,18 +177,18 @@ export function CombatScreen({ preferences = {} }) {
         <span className="stat" data-mechanic="block"><GameIcon name="block" preferences={preferences} /> <b>{c.block}</b></span>
         <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}><GameIcon name="plating" preferences={preferences} /> <b>{c.plating}</b></span>
         {(run.cls === 'surveyor' || c.insight > 0) && (
-          <span className="stat" data-mechanic="insight" style={{ color: 'var(--n2)' }}><GameIcon name="insight" preferences={preferences} /> <b>{c.insight}</b> Insight</span>
+          <span className="stat" data-mechanic="insight" aria-label={`${c.insight} Insight`} title="Insight" style={{ color: 'var(--n2)' }}><GameIcon name="insight" preferences={preferences} /> <b>{c.insight}</b><span className="stat-label"> Insight</span></span>
         )}
         <span className="seg" data-mechanic="mines" tabIndex="0" title="hidden mines − flags"><GameIcon name="mines" preferences={preferences} /> {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
-        <span className="seg" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}>▦ {String(safeLeft).padStart(2, '0')}</span>
+        <span className="seg" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}><GameIcon name="safe" preferences={preferences} /> {String(safeLeft).padStart(2, '0')}</span>
         <span className="seg" data-mechanic="max picks" title="current / max picks" style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}><GameIcon name="picks" preferences={preferences} /> {c.picks}/{c.maxPicks}</span>
-        <span className="seg" data-mechanic="turn" tabIndex="0" title="turn">T{String(c.turn).padStart(2, '0')}</span>
+        <span className="seg" data-mechanic="turn" tabIndex="0" title="turn"><GameIcon name="turn" preferences={preferences} /> {String(c.turn).padStart(2, '0')}</span>
         <span className="seg energy-stat" data-mechanic="energy" tabIndex="0"><GameIcon name="energy" preferences={preferences} /> {c.energy}</span>
         <button className="header-pile" onClick={() => openPileModal('draw')} title="Open draw pile"><GameIcon name="draw" preferences={preferences} /> {c.draw.length}</button>
         <button className="header-pile" onClick={() => openPileModal('discard')} title="Open discard pile"><GameIcon name="discard" preferences={preferences} /> {c.discard.length}</button>
         {c.exhaust.length > 0 && <button className="header-pile" onClick={() => openPileModal('exhaust')} title="Open exhaust pile"><GameIcon name="exhaust" preferences={preferences} /> {c.exhaust.length}</button>}
         {!c.instinctUsed && (
-          <span className="stat dim" data-mechanic="instinct"><GameIcon name="instinct" preferences={preferences} /> instinct ready</span>
+          <span className="stat dim" data-mechanic="instinct" aria-label="Instinct ready" title="Instinct ready"><GameIcon name="instinct" preferences={preferences} /><span className="stat-label"> instinct ready</span></span>
         )}
       </TopBar>
 

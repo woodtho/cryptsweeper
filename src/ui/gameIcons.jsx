@@ -1,4 +1,4 @@
-import { MARKS, VECTOR_THEMES, themedVector } from './mapIcons.jsx';
+import { MARKS } from './mapIcons.jsx';
 import { loadPreferences } from '../engine/preferences.js';
 import { GADGETS, TRINKETS } from '../engine/data.js';
 import { FLAG_BOMB_ART, ICON_SET_MANIFEST, customSetBase, customSetIcon, iconSetIds, resolveAtlasIcon } from './iconSets.js';
@@ -20,7 +20,6 @@ const ROLES = {
 const LEGACY = {
   emoji:     { dig: '⚔️', elite: '☠️', event: '🔮', shop: '🛒', treasure: '💰', camp: '🏕️', boss: '👑' },
   crypt:     { dig: '⛏️', elite: '🧟', event: '🦇', shop: '🐀', treasure: '⚱️', camp: '🕯️', boss: '😈' },
-  runes:     { dig: '⚔︎', elite: '☠︎', event: '◉', shop: '◈', treasure: '◆', camp: '▲', boss: '♛' },
   dungeon:   { dig: '🗡️', elite: '👹', event: '🎲', shop: '🧙', treasure: '🏆', camp: '⛺', boss: '🐉' },
   deepwild:  { dig: '🪓', elite: '🦂', event: '🍄', shop: '🐌', treasure: '💎', camp: '🌙', boss: '🕷️' },
   sunken:    { dig: '🤿', elite: '🦈', event: '🐚', shop: '🦀', treasure: '🪙', camp: '🏮', boss: '🐙' },
@@ -30,12 +29,37 @@ const LEGACY = {
 };
 
 const VECTOR_BASE = { dig: 'picks', elite: 'fangskull', event: 'eye', shop: 'scales', treasure: 'gem', camp: 'fire', boss: 'crown' };
-const VECTOR_CACHE = {};
-
+const UNIQUE_INTERFACE_BASE = {
+  menu: 'menulines', health: 'heart', gold: 'coin', deck: 'cardstack', block: 'shield', plating: 'plate', insight: 'insight',
+  mines: 'mine', picks: 'pickcounter', energy: 'spark', draw: 'drawpile', discard: 'discardpile', exhaust: 'ashcard',
+  instinct: 'paw', safe: 'safetile', turn: 'turnwheel', target: 'target', bag: 'bag', log: 'log', cards: 'cards',
+  items: 'items', services: 'services', puzzle: 'puzzle', scan: 'scan', upgrade: 'upgrade', victory: 'victory',
+  bossRelic: 'bossRelic', camp: 'campmark', buried: 'buried', lair: 'lair', attack: 'attack', defend: 'defend',
+  crater: 'crater', sentry: 'sentry', bulwark: 'bulwark', relay: 'relay', grub: 'grubmark', event: 'eventmark', shop: 'shopmark',
+};
+const UNIQUE_INTERFACE_ART = {
+  emoji:     { menu: '☰', health: '❤️', gold: '🪙', deck: '🃏', block: '🛡️', plating: '🧱', insight: '💡', mines: '💣', picks: '⛏️', energy: '⚡', draw: '📥', discard: '♻️', exhaust: '🔥', instinct: '🐾', safe: '✅', turn: '🔄' },
+  crypt:     { health: '🩸', gold: '⚱️', deck: '📜', block: '🛡', plating: '⛓', insight: '🪔', mines: '✹', picks: '⛏', energy: '🔮', draw: '⇩', discard: '↯', exhaust: '♨', instinct: '🯶', safe: '◇', turn: '⌛' },
+  dungeon:   { health: '🧪', gold: '💰', deck: '📚', block: '🛡️', plating: '🧱', insight: '🔍', mines: '💣', picks: '⛏️', energy: '💠', draw: '📥', discard: '🗑️', exhaust: '🔥', instinct: '👁️', safe: '✅', turn: '⏳' },
+  deepwild:  { health: '🌿', gold: '🌰', deck: '🍂', block: '🐚', plating: '🪵', insight: '🌱', mines: '🐝', picks: '🪓', energy: '⚡', draw: '🌾', discard: '🍃', exhaust: '🔥', instinct: '🐾', safe: '🌼', turn: '⏳' },
+  sunken:    { health: '🫧', gold: '🪙', deck: '🗺️', block: '🛡️', plating: '🪸', insight: '💡', mines: '💣', picks: '🔱', energy: '⚡', draw: '⬇', discard: '♻️', exhaust: '♨', instinct: '🐾', safe: '✅', turn: '🔄' },
+  arcane:    { health: '💗', gold: '💎', deck: '📖', block: '🔷', plating: '🔶', insight: '👁️', mines: '🌑', picks: '🪄', energy: '⚡', draw: '📥', discard: '♻', exhaust: '🔥', instinct: '🌙', safe: '⭐', turn: '🔁' },
+  gearworks: { health: '❤️', gold: '🪙', deck: '🗂️', block: '🛡️', plating: '🔩', insight: '💡', mines: '💣', picks: '🔧', energy: '⚡', draw: '📥', discard: '♻️', exhaust: '🔥', instinct: '🧭', safe: '✅', turn: '⏱️' },
+  beasts:    { health: '❤️', gold: '🥚', deck: '🪶', block: '🐢', plating: '🦴', insight: '💡', mines: '🐝', picks: '🦷', energy: '⚡', draw: '🌱', discard: '🍂', exhaust: '🔥', instinct: '👃', safe: '🕊️', turn: '🌗' },
+};
+/* Secondary controls used to inherit one of seven broad map symbols, which
+   made unrelated actions indistinguishable in the emoji families. These
+   semantic glyphs remain shared across emoji themes, but are unique by use. */
+const LEGACY_DETAIL_ART = {
+  target: '🎯', bag: '🎒', log: '📝', cards: '🎴', items: '🎁', services: '🧰',
+  puzzle: '🧩', scan: '🔎', upgrade: '📈', victory: '🏆', bossRelic: '🎖️', camp: '🛖',
+  buried: '🫥', lair: '🏚️', attack: '🗡️', defend: '🫡️', crater: '🌋', sentry: '🗼',
+  bulwark: '🏰', relay: '📡', grub: '🦠', event: '❓', shop: '🏪',
+};
 export const INTERFACE_ICON_CATEGORIES = {
   health: ['Health', 'reward'], gold: ['Gold', 'reward'], menu: ['Menu', 'utility'], deck: ['Deck', 'mystery'],
   block: ['Block', 'authority'], plating: ['Plating', 'authority'], insight: ['Insight', 'mystery'], mines: ['Mines', 'danger'],
-  picks: ['Picks', 'action'], energy: ['Energy', 'mystery'], draw: ['Draw pile', 'mystery'], discard: ['Discard', 'utility'],
+  picks: ['Picks', 'action'], energy: ['Energy', 'mystery'], turn: ['Turn', 'utility'], draw: ['Draw pile', 'mystery'], discard: ['Discard', 'utility'],
   exhaust: ['Exhaust', 'danger'], instinct: ['Instinct', 'rest'], target: ['Target', 'action'], bag: ['Bag', 'utility'],
   log: ['Log', 'mystery'], cards: ['Cards', 'mystery'], items: ['Items', 'reward'], services: ['Services', 'utility'],
   puzzle: ['Puzzle', 'mystery'], scan: ['Scan', 'mystery'], upgrade: ['Upgrade', 'reward'], victory: ['Victory', 'reward'],
@@ -59,30 +83,30 @@ function resolveToken(token, prefs = null) {
   return typeof token === 'string' && token.startsWith('svg:') ? MARKS[token.slice(4)] || '?' : token;
 }
 
-export function interfaceIconForStyle(name, styleKey = 'emoji', prefs = null) {
+export function interfaceIconForStyle(name, styleKey = 'main', prefs = null) {
   const custom = customSetIcon(styleKey, 'interface', name, prefs);
   if (custom) return resolveToken(custom, prefs);
   styleKey = customSetBase(styleKey, prefs, styleKey);
   if (name === 'flag' || name === 'bomb' || name === 'mine') {
     const special = name === 'flag' ? 'flag' : 'bomb';
-    if (VECTOR_THEMES[styleKey]) {
-      const id = `${styleKey}:${special}`;
-      const mark = special === 'flag' ? MARKS.flag : MARKS.mine;
-      return VECTOR_CACHE[id] ||= themedVector(mark, VECTOR_THEMES[styleKey].frame);
-    }
     return resolveToken((FLAG_BOMB_ART[styleKey] || FLAG_BOMB_ART.emoji)[special]);
+  }
+  const uniqueMark = UNIQUE_INTERFACE_BASE[name];
+  if (uniqueMark) {
+    if (styleKey === 'marks') return MARKS[uniqueMark];
+    const art = UNIQUE_INTERFACE_ART[styleKey]?.[name] || UNIQUE_INTERFACE_ART.emoji[name];
+    if (art) return art;
+  }
+  if (styleKey !== 'marks' && LEGACY_DETAIL_ART[name]) {
+    return LEGACY_DETAIL_ART[name];
   }
   const role = roleFor(name);
   if (styleKey === 'marks') return MARKS[VECTOR_BASE[role]];
-  if (VECTOR_THEMES[styleKey]) {
-    const id = `${styleKey}:${role}`;
-    return VECTOR_CACHE[id] ||= themedVector(MARKS[VECTOR_BASE[role]], VECTOR_THEMES[styleKey].frame);
-  }
   return (LEGACY[styleKey] || LEGACY.emoji)[role];
 }
 
 export function interfaceIcon(name, prefs = loadPreferences()) {
-  let style = prefs?.interfaceIconStyle || 'emoji';
+  let style = prefs?.interfaceIconStyle || 'main';
   if (style === 'mixer') {
     const choice = prefs?.interfaceIconMix?.[name];
     style = getArtStyleKeys(prefs).includes(choice?.style) ? choice.style : 'emoji';

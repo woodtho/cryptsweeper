@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CLASSES, CARDS, TRINKETS, GADGETS, STRATA, ENEMIES } from '../engine/data.js';
 import {
-  run, ui, MAP_ROWS, newRun, reachableNodes, enterNode, score, resetToTitle,
+  run, ui, MAP_ROWS, newRun, reachableNodes, mapClosure, enterNode, score, resetToTitle,
   takeRewardCard, takeRewardTrinket, takeBossTrinket, takeRewardGadget, finishReward,
-  campHeal, campUpgrade, campSurvey, campTrainPicks, PICKS_PER_TURN,
+  campHeal, campUpgrade, campSurvey, campTrainPicks, basePicksFor,
   buyShopCard, buyShopTrinket, buyShopGadget, buyRemoval, gotoMap,
   EVENT_CATALOG, eventChoice, togglePuzzleScan, setLogicPuzzleCell, checkLogicPuzzle,
-  toggleLightsCell, toggleNonogramCell, answerSequence,
+  toggleLightsCell, toggleNonogramCell, toggleSudokuNoteMode, answerSequence,
   currentEventView,
   listSaves, loadRun, saveRun, deleteSave, goHome,
 } from '../engine/engine.js';
@@ -14,57 +14,77 @@ import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
 import { BoardView } from './BoardView.jsx';
 import { UNLOCKS, isDelverUnlocked, loadProgression } from '../engine/progression.js';
+import {
+  TRACKS, previewTrack, stopPreview, previewingTrackId,
+  isMusicPaused, setMusicPaused, restartMusic, isMusicLooping, setMusicLooping,
+} from '../engine/music.js';
 import { localDateKey, loadDailyRecords } from '../engine/daily.js';
 import { loadPreferences } from '../engine/preferences.js';
 import { decorateMechanics, MECHANICS } from './mechanics.js';
 import { delverPortrait, ratMerchantPortrait } from './portraits.js';
 import { CollectionIndex } from './CollectionIndex.jsx';
-import { MARKS, MARK_NAMES, MAP_VECTOR_STYLES, resolveMapIcon, isMarkToken } from './mapIcons.jsx';
+import { MARKS, MARK_NAMES, MAP_ICON_STYLES, resolveMapIcon, isMarkToken } from './mapIcons.jsx';
 import { ENEMY_ICON_STYLES, getEnemyIconStyles, resolveEnemyIcon } from './enemyIcons.jsx';
 import { itemVector, campVector } from './themedIcons.jsx';
 import { ART_STYLE_LABELS, getArtStyleKeys, GameIcon, INTERFACE_ICON_CATEGORIES, interfaceIcon, interfaceIconForStyle } from './gameIcons.jsx';
 import { TEST_LAB_SECTIONS, runTestCase, testCasesForSection } from './testCatalog.js';
 import { customIconSets, customSetBase, customSetIcon, iconSetLabel } from './iconSets.js';
 import { registerBackHandler } from './backNav.js';
+import { FullArtViewer } from './FullArtViewer.jsx';
+import { gridNavigationIndex } from '../engine/puzzleValidation.js';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = {
   play: 'Choose your Delver', how: 'How to play', saves: 'Saved descents', settings: 'Settings', daily: 'Daily challenge',
-  enemies: 'Enemy index', items: 'Item index', cards: 'Card index', test: 'Undermine test lab',
+  delvers: 'Delver index', enemies: 'Enemy index', items: 'Item index', cards: 'Card index', test: 'Undermine test lab',
+  music: 'The crypt jukebox',
 };
 
 function DelverPicker({ daily = null }) {
   const progress = loadProgression();
   const prefs = loadPreferences();
+  const [fullArt, setFullArt] = useState(null);
   return (
-    <div className="classgrid">
-      {Object.entries(CLASSES).map(([k, c]) => {
-        const earned = isDelverUnlocked(k, progress);
-        const locked = !earned;
-        return (
-        <button type="button" key={k} className={`classcard ${locked ? 'locked' : ''}`} disabled={!earned}
-          onClick={() => newRun(k, daily ? { daily } : {})}>
-          <div className="delver-art">
-            <img src={delverPortrait(k)} alt={`${c.name} portrait`} />
-          </div>
-          <div className="delver-body">
-            <h3>{c.name}</h3>
-            <div className="role">{c.role}</div>
-            <div className="hp"><GameIcon name="health" preferences={prefs} /> {c.hp} HP</div>
-            <p>{c.blurb}</p>
-            <div className="passive" dangerouslySetInnerHTML={{ __html: decorateMechanics(c.passive) }} />
-          </div>
-          <div className="trink">
-            Starts with: <span className="inline-vector-icon">{itemVector(c.trinket, prefs)}</span> <b>{TRINKETS[c.trinket].name}</b> — {TRINKETS[c.trinket].desc}
-          </div>
-          {!earned && <div className="unlock-rule"><b>LOCKED</b><span>{UNLOCKS[k].label}</span></div>}
-        </button>
-      );})}
-    </div>
+    <>
+      <div className="classgrid">
+        {Object.entries(CLASSES).map(([k, c]) => {
+          const earned = isDelverUnlocked(k, progress);
+          const locked = !earned;
+          const portrait = delverPortrait(k);
+          return (
+          <article key={k} className={`classcard ${locked ? 'locked' : ''}`}>
+            <button type="button" className="delver-art" onClick={() => setFullArt({ src: portrait, title: c.name })}
+              aria-haspopup="dialog" aria-label={`View full artwork for ${c.name}`}>
+              <img src={portrait} alt={`${c.name} portrait`} />
+              <span className="art-expand-hint">Full art</span>
+            </button>
+            <button type="button" className="delver-select" disabled={!earned}
+              onClick={() => newRun(k, daily ? { daily } : {})}>
+              <div className="delver-body">
+                <h3>{c.name}</h3>
+                <div className="role">{c.role}</div>
+                <div className="hp"><GameIcon name="health" preferences={prefs} /> {c.hp} HP · <GameIcon name="picks" preferences={prefs} /> {c.picks} Picks</div>
+                <p>{c.blurb}</p>
+                <div className="passive" dangerouslySetInnerHTML={{ __html: decorateMechanics(c.passive) }} />
+              </div>
+              <div className="trink">
+                Starts with: <span className="inline-vector-icon">{itemVector(c.trinket, prefs)}</span> <b>{TRINKETS[c.trinket].name}</b> — {TRINKETS[c.trinket].desc}
+              </div>
+              {!earned && <div className="unlock-rule"><b>LOCKED</b><span>{UNLOCKS[k].label}</span></div>}
+            </button>
+          </article>
+        );})}
+      </div>
+      {fullArt && <FullArtViewer src={fullArt.src} alt={`${fullArt.title} full portrait`} title={fullArt.title} onClose={() => setFullArt(null)} />}
+    </>
   );
 }
 
-export function TitleScreen({ muted, musicOff, preferences, onMutedChange, onMusicOffChange, onPreferenceChange, onTestAll, onTestSection }) {
+export function TitleScreen({
+  muted, musicOff, sfxLevel, musicLevel, preferences,
+  onMutedChange, onMusicOffChange, onSfxLevelChange, onMusicLevelChange,
+  onPreferenceChange, onTestAll, onTestSection,
+}) {
   const [panel, setPanel] = useState('home');
   const [titleTaps, setTitleTaps] = useState(0);
   const [testUnlocked, setTestUnlocked] = useState(() => {
@@ -111,8 +131,10 @@ export function TitleScreen({ muted, musicOff, preferences, onMutedChange, onMus
             <button className="home-action compact" onClick={() => open('how')}><span>How to play</span><small>Rules, combat, and controls</small></button>
             <button className="home-action compact" onClick={() => open('saves')}><span>Saves</span><small>{saves.length} checkpoint{saves.length === 1 ? '' : 's'}</small></button>
             <button className="home-action compact" onClick={() => open('settings')}><span>Settings</span><small>Sound, motion, and display</small></button>
+            <button className="home-action compact" onClick={() => open('music')}><span>Jukebox</span><small>Play the music you've unlocked</small></button>
           </div>
           <div className="home-index-grid" aria-label="Collection indexes">
+            <button className="home-action compact" onClick={() => open('delvers')}><span>Delver index</span><small>Runs, wins, depth, and lifetime stats</small></button>
             <button className="home-action compact" onClick={() => open('enemies')}><span>Enemy index</span><small>Encounters, defeats, and custom faces</small></button>
             <button className="home-action compact" onClick={() => open('items')}><span>Item index</span><small>Trinkets and gadgets discovered</small></button>
             <button className="home-action compact" onClick={() => open('cards')}><span>Card index</span><small>Cards seen, obtained, and played</small></button>
@@ -127,6 +149,8 @@ export function TitleScreen({ muted, musicOff, preferences, onMutedChange, onMus
           </div>
 
           {panel === 'play' && <DelverPicker />}
+          {panel === 'music' && <JukeboxPanel musicOff={musicOff} musicLevel={musicLevel}
+            onMusicOffChange={onMusicOffChange} onMusicLevelChange={onMusicLevelChange} />}
           {panel === 'daily' && <DailyPanel today={daily} />}
           {panel === 'test' && <TestLab onTestAll={onTestAll} onTestSection={onTestSection} />}
           {panel === 'how' && <HowToPlay />}
@@ -147,10 +171,12 @@ export function TitleScreen({ muted, musicOff, preferences, onMutedChange, onMus
             })}
             {!run && <p className="dim">Start or load a run before writing a named save slot.</p>}
           </div>}
-          {['enemies', 'items', 'cards'].includes(panel) && <CollectionIndex kind={panel} preferences={preferences} onPreferenceChange={onPreferenceChange} />}
+          {['delvers', 'enemies', 'items', 'cards'].includes(panel) && <CollectionIndex kind={panel} preferences={preferences} onPreferenceChange={onPreferenceChange} />}
           {panel === 'settings' && <div className="settings-list">
             <SettingToggle label="Sound effects" detail="Synthesized combat and interface audio" checked={!muted} onChange={onMutedChange} />
-            <SettingToggle label="Music" detail="Generative ambient score that shifts with each screen and depth" checked={!musicOff} onChange={onMusicOffChange} />
+            <SettingSlider label="SFX volume" value={sfxLevel} onChange={onSfxLevelChange} />
+            <SettingToggle label="Music" detail="Recorded soundtrack with an adaptive crypt ambience" checked={!musicOff} onChange={onMusicOffChange} />
+            <SettingSlider label="Music volume" value={musicLevel} onChange={onMusicLevelChange} />
             <SettingToggle label="Reduce motion" detail="Disables shakes, floating effects, and decorative animation" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
             <SettingToggle label="High contrast" detail="Brightens text, borders, and board information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
             <SettingToggle label="Large tiles" detail="Increases board tiles where the screen has room" checked={preferences.largeTiles} onChange={() => onPreferenceChange('largeTiles', !preferences.largeTiles)} />
@@ -270,7 +296,7 @@ function DailyPanel({ today: initialToday }) {
 
 export function MapIconSettings({ preferences, onPreferenceChange }) {
   const styles = mapIconStyles(preferences);
-  const styleKey = styles[preferences.mapIconStyle] ? preferences.mapIconStyle : 'emoji';
+  const styleKey = styles[preferences.mapIconStyle] ? preferences.mapIconStyle : 'main';
   const style = styles[styleKey];
   const isMixer = styleKey === 'mixer';
   const isMarks = Object.values(style.icons).every(isMarkToken);
@@ -290,12 +316,12 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
     <div className="setting-block">
       <span><b>Map icons</b><small>{isMarks
         ? 'Custom vector artwork — tap a slot to choose another drawn mark.'
-        : 'Pick an artwork set, use Mix & Match, or import a PNG/SVG atlas below.'}</small></span>
+        : 'Pick an artwork set, use Mix & Match, or add a WebP/SVG atlas.'}</small></span>
       <div className="emoji-style-row" role="radiogroup" aria-label="Map icon set">
-        {Object.entries(styles).map(([key, s]) => {
+        {Object.entries(styles).sort(([a], [b]) => a === 'main' ? -1 : b === 'main' ? 1 : 0).map(([key, s]) => {
           return (
           <button key={key} type="button" role="radio" aria-checked={styleKey === key}
-            className={`emoji-style ${styleKey === key ? 'active' : ''} ${key === 'runes' ? 'runeface' : ''}`}
+            className={`emoji-style ${styleKey === key ? 'active' : ''}`}
             onClick={() => onPreferenceChange('mapIconStyle', key)}>
             <span>{resolveMapIcon(s.icons.dig, preferences)} {resolveMapIcon(s.icons.elite, preferences)} {resolveMapIcon(s.icons.boss, preferences)}</span>
             <small>{s.label}</small>
@@ -340,10 +366,10 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
 
 export function EnemyIconSettings({ preferences, onPreferenceChange }) {
   const styles = getEnemyIconStyles(preferences);
-  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'classic';
+  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'main';
   const previewKeys = ['grubber', 'ossuary', 'nn99'];
   const mix = preferences.enemyIconMix || {};
-  const styleKeys = Object.keys(styles).filter(key => key !== 'mixer');
+  const styleKeys = Object.keys(styles).filter(key => key !== 'mixer').sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : 0);
   const cycleMixed = key => {
     const choice = mix[key] || { style: 'classic', custom: '' };
     const at = styleKeys.indexOf(choice.style);
@@ -352,9 +378,9 @@ export function EnemyIconSettings({ preferences, onPreferenceChange }) {
   };
   return (
     <div className="setting-block">
-      <span><b>Enemy icons</b><small>How monsters appear in combat and the index. Import additional PNG/SVG families below.</small></span>
+      <span><b>Enemy icons</b><small>How monsters appear in combat and the index. Additional families use WebP or SVG atlases.</small></span>
       <div className="emoji-style-row" role="radiogroup" aria-label="Enemy icon set">
-        {Object.entries(styles).map(([key, s]) => {
+        {Object.entries(styles).sort(([a], [b]) => a === 'main' ? -1 : b === 'main' ? 1 : 0).map(([key, s]) => {
           return (
           <button key={key} type="button" role="radio" aria-checked={active === key}
             className={`emoji-style ${active === key ? 'active' : ''}`}
@@ -383,7 +409,7 @@ export function EnemyIconSettings({ preferences, onPreferenceChange }) {
 }
 
 export function InterfaceIconSettings({ preferences, onPreferenceChange }) {
-  const active = preferences.interfaceIconStyle || 'emoji';
+  const active = preferences.interfaceIconStyle || 'main';
   const mix = preferences.interfaceIconMix || {};
   const cycle = key => {
     const choice = mix[key] || { style: 'emoji', custom: '' };
@@ -423,8 +449,84 @@ function SettingToggle({ label, detail, checked, onChange }) {
   </label>;
 }
 
-export function InGameMenu({ muted, musicOff, preferences, onMutedChange, onMusicOffChange, onPreferenceChange, onClose }) {
+function SettingSlider({ label, value, onChange }) {
+  const percent = Math.round(value * 100);
+  return <label className="setting-row setting-slider">
+    <span><b>{label}</b><small>{percent}%</small></span>
+    <input type="range" min="0" max="1" step="0.01" value={value}
+      aria-label={label} aria-valuetext={`${percent}%`}
+      onChange={event => onChange(Number(event.target.value))} />
+  </label>;
+}
+
+/* Home-screen jukebox: play any score mood heard so far. Locked rows show how
+   to earn them; previews keep playing while browsing the menu and end when a
+   run takes the score back (music.js clears the preview on any non-title mood). */
+function JukeboxPanel({ musicOff, musicLevel, onMusicOffChange, onMusicLevelChange }) {
+  const progress = loadProgression();
+  const [playingId, setPlayingId] = useState(previewingTrackId);
+  const [paused, setPaused] = useState(isMusicPaused);
+  const [looping, setLooping] = useState(isMusicLooping);
+  const unlocked = TRACKS.filter(track => track.unlock(progress));
+  const play = track => {
+    if (playingId === track.id) {
+      const next = setMusicPaused(!paused); setPaused(next); return;
+    }
+    if (musicOff) onMusicOffChange(); // playing a track is an explicit request for music
+    previewTrack(track);
+    setMusicPaused(false); setPaused(false);
+    setPlayingId(track.id);
+  };
+  const move = delta => {
+    if (!unlocked.length) return;
+    const current = unlocked.findIndex(track => track.id === playingId);
+    const index = current < 0 ? 0 : (current + delta + unlocked.length) % unlocked.length;
+    play(unlocked[index]);
+  };
+  const stop = () => {
+    stopPreview(); setMusicPaused(true); setPaused(true); setPlayingId(null);
+  };
+  return <div className="jukebox">
+    <p className="dim">Moods of the Undermine's score, collected as you meet them below. {unlocked.length} of {TRACKS.length} heard.
+      {' '}Music keeps playing while you browse; starting a run hands the score back to the descent.</p>
+    <div className="jukebox-player" aria-label="Jukebox controls">
+      <button className="btn" onClick={() => move(-1)} disabled={!unlocked.length} aria-label="Previous track">◀</button>
+      <button className="btn primary" onClick={() => {
+        if (!playingId) move(1);
+        else { const next = setMusicPaused(!paused); setPaused(next); }
+      }}>{paused || !playingId ? '▶ Play' : 'Ⅱ Pause'}</button>
+      <button className="btn" onClick={() => move(1)} disabled={!unlocked.length} aria-label="Next track">▶</button>
+      <button className="btn" onClick={() => { restartMusic(); setPaused(false); setMusicPaused(false); }}>↺ Restart</button>
+      <button className={`btn ${looping ? 'primary' : ''}`} aria-pressed={looping} onClick={() => setLooping(setMusicLooping(!looping))}>↻ Loop</button>
+      <button className="btn" onClick={stop} disabled={!playingId}>■ Stop</button>
+    </div>
+    <SettingSlider label="Music volume" value={musicLevel} onChange={onMusicLevelChange} />
+    {TRACKS.map(track => {
+      const earned = Boolean(track.unlock(progress));
+      const playing = playingId === track.id;
+      return <div key={track.id} className={`track-row ${earned ? '' : 'locked'}`}>
+        <div className="track-info">
+          <b>{earned ? track.name : 'Unheard music'}</b>
+          <small>{earned ? track.detail : `Locked — ${track.hint.toLowerCase()}`}</small>
+        </div>
+        {playing && <span className="track-eq" aria-hidden="true"><i /><i /><i /></span>}
+        {earned && <button className={`btn ${playing ? '' : 'primary'}`} onClick={() => play(track)}
+          aria-label={playing ? `Stop ${track.name}` : `Play ${track.name}`}>
+          {playing ? (paused ? '▶ Resume' : 'Ⅱ Pause') : '▶ Play'}
+        </button>}
+      </div>;
+    })}
+  </div>;
+}
+
+export function InGameMenu({
+  muted, musicOff, sfxLevel, musicLevel, preferences,
+  onMutedChange, onMusicOffChange, onSfxLevelChange, onMusicLevelChange,
+  onPreferenceChange, onClose,
+}) {
   const [tab, setTab] = useState('game');
+  const [musicPaused, setPaused] = useState(isMusicPaused);
+  const [musicLoops, setLoops] = useState(isMusicLooping);
   // back steps from a sub-tab to the main tab first; only then does App close the menu
   useEffect(() => {
     if (tab === 'game') return undefined;
@@ -444,7 +546,14 @@ export function InGameMenu({ muted, musicOff, preferences, onMutedChange, onMusi
         </div>}
         {tab === 'settings' && <div className="settings-list">
           <SettingToggle label="Sound effects" detail="Combat and interface audio" checked={!muted} onChange={onMutedChange} />
+          <SettingSlider label="SFX volume" value={sfxLevel} onChange={onSfxLevelChange} />
           <SettingToggle label="Music" detail="Spooky adaptive score" checked={!musicOff} onChange={onMusicOffChange} />
+          <SettingSlider label="Music volume" value={musicLevel} onChange={onMusicLevelChange} />
+          <div className="setting-row music-transport"><span><b>Music player</b><small>Control the current adaptive track</small></span><div>
+            <button className="btn" onClick={() => setPaused(setMusicPaused(!musicPaused))}>{musicPaused ? '▶ Resume' : 'Ⅱ Pause'}</button>
+            <button className="btn" onClick={restartMusic}>↺ Restart</button>
+          </div></div>
+          <SettingToggle label="Loop music" detail="Repeat the current soundtrack indefinitely" checked={musicLoops} onChange={() => setLoops(setMusicLooping(!musicLoops))} />
           <SettingToggle label="Reduce motion" detail="Disable animation and screen shake" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
           <SettingToggle label="High contrast" detail="Brighter board and interface information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
           <SettingToggle label="Large text" detail="Increase interface text" checked={preferences.largeText} onChange={() => onPreferenceChange('largeText', !preferences.largeText)} />
@@ -478,7 +587,7 @@ function HowToPlay() {
         <li>Choose one connected node at a time: {NODE_TYPE_LABELS.map(([type, label], i) => <span key={type}>{i ? ', ' : ''}<b>{resolveMapIcon(guideMap[type])} {label.toLowerCase()}</b></span>)}. Fights, recovery, trade, risks, and bosses each use their matching node.</li>
         <li>The game autosaves after actions. <b>Home</b> safely leaves the run resumable; named save slots can preserve additional checkpoints.</li>
         <li>The <b>Daily Challenge</b> uses a date-based seed. The map, fights, boards, events, and rewards repeat for that date and Delver.</li>
-        <li>Winning, reaching deeper strata, and lifetime achievements unlock additional Delvers. Collection indexes record enemies, items, and cards as you discover them.</li>
+        <li>Winning, reaching deeper strata, and lifetime achievements unlock additional Delvers. Collection indexes record per-Delver performance plus enemies, items, and cards as you discover them.</li>
       </ul>
     </HowSection>
 
@@ -527,7 +636,7 @@ function HowToPlay() {
         <li><b>Attack</b> cards deal damage, <b>Skill</b> cards provide utility or defense, and <b data-mechanic="power">Power</b> cards create a combat-long effect.</li>
         <li>Played cards normally enter the discard pile. When the draw pile empties, discard is shuffled into a new draw pile. <b data-mechanic="exhaust">Exhausted</b> cards stay out for the rest of combat.</li>
         <li>Card rewards may be skipped. Upgrading a card improves its green-highlighted values; upgraded cards show a <b>+</b>. Removal permanently thins the run's deck and becomes more expensive each time.</li>
-        <li>Curses are harmful cards or run modifiers. They can be removed like other cards when a removal service is available.</li>
+        <li>Curses are unplayable cards with persistent penalties: <b data-mechanic="claustrophobia">Claustrophobia</b> adds mines, <b data-mechanic="vertigo">Vertigo</b> removes Picks, <b data-mechanic="exhaustion">Exhaustion</b> reduces draw, <b data-mechanic="night terrors">Night Terrors</b> drains opening Energy, and <b data-mechanic="paranoia">Paranoia</b> plants false flags. Removal permanently clears a curse from the run.</li>
       </ul>
     </HowSection>
 
@@ -571,27 +680,13 @@ function HowToPlay() {
 }
 
 /* ---------------- map ---------------- */
-/* The ten original artwork sets plus ten code-native vector sets. */
-const LEGACY_MAP_ICON_STYLES = {
-  emoji: { label: 'Emoji', icons: { dig: '⚔️', elite: '☠️', event: '🔮', shop: '🛒', treasure: '💰', camp: '🏕️', boss: '👑' } },
-  crypt: { label: 'Graveyard', icons: { dig: '⛏️', elite: '🧟', event: '🦇', shop: '🐀', treasure: '⚱️', camp: '🕯️', boss: '😈' } },
-  marks: { label: "Delver's Marks", icons: { dig: 'svg:picks', elite: 'svg:fangskull', event: 'svg:eye', shop: 'svg:scales', treasure: 'svg:gem', camp: 'svg:fire', boss: 'svg:crown' } },
-  runes: { label: 'Carved runes', icons: { dig: '⚔︎', elite: '☠︎', event: '?', shop: '◈', treasure: '◆', camp: '▲', boss: '♛' } },
-  dungeon: { label: 'Dungeon', icons: { dig: '🗡️', elite: '👹', event: '🎲', shop: '🧙', treasure: '🏆', camp: '⛺', boss: '🐉' } },
-  deepwild: { label: 'Deep wild', icons: { dig: '🪓', elite: '🦂', event: '🍄', shop: '🐌', treasure: '💎', camp: '🌙', boss: '🕷️' } },
-  sunken: { label: 'Sunken', icons: { dig: '🤿', elite: '🦈', event: '🐚', shop: '🦀', treasure: '🪙', camp: '🏮', boss: '🐙' } },
-  arcane: { label: 'Arcane', icons: { dig: '🪄', elite: '🧛', event: '✨', shop: '🧿', treasure: '📜', camp: '🌛', boss: '🧞' } },
-  gearworks: { label: 'Gearworks', icons: { dig: '🔧', elite: '🤖', event: '🎰', shop: '⚖️', treasure: '🔋', camp: '🔌', boss: '🛸' } },
-  beasts: { label: 'Beasts', icons: { dig: '🐾', elite: '🐺', event: '🦉', shop: '🦝', treasure: '🥚', camp: '🐈‍⬛', boss: '🐻' } },
-};
-export const MAP_ICON_STYLES = { ...LEGACY_MAP_ICON_STYLES, ...MAP_VECTOR_STYLES, mixer: { label: 'Mix & Match', icons: LEGACY_MAP_ICON_STYLES.emoji.icons } };
 const NODE_TYPE_LABELS = [
   ['dig', 'Dig'], ['elite', 'Elite'], ['event', 'Event'], ['shop', 'Shop'],
   ['treasure', 'Treasure'], ['camp', 'Camp'], ['boss', 'Boss'],
 ];
 function mapIcons(prefs) {
   const styles = mapIconStyles(prefs);
-  const styleKey = styles[prefs?.mapIconStyle] ? prefs.mapIconStyle : 'emoji';
+  const styleKey = styles[prefs?.mapIconStyle] ? prefs.mapIconStyle : 'main';
   const icons = { ...styles[styleKey].icons };
   if (styleKey === 'mixer') {
     for (const [type] of NODE_TYPE_LABELS) {
@@ -621,6 +716,9 @@ function mapIconStyles(prefs) {
   return { ...MAP_ICON_STYLES, ...custom };
 }
 
+const MAP_HOLD_MS = 300;
+const MAP_HOLD_SLOP_PX = 10;
+
 export function MapScreen() {
   const m = run.map;
   // While a cutscene (opening / descent) plays over the map, don't mount the map body:
@@ -631,45 +729,83 @@ export function MapScreen() {
   const icons = mapIcons(prefs);
   const iconClass = type => {
     if (isMarkToken(icons[type])) return 'svgmark';
-    if (prefs.mapIconStyle !== 'runes' || Boolean(prefs.mapEmojis?.[type]?.trim())) return 'emoji';
-    return '';
+    return 'emoji';
   };
   const reach = reachableNodes();
   const isReach = (r, c) => reach.some(n => n.r === r && n.c === c);
+
+  /* branches the descent can no longer reach are removed entirely; the trail
+     you actually walked stays as history */
+  let accessible;
+  if (run.pos) accessible = mapClosure(m, run.pos.r, run.pos.c);
+  else {
+    accessible = new Set();
+    for (const c of Object.keys(m.nodes[0])) for (const key of mapClosure(m, 0, +c)) accessible.add(key);
+  }
+  const kept = key => Boolean(run.visited[key]) || accessible.has(key);
+
+  /* hold a node to preview its futures: everything unreachable from it dims */
+  const [previewKey, setPreviewKey] = useState(null);
+  const previewSet = previewKey ? mapClosure(m, ...previewKey.split(',').map(Number)) : null;
+  const hold = useRef({ t: null, fired: false, x: 0, y: 0 });
+  const cancelHold = () => { clearTimeout(hold.current.t); hold.current.t = null; };
+  const startHold = (ev, r, c) => {
+    hold.current.fired = false;
+    hold.current.x = ev.clientX; hold.current.y = ev.clientY;
+    cancelHold();
+    hold.current.t = setTimeout(() => { hold.current.fired = true; setPreviewKey(`${r},${c}`); }, MAP_HOLD_MS);
+  };
+  const moveHold = ev => {
+    if (hold.current.t && Math.hypot(ev.clientX - hold.current.x, ev.clientY - hold.current.y) > MAP_HOLD_SLOP_PX) cancelHold();
+  };
+  const endHold = () => { cancelHold(); setPreviewKey(null); };
+
   const lines = [];
   for (const [key, set] of Object.entries(m.edges)) {
     const [r, c] = key.split(',').map(Number);
     for (const nc of set) {
       if (m.nodes[r + 1][nc] === undefined) continue;
+      if (!kept(key) || !kept(`${r + 1},${nc}`)) continue; // pruned branch
+      const ghost = previewSet && !previewSet.has(key) ? ' ghosted' : '';
       lines.push(<g key={`${key}-${nc}`}>
-        <line className="mapline-shadow" x1={(c + 0.5) * 20} y1={r + 0.5} x2={(nc + 0.5) * 20} y2={r + 1.5} />
-        <line className="mapline" x1={(c + 0.5) * 20} y1={r + 0.5} x2={(nc + 0.5) * 20} y2={r + 1.5} />
+        <line className={`mapline-shadow${ghost}`} x1={(c + 0.5) * 20} y1={r + 0.5} x2={(nc + 0.5) * 20} y2={r + 1.5} />
+        <line className={`mapline${ghost}`} x1={(c + 0.5) * 20} y1={r + 0.5} x2={(nc + 0.5) * 20} y2={r + 1.5} />
       </g>);
     }
   }
   return (
     <>
       <TopBar />
-      <p className="eyebrow" style={{ textAlign: 'center' }}>Tunnel map — choose your descent</p>
+      <p className="eyebrow" style={{ textAlign: 'center' }}>Tunnel map — choose your descent · hold any node to preview its paths</p>
       {!covered && (
         <>
-          <div className="mapwrap" style={{ height: `calc(var(--map-row) * ${MAP_ROWS})`, '--map-rows': MAP_ROWS }}>
+          <div className="mapwrap" style={{ height: `calc(var(--map-row) * ${MAP_ROWS})`, '--map-rows': MAP_ROWS }}
+            onContextMenu={ev => ev.preventDefault()}>
             <svg className="map-paths" viewBox={`0 0 100 ${MAP_ROWS}`} preserveAspectRatio="none">{lines}</svg>
             {m.nodes.map((row, r) => (
               <div key={r} className="maprow" style={{ '--row': r }}>
-                {Object.keys(row).map(cs => {
+                {Object.keys(row).filter(cs => kept(`${r},${cs}`)).map(cs => {
                   const c = +cs;
                   const type = row[cs];
+                  const key = `${r},${c}`;
                   const cls = ['mapnode',
                     type === 'boss' ? 'boss' : '',
                     isReach(r, c) ? 'reachable' : '',
                     run.pos && run.pos.r === r && run.pos.c === c ? 'current' : '',
-                    (run.visited[`${r},${c}`] || (run.pos && r < run.pos.r)) ? 'done' : '',
+                    (run.visited[key] || (run.pos && r < run.pos.r)) ? 'done' : '',
+                    previewSet && !previewSet.has(key) ? 'ghosted' : '',
+                    previewKey === key ? 'preview-origin' : '',
                   ].filter(Boolean).join(' ');
                   return (
                     <div key={c} className={cls} title={type}
                       style={{ left: `${(c + 0.5) * 20}%` }}
-                      onClick={() => isReach(r, c) && enterNode(r, c)}>
+                      onPointerDown={ev => startHold(ev, r, c)}
+                      onPointerMove={moveHold}
+                      onPointerUp={endHold} onPointerCancel={endHold} onPointerLeave={endHold}
+                      onClick={() => {
+                        if (hold.current.fired) { hold.current.fired = false; return; }
+                        if (isReach(r, c)) enterNode(r, c);
+                      }}>
                       <span className={`mapicon ${iconClass(type)}`} aria-hidden="true">{resolveMapIcon(icons[type], prefs)}</span>
                     </div>
                   );
@@ -768,8 +904,8 @@ export function CampScreen() {
             <span className="cname">Trail Training</span>
             <div className="cdesc">
               {(run.pickBonus || 0) >= 2
-                ? `Training mastered: ${PICKS_PER_TURN + run.pickBonus} base max picks each turn.`
-                : `Permanently gain +1 max pick each turn this run (currently ${PICKS_PER_TURN + (run.pickBonus || 0)}; cap +2).`}
+                ? `Training mastered: ${basePicksFor(run.cls) + run.pickBonus} base max picks each turn.`
+                : `Permanently gain +1 max pick each turn this run (currently ${basePicksFor(run.cls) + (run.pickBonus || 0)}; cap +2).`}
             </div>
           </div>
         </div>
@@ -783,6 +919,7 @@ export function ShopScreen() {
   const s = run.shop;
   const prefs = loadPreferences();
   const [shelf, setShelf] = useState('items');
+  const [showMerchantArt, setShowMerchantArt] = useState(false);
   const [selectedItem, setSelectedItem] = useState(() => {
     const trinket = s.trinkets.findIndex(item => !item.sold);
     if (trinket >= 0) return `trinket:${trinket}`;
@@ -834,7 +971,10 @@ export function ShopScreen() {
       <TopBar />
       <main className="screenpanel shop-screen">
         <header className="shop-merchant">
-          <img src={ratMerchantPortrait()} alt="The Rat Merchant" />
+          <button type="button" className="shop-merchant-art" onClick={() => setShowMerchantArt(true)} aria-haspopup="dialog" aria-label="View full artwork for the Rat Merchant">
+            <img src={ratMerchantPortrait()} alt="The Rat Merchant" />
+            <span className="art-expand-hint">Full art</span>
+          </button>
           <div><p className="eyebrow">The Rat Merchant</p><h2>Wares from deeper tunnels</h2><p>“Dig gold, spend gold, eh?”</p></div>
           <div className="shop-purse"><small>Your purse</small><b>◈ {run.gold}g</b></div>
         </header>
@@ -910,6 +1050,7 @@ export function ShopScreen() {
           <button className="btn primary" onClick={gotoMap}>Leave shop ▸</button>
         </div>
       </main>
+      {showMerchantArt && <FullArtViewer src={ratMerchantPortrait()} alt="The Rat Merchant full portrait" title="The Rat Merchant" onClose={() => setShowMerchantArt(false)} />}
     </>
   );
 }
@@ -926,11 +1067,11 @@ export function EventScreen() {
         <h2><GameIcon name="event" preferences={prefs} /> {event.title}</h2>
         {view.stageLabel && <div className="event-stage">{view.stageLabel}</div>}
         <p>{view.text}</p>
-        {run.eventState?.history?.length > 0 && <div className="event-evidence"><b>Evidence gathered</b><span>The immediate uncertainty has been reduced. Your final choice still determines what the run values most.</span></div>}
+        {run.eventState?.history?.length > 0 && <div className="event-evidence"><b>Mechanism inspected</b><span>Fresh scratches expose the immediate contents of each passage.</span></div>}
         <div className="choicelist">
           {view.choices.map(choice => <button type="button" className="choice" key={choice.key} disabled={choice.disabled} onClick={() => eventChoice(choice.key)}>
             <span className="cname">{choice.label}</span>
-            <span className="cdesc">{choice.desc}</span>
+            {choice.desc && <span className="cdesc">{choice.desc}</span>}
           </button>)}
         </div>
       </div>
@@ -939,15 +1080,24 @@ export function EventScreen() {
 }
 
 /* ---------------- puzzle ---------------- */
+function focusPuzzleCell(current, index) {
+  current.closest('[data-logic-grid]')?.querySelector(`[data-cell="${index}"]`)?.focus();
+}
+function puzzleGridKeyDown(event, index, size, count) {
+  const next = gridNavigationIndex(event.key, index, size, count);
+  if (next === index) return;
+  event.preventDefault(); focusPuzzleCell(event.currentTarget, next);
+}
+
 export function PuzzleScreen() {
   const p = run.puzzle;
   const prefs = loadPreferences();
   const type = p.type || 'mines';
   const descriptions = {
-    mines: 'A no-guess Minesweeper engraving: every safe tile is provable from the opening.',
+    mines: 'Reveal every safe tile. Flags mark suspected mines; scans expose a tile without opening it.',
     sudoku: `Fill every row, column, and outlined ${p.boxRows}×${p.boxCols} box with 1–${p.size} exactly once.`,
     crossword: `Fill the ${p.size}×${p.size} word square. Every answer works both across and down.`,
-    sequence: 'Read the changing gaps or operations and choose the only value that continues the sequence.',
+    sequence: 'Choose the value that continues the sequence.',
     lights: 'Tap a rune to flip it and its orthogonal neighbors. Extinguish every rune.',
     nonogram: 'Fill cells so each row and column matches its ordered run-length clues.',
   };
@@ -956,7 +1106,8 @@ export function PuzzleScreen() {
       <TopBar />
       <div className="screenpanel" style={{ maxWidth: 640 }}>
         <h2><GameIcon name="puzzle" preferences={prefs} /> An Honest Puzzle</h2>
-        <p className="dim">{descriptions[type]} No enemy and no turn limit. Solve it flawlessly for a card upgrade.</p>
+        <p className="dim">{descriptions[type]} No enemy and no turn limit.</p>
+        {p.difficultyLabel && <p className="puzzle-difficulty">{p.difficultyLabel}</p>}
 
         {type === 'mines' && <>
           <div style={{ display: 'flex', justifyContent: 'center' }}><BoardView mode="puzzle" /></div>
@@ -969,7 +1120,10 @@ export function PuzzleScreen() {
         </>}
 
         {type === 'sudoku' && <div className="logic-puzzle-wrap">
-          <div className={`sudoku-grid size-${p.size}`} style={{ '--logic-size': p.size }} aria-label={`${p.size} by ${p.size} Sudoku`}>
+          {p.size >= 6 && <button type="button" className={`btn note-mode ${p.noteMode ? 'active' : ''}`} aria-pressed={p.noteMode} onClick={toggleSudokuNoteMode}>
+            Candidate marks: {p.noteMode ? 'on' : 'off'}
+          </button>}
+          <div className={`sudoku-grid size-${p.size}`} data-logic-grid style={{ '--logic-size': p.size }} role="grid" aria-label={`${p.size} by ${p.size} Sudoku`}>
             {p.values.map((value, i) => {
               const given = p.givens.includes(i);
               const row = Math.floor(i / p.size), col = i % p.size;
@@ -977,25 +1131,31 @@ export function PuzzleScreen() {
                 borderRight: col < p.size - 1 && (col + 1) % p.boxCols === 0 ? '3px solid var(--bone-dim)' : undefined,
                 borderBottom: row < p.size - 1 && (row + 1) % p.boxRows === 0 ? '3px solid var(--bone-dim)' : undefined,
               };
-              return <input key={i} style={edge} className={`logic-cell ${given ? 'given' : ''}`} aria-label={`Row ${row + 1}, column ${col + 1}`}
-                inputMode="numeric" maxLength={1} readOnly={given} value={value || ''}
-                onChange={e => setLogicPuzzleCell(i, e.target.value.replace(new RegExp(`[^1-${p.size}]`, 'g'), ''))} />;
+              const notes = p.notes?.[i] || [];
+              return <div key={i} style={edge} className={`sudoku-cell-wrap ${given ? 'given' : ''}`} role="gridcell">
+                <input data-cell={i} className="logic-cell" aria-label={`Row ${row + 1}, column ${col + 1}${notes.length ? `, candidates ${notes.join(', ')}` : ''}`}
+                  inputMode="numeric" maxLength={1} readOnly={given} value={value || ''}
+                  onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)}
+                  onChange={e => setLogicPuzzleCell(i, e.target.value.replace(new RegExp(`[^1-${p.size}]`, 'g'), ''))} />
+                {!value && notes.length > 0 && <span className="sudoku-notes" aria-hidden="true">{notes.join(' ')}</span>}
+              </div>;
             })}
           </div>
           {!p.failed && !p.solved && <button className="btn primary" onClick={checkLogicPuzzle}>Check Sudoku</button>}
         </div>}
 
         {type === 'crossword' && <div className="logic-puzzle-wrap crossword-layout">
-          <div className="crossword-grid" style={{ '--logic-size': p.size }} aria-label={`${p.size} by ${p.size} mini crossword`}>
+          <div className="crossword-grid" data-logic-grid style={{ '--logic-size': p.size }} role="grid" aria-label={`${p.size} by ${p.size} mini crossword`}>
             {p.values.map((value, i) => <label className="crossword-cell" key={i}>
               {(i < p.size || i % p.size === 0) && <small>{i + 1}</small>}
-              <input aria-label={`Crossword square ${i + 1}`} autoCapitalize="characters" maxLength={1} value={value}
-                onChange={e => setLogicPuzzleCell(i, e.target.value)} />
+              <input data-cell={i} aria-label={`Crossword square ${i + 1}`} autoCapitalize="characters" maxLength={1} value={value}
+                onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)}
+                onChange={e => { setLogicPuzzleCell(i, e.target.value); if (e.target.value && i + 1 < p.values.length) focusPuzzleCell(e.currentTarget, i + 1); }} />
             </label>)}
           </div>
           <div className="crossword-clues">
-            <div><h3>Across</h3>{p.clues.map((clue, i) => <p key={i}><b>{i * p.size + 1}.</b> {clue}</p>)}</div>
-            <div><h3>Down</h3>{p.clues.map((clue, i) => <p key={i}><b>{i + 1}.</b> {clue}</p>)}</div>
+            <div><h3>Across</h3>{p.acrossClues.map((clue, i) => <p key={i}><b>{i * p.size + 1}.</b> {clue}</p>)}</div>
+            <div><h3>Down</h3>{p.downClues.map((clue, i) => <p key={i}><b>{i + 1}.</b> {clue}</p>)}</div>
           </div>
           {!p.failed && !p.solved && <button className="btn primary" onClick={checkLogicPuzzle}>Check crossword</button>}
         </div>}
@@ -1006,8 +1166,8 @@ export function PuzzleScreen() {
         </div>}
 
         {type === 'lights' && <div className="logic-puzzle-wrap">
-          <div className="lights-grid" style={{ '--logic-size': p.size }} aria-label={`${p.size} by ${p.size} Lights Out board`}>
-            {p.values.map((value, i) => <button key={i} className={value ? 'on' : ''} onClick={() => toggleLightsCell(i)} aria-label={`Rune ${i + 1}, ${value ? 'lit' : 'dark'}`}>{value ? '◆' : '·'}</button>)}
+          <div className="lights-grid" data-logic-grid style={{ '--logic-size': p.size }} role="grid" aria-label={`${p.size} by ${p.size} Lights Out board`}>
+            {p.values.map((value, i) => <button data-cell={i} key={i} className={value ? 'on' : ''} onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)} onClick={() => toggleLightsCell(i)} aria-label={`Rune ${i + 1}, ${value ? 'lit' : 'dark'}`}>{value ? '◆' : '·'}</button>)}
           </div>
           <p className="dim mono">Moves: {p.moves}</p>
         </div>}
@@ -1017,7 +1177,10 @@ export function PuzzleScreen() {
             <div className="nonogram-corner" />
             <div className="nonogram-col-clues">{p.colClues.map((clue, i) => <span key={i}>{clue.join(' ')}</span>)}</div>
             <div className="nonogram-row-clues">{p.rowClues.map((clue, i) => <span key={i}>{clue.join(' ')}</span>)}</div>
-            <div className="nonogram-grid">{p.values.map((value, i) => <button key={i} className={value ? 'filled' : ''} onClick={() => toggleNonogramCell(i)} aria-label={`Nonogram cell ${i + 1}, ${value ? 'filled' : 'empty'}`} />)}</div>
+            <div className="nonogram-grid" data-logic-grid role="grid">{p.values.map((value, i) => {
+              const state = value === 1 ? 'filled' : value === 2 ? 'crossed' : 'unknown';
+              return <button data-cell={i} key={i} className={state} onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)} onClick={() => toggleNonogramCell(i)} aria-label={`Nonogram cell ${i + 1}, ${state}`}>{value === 2 ? '×' : ''}</button>;
+            })}</div>
           </div>
           {!p.failed && !p.solved && <button className="btn primary" onClick={checkLogicPuzzle}>Check nonogram</button>}
         </div>}

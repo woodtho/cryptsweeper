@@ -1,8 +1,20 @@
-/* CRYPTSWEEPER — generative ambient score (WebAudio, no assets).
-   One slow breathing drone plus sparse echoed plucks, retuned per screen,
-   with a low heartbeat pulse in combat. Each stratum drags the delve keys
-   a semitone darker. Owns its own AudioContext (separate from sfx) so it
-   can suspend with app visibility without touching effect playback.
+import homeTheme from '../assets/music/raw/home-theme.mp3';
+import topsoilCrypts from '../assets/music/raw/delve-topsoil-crypts.mp3';
+import fogGalleries from '../assets/music/raw/delve-fog-galleries.mp3';
+import machineSeam from '../assets/music/raw/delve-machine-seam.mp3';
+import machineRequiem from '../assets/music/raw/machine-requiem.mp3';
+import fallingCandlelight from '../assets/music/raw/falling-candlelight.mp3';
+import coinwhiskersBargain from '../assets/music/raw/coinwhiskers-bargain.mp3';
+import wardensBelow from '../assets/music/raw/wardens-below.mp3';
+import survivorsDawn from '../assets/music/raw/survivors-dawn.mp3';
+import cryptRemembered from '../assets/music/raw/crypt-remembered.mp3';
+import defeatLament from '../assets/music/raw/defeat-lament.mp3';
+
+/* CRYPTSWEEPER — recorded soundtrack plus a quiet generative ambient layer.
+   The supplied songs carry the melody while WebAudio adds a slow drone,
+   cave details, and combat pulse. Each stratum gets its own recording.
+   Music owns a separate AudioContext from sfx so visibility changes never
+   interfere with effect playback.
    Browsers gate audio behind a user gesture, so the score arms itself and
    starts on the first pointer/key input. No-ops outside the browser. */
 
@@ -24,6 +36,7 @@ const MOODS = {
   boss:    { semis: -11,scale: [0, 1, 3, 4, 6, 8, 9],  density: .35, drone: .74, cutoff: 1400, pulse: .78,  interval: 6, bright: false, drip: .04, bell: .004, wind: 1.2 },
   defeat:  { semis: -10,scale: [0, 1, 3, 5, 6],        density: .04, drone: .42, cutoff: 420,  pulse: 0,    interval: 1, bright: false, drip: .06, bell: .020, wind: .7 },
   victory: { semis: -1, scale: [0, 2, 3, 5, 7, 8, 11], density: .18, drone: .48, cutoff: 1200, pulse: 0,    interval: 3, bright: false, drip: .03, bell: .012, wind: .4 },
+  finale:  { semis: -1, scale: [0, 2, 3, 5, 7, 8, 11], density: .10, drone: .44, cutoff: 1050, pulse: 0,    interval: 3, bright: false, drip: .02, bell: .010, wind: .3 },
 };
 const DARKENED = new Set(['delve', 'combat', 'boss']);
 
@@ -31,15 +44,77 @@ let ctx = null, master = null, filter = null, droneGain = null, delaySend = null
 let droneOscs = [];
 let timer = null, started = false, armed = false;
 let desired = { mood: 'title', stratum: 0 };
+let preview = null; // jukebox override: { id, mood, stratum } — wins over `desired` until cleared
+let recording = null, recordingId = null;
+let paused = false, looping = true, musicVolume = 1;
 let stepIx = 4;
 let nextPulse = 0;
 let off = false;
 try { off = typeof localStorage !== 'undefined' && localStorage.getItem('cs_music_off') === '1'; } catch { /* private mode */ }
+try { looping = typeof localStorage === 'undefined' || localStorage.getItem('cs_music_loop') !== '0'; } catch { /* private mode */ }
+try { musicVolume = Math.max(0, Math.min(1, Number(localStorage.getItem('cs_music_volume') ?? 1))); } catch { /* private mode */ }
 
-function mood() { return MOODS[desired.mood] || MOODS.title; }
+function active() { return preview || desired; }
+function mood() { return MOODS[active().mood] || MOODS.title; }
+
+const RECORDINGS = {
+  home: homeTheme,
+  topsoil: topsoilCrypts,
+  fog: fogGalleries,
+  machineSeam,
+  machineRequiem,
+  camp: fallingCandlelight,
+  shop: coinwhiskersBargain,
+  boss: wardensBelow,
+  victory: survivorsDawn,
+  finale: cryptRemembered,
+  defeat: defeatLament,
+};
+
+function recordingFor(state = active()) {
+  if (state.recording) return state.recording;
+  if (state.mood === 'title') return 'home';
+  if (state.mood === 'camp') return 'camp';
+  if (state.mood === 'shop') return 'shop';
+  if (state.mood === 'defeat') return 'defeat';
+  if (state.mood === 'victory') return 'victory';
+  if (state.mood === 'finale') return 'finale';
+  if (state.mood === 'boss') return state.stratum >= 2 ? 'machineRequiem' : 'boss';
+  if (state.mood === 'delve' || state.mood === 'combat') {
+    return ['topsoil', 'fog', 'machineSeam'][Math.max(0, Math.min(2, state.stratum || 0))];
+  }
+  return null;
+}
+
+function stopRecording() {
+  if (recording) {
+    recording.pause();
+    recording.removeAttribute('src');
+    recording.load();
+  }
+  recording = null;
+  recordingId = null;
+}
+
+function syncRecording() {
+  if (off || paused || !started || typeof Audio === 'undefined') return;
+  const id = recordingFor();
+  if (!id || !RECORDINGS[id]) { stopRecording(); return; }
+  if (recordingId !== id) {
+    stopRecording();
+    recording = new Audio(RECORDINGS[id]);
+    recording.loop = looping;
+    recording.preload = 'auto';
+    recording.volume = 0.58 * musicVolume;
+    recordingId = id;
+  }
+  recording.play().catch(() => {
+    /* A platform may still defer playback until its next user gesture. */
+  });
+}
 
 function rootHz() {
-  const darken = DARKENED.has(desired.mood) ? desired.stratum : 0;
+  const darken = DARKENED.has(active().mood) ? active().stratum : 0;
   return BASE_ROOT * 2 ** ((mood().semis - darken) / 12);
 }
 
@@ -55,6 +130,7 @@ function applyMood() {
   droneGain.gain.setTargetAtTime(m.drone * 0.085, t, 1.5);
   windGain?.gain.setTargetAtTime(m.wind * 0.022, t, 2.0);
   nextPulse = t + 0.8;
+  syncRecording();
 }
 
 /* a single water drop somewhere off in the dark, caught by the cavern echo */
@@ -146,7 +222,8 @@ function start() {
 
   master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, ctx.currentTime);
-  master.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 4);
+  /* The generated bed stays below the mastered soundtrack recordings. */
+  master.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.065 * musicVolume), ctx.currentTime + 4);
   master.connect(ctx.destination);
 
   filter = ctx.createBiquadFilter();
@@ -227,6 +304,7 @@ function stop() {
   }
   ctx = master = filter = droneGain = delaySend = windGain = null;
   droneOscs = [];
+  stopRecording();
   started = false;
 }
 
@@ -246,17 +324,77 @@ function arm() {
 
 export function setMood(name, stratum = 0) {
   const next = MOODS[name] ? name : 'title';
+  /* leaving the title screen ends any jukebox preview — the run takes over */
+  if (preview && next !== 'title') preview = null;
   const changed = desired.mood !== next || desired.stratum !== stratum;
   desired = { mood: next, stratum };
-  if (started) { if (changed) applyMood(); }
+  if (started) { if (changed && !preview) applyMood(); }
   else arm();
+}
+
+/* ---- jukebox: play any unlocked mood from the title screen ----
+   The catalog names match the soundtrack plan in docs/music-prompts.md, so
+   when composed tracks replace these generative moods the list stands. */
+export const TRACKS = [
+  { id: 'title', name: 'Home', detail: 'Main theme', mood: 'title', stratum: 0, recording: 'home', unlock: () => true, hint: '' },
+  { id: 'delve1', name: 'Delve — The Topsoil Crypts', detail: 'Stratum 1', mood: 'delve', stratum: 0, recording: 'topsoil', unlock: () => true, hint: '' },
+  { id: 'camp', name: 'Falling Candlelight', detail: 'Camp', mood: 'camp', stratum: 0, recording: 'camp', unlock: p => p.campVisits >= 1, hint: 'Rest at a camp' },
+  { id: 'shop', name: "Coinwhiskers' Bargain", detail: 'Rat Merchant', mood: 'shop', stratum: 0, recording: 'shop', unlock: p => p.shopVisits >= 1, hint: 'Trade with the Rat Merchant' },
+  { id: 'boss', name: 'The Wardens Below', detail: 'Collapser and Fogfather', mood: 'boss', stratum: 0, recording: 'boss', unlock: p => p.bossFights >= 1, hint: 'Face a boss' },
+  { id: 'delve2', name: 'Delve — The Fog Galleries', detail: 'Stratum 2', mood: 'delve', stratum: 1, recording: 'fog', unlock: p => p.deepestStratum >= 1, hint: 'Reach Stratum 2' },
+  { id: 'delve3', name: 'Delve — The Machine Seam', detail: 'Stratum 3', mood: 'delve', stratum: 2, recording: 'machineSeam', unlock: p => p.deepestStratum >= 2, hint: 'Reach Stratum 3' },
+  { id: 'nn99', name: 'The Machine Requiem', detail: 'NN-99', mood: 'boss', stratum: 2, recording: 'machineRequiem', unlock: p => p.deepestStratum >= 2, hint: 'Reach Stratum 3' },
+  { id: 'defeat', name: 'Falling Again', detail: 'Defeat', mood: 'defeat', stratum: 0, recording: 'defeat', unlock: p => p.losses >= 1, hint: 'Fall in the Undermine' },
+  { id: 'victory', name: "Survivor's Dawn", detail: 'Victory', mood: 'victory', stratum: 0, recording: 'victory', unlock: p => p.wins >= 1, hint: 'Win a run' },
+  { id: 'finale', name: 'The Crypt Remembered', detail: 'Finale', mood: 'finale', stratum: 0, recording: 'finale', unlock: p => p.wins >= 1, hint: 'Win a run' },
+];
+
+export function previewTrack(track) {
+  if (!track || !MOODS[track.mood]) return;
+  preview = { id: track.id, mood: track.mood, stratum: track.stratum || 0, recording: track.recording };
+  /* previews come from a click, so the gesture gate is open */
+  if (started) applyMood();
+  else if (!off) start();
+}
+export function stopPreview() {
+  if (!preview) return;
+  preview = null;
+  if (started) applyMood();
+}
+export function previewingTrackId() { return preview?.id ?? null; }
+
+export function isMusicPaused() { return paused; }
+export function setMusicPaused(next) {
+  paused = Boolean(next);
+  if (paused) recording?.pause();
+  else syncRecording();
+  return paused;
+}
+export function restartMusic() {
+  if (recording) recording.currentTime = 0;
+  if (!paused) syncRecording();
+}
+export function isMusicLooping() { return looping; }
+export function setMusicLooping(next) {
+  looping = Boolean(next);
+  if (recording) recording.loop = looping;
+  try { localStorage.setItem('cs_music_loop', looping ? '1' : '0'); } catch { /* private mode */ }
+  return looping;
+}
+export function getMusicVolume() { return musicVolume; }
+export function setMusicVolume(next) {
+  musicVolume = Math.max(0, Math.min(1, Number(next)));
+  if (recording) recording.volume = 0.58 * musicVolume;
+  if (master && ctx) master.gain.setTargetAtTime(Math.max(0.0001, 0.065 * musicVolume), ctx.currentTime, 0.05);
+  try { localStorage.setItem('cs_music_volume', String(musicVolume)); } catch { /* private mode */ }
+  return musicVolume;
 }
 
 export function isMusicOff() { return off; }
 export function toggleMusicOff() {
   off = !off;
   try { localStorage.setItem('cs_music_off', off ? '1' : '0'); } catch { /* private mode */ }
-  if (off) stop();
+  if (off) { preview = null; stop(); } // silencing music also ends any jukebox preview
   else start(); // called from the toggle's own click, so the gesture gate is open
   return off;
 }
@@ -264,7 +402,12 @@ export function toggleMusicOff() {
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
-    if (document.hidden) ctx.suspend().catch(() => {});
-    else if (!off) ctx.resume().catch(() => {});
+    if (document.hidden) {
+      ctx.suspend().catch(() => {});
+      recording?.pause();
+    } else if (!off) {
+      ctx.resume().catch(() => {});
+      syncRecording();
+    }
   });
 }

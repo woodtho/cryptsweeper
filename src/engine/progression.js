@@ -16,6 +16,7 @@ export const UNLOCKS = {
 const defaults = () => ({
   deepestStratum: 0, maxGold: 0, cardsUpgraded: 0, safeReveals: 0,
   maxPlating: 0, fullClears: 0, wins: 0,
+  campVisits: 0, shopVisits: 0, bossFights: 0, losses: 0,
 });
 
 export function loadProgression() {
@@ -40,6 +41,13 @@ export function recordProgress(run, screen) {
   run.progressRecorded.safeReveals = run.safeReveals || 0;
   run.progressRecorded.fullClears = run.fullClears || 0;
   p.maxPlating = Math.max(p.maxPlating, run.combat?.plating || 0);
+  /* first-encounter counters (once per run each) — these feed jukebox unlocks */
+  run.progressRecorded.seen ??= {};
+  const seen = run.progressRecorded.seen;
+  if (screen === 'camp' && !seen.camp) { p.campVisits++; seen.camp = true; }
+  if (screen === 'shop' && !seen.shop) { p.shopVisits++; seen.shop = true; }
+  if (screen === 'combat' && run.combat?.kind === 'boss' && !seen.boss) { p.bossFights++; seen.boss = true; }
+  if (screen === 'gameover' && !seen.loss) { p.losses++; seen.loss = true; }
   if (screen === 'victory' && !run.winRecorded) { p.wins++; run.winRecorded = true; }
   saveProgression(p);
   return p;

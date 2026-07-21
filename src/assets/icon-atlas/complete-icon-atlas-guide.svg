@@ -280,519 +280,527 @@
     <text x="64" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">energy</text>
     <text x="64" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-32-interface-draw">
+<g id="tile-32-interface-turn">
     <rect x="128" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="136" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="128" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="137" y="408" fill="#8b9db8" font-size="13" font-weight="700">32</text>
     <text x="192" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="192" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">draw</text>
+    <text x="192" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">turn</text>
     <text x="192" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-33-interface-discard">
+<g id="tile-33-interface-draw">
     <rect x="256" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="264" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="256" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="265" y="408" fill="#8b9db8" font-size="13" font-weight="700">33</text>
     <text x="320" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="320" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">discard</text>
+    <text x="320" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">draw</text>
     <text x="320" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-34-interface-exhaust">
+<g id="tile-34-interface-discard">
     <rect x="384" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="392" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="384" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="393" y="408" fill="#8b9db8" font-size="13" font-weight="700">34</text>
     <text x="448" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="448" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">exhaust</text>
+    <text x="448" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">discard</text>
     <text x="448" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-35-interface-instinct">
+<g id="tile-35-interface-exhaust">
     <rect x="512" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="520" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="512" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="521" y="408" fill="#8b9db8" font-size="13" font-weight="700">35</text>
     <text x="576" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="576" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">instinct</text>
+    <text x="576" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">exhaust</text>
     <text x="576" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-36-interface-target">
+<g id="tile-36-interface-instinct">
     <rect x="640" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="648" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="640" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="649" y="408" fill="#8b9db8" font-size="13" font-weight="700">36</text>
     <text x="704" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="704" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">target</text>
+    <text x="704" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">instinct</text>
     <text x="704" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-37-interface-bag">
+<g id="tile-37-interface-target">
     <rect x="768" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="776" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="768" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="777" y="408" fill="#8b9db8" font-size="13" font-weight="700">37</text>
     <text x="832" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="832" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">bag</text>
+    <text x="832" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">target</text>
     <text x="832" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-38-interface-log">
+<g id="tile-38-interface-bag">
     <rect x="896" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="904" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="896" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="905" y="408" fill="#8b9db8" font-size="13" font-weight="700">38</text>
     <text x="960" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="960" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">log</text>
+    <text x="960" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">bag</text>
     <text x="960" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-39-interface-cards">
+<g id="tile-39-interface-log">
     <rect x="1024" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1032" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1024" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="1033" y="408" fill="#8b9db8" font-size="13" font-weight="700">39</text>
     <text x="1088" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="1088" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">cards</text>
+    <text x="1088" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">log</text>
     <text x="1088" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-40-interface-items">
+<g id="tile-40-interface-cards">
     <rect x="1152" y="384" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1160" y="392" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1152" y="384" width="128" height="5" fill="#8b9db8"/>
     <text x="1161" y="408" fill="#8b9db8" font-size="13" font-weight="700">40</text>
     <text x="1216" y="445" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="1216" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">items</text>
+    <text x="1216" y="464" text-anchor="middle" fill="#b7afa0" font-size="11">cards</text>
     <text x="1216" y="489" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-41-interface-services">
+<g id="tile-41-interface-items">
     <rect x="0" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="8" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="0" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="9" y="536" fill="#8b9db8" font-size="13" font-weight="700">41</text>
     <text x="64" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="64" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">services</text>
+    <text x="64" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">items</text>
     <text x="64" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-42-interface-puzzle">
+<g id="tile-42-interface-services">
     <rect x="128" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="136" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="128" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="137" y="536" fill="#8b9db8" font-size="13" font-weight="700">42</text>
     <text x="192" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="192" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">puzzle</text>
+    <text x="192" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">services</text>
     <text x="192" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-43-interface-scan">
+<g id="tile-43-interface-puzzle">
     <rect x="256" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="264" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="256" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="265" y="536" fill="#8b9db8" font-size="13" font-weight="700">43</text>
     <text x="320" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="320" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">scan</text>
+    <text x="320" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">puzzle</text>
     <text x="320" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-44-interface-upgrade">
+<g id="tile-44-interface-scan">
     <rect x="384" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="392" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="384" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="393" y="536" fill="#8b9db8" font-size="13" font-weight="700">44</text>
     <text x="448" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="448" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">upgrade</text>
+    <text x="448" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">scan</text>
     <text x="448" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-45-interface-victory">
+<g id="tile-45-interface-upgrade">
     <rect x="512" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="520" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="512" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="521" y="536" fill="#8b9db8" font-size="13" font-weight="700">45</text>
     <text x="576" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="576" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">victory</text>
+    <text x="576" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">upgrade</text>
     <text x="576" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-46-interface-bossRelic">
+<g id="tile-46-interface-victory">
     <rect x="640" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="648" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="640" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="649" y="536" fill="#8b9db8" font-size="13" font-weight="700">46</text>
     <text x="704" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="704" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">bossRelic</text>
+    <text x="704" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">victory</text>
     <text x="704" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-47-interface-camp">
+<g id="tile-47-interface-bossRelic">
     <rect x="768" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="776" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="768" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="777" y="536" fill="#8b9db8" font-size="13" font-weight="700">47</text>
     <text x="832" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="832" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">camp</text>
+    <text x="832" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">bossRelic</text>
     <text x="832" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-48-interface-buried">
+<g id="tile-48-interface-camp">
     <rect x="896" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="904" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="896" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="905" y="536" fill="#8b9db8" font-size="13" font-weight="700">48</text>
     <text x="960" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="960" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">buried</text>
+    <text x="960" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">camp</text>
     <text x="960" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-49-interface-lair">
+<g id="tile-49-interface-buried">
     <rect x="1024" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1032" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1024" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="1033" y="536" fill="#8b9db8" font-size="13" font-weight="700">49</text>
     <text x="1088" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="1088" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">lair</text>
+    <text x="1088" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">buried</text>
     <text x="1088" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-50-interface-attack">
+<g id="tile-50-interface-lair">
     <rect x="1152" y="512" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1160" y="520" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1152" y="512" width="128" height="5" fill="#8b9db8"/>
     <text x="1161" y="536" fill="#8b9db8" font-size="13" font-weight="700">50</text>
     <text x="1216" y="573" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="1216" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">attack</text>
+    <text x="1216" y="592" text-anchor="middle" fill="#b7afa0" font-size="11">lair</text>
     <text x="1216" y="617" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-51-interface-defend">
+<g id="tile-51-interface-attack">
     <rect x="0" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="8" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="0" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="9" y="664" fill="#8b9db8" font-size="13" font-weight="700">51</text>
     <text x="64" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="64" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">defend</text>
+    <text x="64" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">attack</text>
     <text x="64" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-52-interface-crater">
+<g id="tile-52-interface-defend">
     <rect x="128" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="136" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="128" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="137" y="664" fill="#8b9db8" font-size="13" font-weight="700">52</text>
     <text x="192" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="192" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">crater</text>
+    <text x="192" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">defend</text>
     <text x="192" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-53-interface-sentry">
+<g id="tile-53-interface-crater">
     <rect x="256" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="264" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="256" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="265" y="664" fill="#8b9db8" font-size="13" font-weight="700">53</text>
     <text x="320" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="320" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">sentry</text>
+    <text x="320" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">crater</text>
     <text x="320" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-54-interface-bulwark">
+<g id="tile-54-interface-sentry">
     <rect x="384" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="392" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="384" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="393" y="664" fill="#8b9db8" font-size="13" font-weight="700">54</text>
     <text x="448" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="448" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">bulwark</text>
+    <text x="448" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">sentry</text>
     <text x="448" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-55-interface-relay">
+<g id="tile-55-interface-bulwark">
     <rect x="512" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="520" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="512" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="521" y="664" fill="#8b9db8" font-size="13" font-weight="700">55</text>
     <text x="576" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="576" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">relay</text>
+    <text x="576" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">bulwark</text>
     <text x="576" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-56-interface-grub">
+<g id="tile-56-interface-relay">
     <rect x="640" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="648" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="640" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="649" y="664" fill="#8b9db8" font-size="13" font-weight="700">56</text>
     <text x="704" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="704" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">grub</text>
+    <text x="704" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">relay</text>
     <text x="704" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-57-interface-flag">
+<g id="tile-57-interface-grub">
     <rect x="768" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="776" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="768" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="777" y="664" fill="#8b9db8" font-size="13" font-weight="700">57</text>
     <text x="832" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="832" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">flag</text>
+    <text x="832" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">grub</text>
     <text x="832" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-58-interface-bomb">
+<g id="tile-58-interface-flag">
     <rect x="896" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="904" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="896" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="905" y="664" fill="#8b9db8" font-size="13" font-weight="700">58</text>
     <text x="960" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="960" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">bomb</text>
+    <text x="960" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">flag</text>
     <text x="960" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-59-interface-safe">
+<g id="tile-59-interface-bomb">
     <rect x="1024" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1032" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1024" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="1033" y="664" fill="#8b9db8" font-size="13" font-weight="700">59</text>
     <text x="1088" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="1088" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">safe</text>
+    <text x="1088" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">bomb</text>
     <text x="1088" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-60-interface-event">
+<g id="tile-60-interface-safe">
     <rect x="1152" y="640" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1160" y="648" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1152" y="640" width="128" height="5" fill="#8b9db8"/>
     <text x="1161" y="664" fill="#8b9db8" font-size="13" font-weight="700">60</text>
     <text x="1216" y="701" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="1216" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">event</text>
+    <text x="1216" y="720" text-anchor="middle" fill="#b7afa0" font-size="11">safe</text>
     <text x="1216" y="745" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-61-interface-shop">
+<g id="tile-61-interface-event">
     <rect x="0" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="8" y="776" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="0" y="768" width="128" height="5" fill="#8b9db8"/>
     <text x="9" y="792" fill="#8b9db8" font-size="13" font-weight="700">61</text>
     <text x="64" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
-    <text x="64" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">shop</text>
+    <text x="64" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">event</text>
     <text x="64" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-62-camp-rest">
+<g id="tile-62-interface-shop">
     <rect x="128" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
-    <rect x="136" y="776" width="112" height="112" fill="none" stroke="#64a476" stroke-dasharray="4 4" opacity=".45"/>
-    <rect x="128" y="768" width="128" height="5" fill="#64a476"/>
-    <text x="137" y="792" fill="#64a476" font-size="13" font-weight="700">62</text>
-    <text x="192" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">CAMP</text>
-    <text x="192" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">rest</text>
+    <rect x="136" y="776" width="112" height="112" fill="none" stroke="#8b9db8" stroke-dasharray="4 4" opacity=".45"/>
+    <rect x="128" y="768" width="128" height="5" fill="#8b9db8"/>
+    <text x="137" y="792" fill="#8b9db8" font-size="13" font-weight="700">62</text>
+    <text x="192" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">INTERFACE</text>
+    <text x="192" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">shop</text>
     <text x="192" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-63-camp-smith">
+<g id="tile-63-camp-rest">
     <rect x="256" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="264" y="776" width="112" height="112" fill="none" stroke="#64a476" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="256" y="768" width="128" height="5" fill="#64a476"/>
     <text x="265" y="792" fill="#64a476" font-size="13" font-weight="700">63</text>
     <text x="320" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">CAMP</text>
-    <text x="320" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">smith</text>
+    <text x="320" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">rest</text>
     <text x="320" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-64-camp-survey">
+<g id="tile-64-camp-smith">
     <rect x="384" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="392" y="776" width="112" height="112" fill="none" stroke="#64a476" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="384" y="768" width="128" height="5" fill="#64a476"/>
     <text x="393" y="792" fill="#64a476" font-size="13" font-weight="700">64</text>
     <text x="448" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">CAMP</text>
-    <text x="448" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">survey</text>
+    <text x="448" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">smith</text>
     <text x="448" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-65-camp-train">
+<g id="tile-65-camp-survey">
     <rect x="512" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="520" y="776" width="112" height="112" fill="none" stroke="#64a476" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="512" y="768" width="128" height="5" fill="#64a476"/>
     <text x="521" y="792" fill="#64a476" font-size="13" font-weight="700">65</text>
     <text x="576" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">CAMP</text>
-    <text x="576" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">train</text>
+    <text x="576" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">survey</text>
     <text x="576" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-66-item-blastgoggles">
+<g id="tile-66-camp-train">
     <rect x="640" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
-    <rect x="648" y="776" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
-    <rect x="640" y="768" width="128" height="5" fill="#a579cf"/>
-    <text x="649" y="792" fill="#a579cf" font-size="13" font-weight="700">66</text>
-    <text x="704" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="704" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">blastgoggles</text>
+    <rect x="648" y="776" width="112" height="112" fill="none" stroke="#64a476" stroke-dasharray="4 4" opacity=".45"/>
+    <rect x="640" y="768" width="128" height="5" fill="#64a476"/>
+    <text x="649" y="792" fill="#64a476" font-size="13" font-weight="700">66</text>
+    <text x="704" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">CAMP</text>
+    <text x="704" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">train</text>
     <text x="704" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-67-item-dowsingcharm">
+<g id="tile-67-item-blastgoggles">
     <rect x="768" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="776" y="776" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="768" y="768" width="128" height="5" fill="#a579cf"/>
     <text x="777" y="792" fill="#a579cf" font-size="13" font-weight="700">67</text>
     <text x="832" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="832" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">dowsingcharm</text>
+    <text x="832" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">blastgoggles</text>
     <text x="832" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-68-item-keystone">
+<g id="tile-68-item-dowsingcharm">
     <rect x="896" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="904" y="776" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="896" y="768" width="128" height="5" fill="#a579cf"/>
     <text x="905" y="792" fill="#a579cf" font-size="13" font-weight="700">68</text>
     <text x="960" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="960" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">keystone</text>
+    <text x="960" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">dowsingcharm</text>
     <text x="960" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-69-item-emberjar">
+<g id="tile-69-item-keystone">
     <rect x="1024" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1032" y="776" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1024" y="768" width="128" height="5" fill="#a579cf"/>
     <text x="1033" y="792" fill="#a579cf" font-size="13" font-weight="700">69</text>
     <text x="1088" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="1088" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">emberjar</text>
+    <text x="1088" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">keystone</text>
     <text x="1088" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-70-item-loadedcoin">
+<g id="tile-70-item-emberjar">
     <rect x="1152" y="768" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1160" y="776" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1152" y="768" width="128" height="5" fill="#a579cf"/>
     <text x="1161" y="792" fill="#a579cf" font-size="13" font-weight="700">70</text>
     <text x="1216" y="829" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="1216" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">loadedcoin</text>
+    <text x="1216" y="848" text-anchor="middle" fill="#b7afa0" font-size="11">emberjar</text>
     <text x="1216" y="873" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-71-item-fieldkit">
+<g id="tile-71-item-loadedcoin">
     <rect x="0" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="8" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="0" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="9" y="920" fill="#a579cf" font-size="13" font-weight="700">71</text>
     <text x="64" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="64" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">fieldkit</text>
+    <text x="64" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">loadedcoin</text>
     <text x="64" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-72-item-indexcard">
+<g id="tile-72-item-fieldkit">
     <rect x="128" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="136" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="128" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="137" y="920" fill="#a579cf" font-size="13" font-weight="700">72</text>
     <text x="192" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="192" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">indexcard</text>
+    <text x="192" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">fieldkit</text>
     <text x="192" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-73-item-wardplate">
+<g id="tile-73-item-indexcard">
     <rect x="256" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="264" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="256" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="265" y="920" fill="#a579cf" font-size="13" font-weight="700">73</text>
     <text x="320" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="320" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">wardplate</text>
+    <text x="320" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">indexcard</text>
     <text x="320" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-74-item-hexkey">
+<g id="tile-74-item-wardplate">
     <rect x="384" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="392" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="384" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="393" y="920" fill="#a579cf" font-size="13" font-weight="700">74</text>
     <text x="448" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="448" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">hexkey</text>
+    <text x="448" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">wardplate</text>
     <text x="448" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-75-item-gravebell">
+<g id="tile-75-item-hexkey">
     <rect x="512" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="520" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="512" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="521" y="920" fill="#a579cf" font-size="13" font-weight="700">75</text>
     <text x="576" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="576" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">gravebell</text>
+    <text x="576" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">hexkey</text>
     <text x="576" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-76-item-luckycompass">
+<g id="tile-76-item-gravebell">
     <rect x="640" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="648" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="640" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="649" y="920" fill="#a579cf" font-size="13" font-weight="700">76</text>
     <text x="704" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="704" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">luckycompass</text>
+    <text x="704" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">gravebell</text>
     <text x="704" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-77-item-quill">
+<g id="tile-77-item-luckycompass">
     <rect x="768" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="776" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="768" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="777" y="920" fill="#a579cf" font-size="13" font-weight="700">77</text>
     <text x="832" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="832" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">quill</text>
+    <text x="832" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">luckycompass</text>
     <text x="832" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-78-item-detector">
+<g id="tile-78-item-quill">
     <rect x="896" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="904" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="896" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="905" y="920" fill="#a579cf" font-size="13" font-weight="700">78</text>
     <text x="960" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="960" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">detector</text>
+    <text x="960" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">quill</text>
     <text x="960" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-79-item-tally">
+<g id="tile-79-item-detector">
     <rect x="1024" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1032" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1024" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="1033" y="920" fill="#a579cf" font-size="13" font-weight="700">79</text>
     <text x="1088" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="1088" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">tally</text>
+    <text x="1088" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">detector</text>
     <text x="1088" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-80-item-pitons">
+<g id="tile-80-item-tally">
     <rect x="1152" y="896" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="1160" y="904" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="1152" y="896" width="128" height="5" fill="#a579cf"/>
     <text x="1161" y="920" fill="#a579cf" font-size="13" font-weight="700">80</text>
     <text x="1216" y="957" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="1216" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">pitons</text>
+    <text x="1216" y="976" text-anchor="middle" fill="#b7afa0" font-size="11">tally</text>
     <text x="1216" y="1001" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-81-item-canary">
+<g id="tile-81-item-pitons">
     <rect x="0" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="8" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="0" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="9" y="1048" fill="#a579cf" font-size="13" font-weight="700">81</text>
     <text x="64" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="64" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">canary</text>
+    <text x="64" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">pitons</text>
     <text x="64" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-82-item-lamp">
+<g id="tile-82-item-canary">
     <rect x="128" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="136" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="128" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="137" y="1048" fill="#a579cf" font-size="13" font-weight="700">82</text>
     <text x="192" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="192" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">lamp</text>
+    <text x="192" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">canary</text>
     <text x="192" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-83-item-dowsingrod">
+<g id="tile-83-item-lamp">
     <rect x="256" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="264" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="256" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="265" y="1048" fill="#a579cf" font-size="13" font-weight="700">83</text>
     <text x="320" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="320" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">dowsingrod</text>
+    <text x="320" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">lamp</text>
     <text x="320" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-84-item-metaldetector">
+<g id="tile-84-item-dowsingrod">
     <rect x="384" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="392" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="384" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="393" y="1048" fill="#a579cf" font-size="13" font-weight="700">84</text>
     <text x="448" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="448" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">metaldetector</text>
+    <text x="448" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">dowsingrod</text>
     <text x="448" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-85-item-chalk">
+<g id="tile-85-item-metaldetector">
     <rect x="512" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="520" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="512" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="521" y="1048" fill="#a579cf" font-size="13" font-weight="700">85</text>
     <text x="576" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="576" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">chalk</text>
+    <text x="576" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">metaldetector</text>
     <text x="576" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-86-item-nitro">
+<g id="tile-86-item-chalk">
     <rect x="640" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="648" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="640" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="649" y="1048" fill="#a579cf" font-size="13" font-weight="700">86</text>
     <text x="704" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="704" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">nitro</text>
+    <text x="704" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">chalk</text>
     <text x="704" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-87-item-platingdraught">
+<g id="tile-87-item-nitro">
     <rect x="768" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="776" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="768" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="777" y="1048" fill="#a579cf" font-size="13" font-weight="700">87</text>
     <text x="832" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="832" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">platingdraught</text>
+    <text x="832" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">nitro</text>
     <text x="832" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="tile-88-item-smokebomb">
+<g id="tile-88-item-platingdraught">
     <rect x="896" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
     <rect x="904" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
     <rect x="896" y="1024" width="128" height="5" fill="#a579cf"/>
     <text x="905" y="1048" fill="#a579cf" font-size="13" font-weight="700">88</text>
     <text x="960" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
-    <text x="960" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">smokebomb</text>
+    <text x="960" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">platingdraught</text>
     <text x="960" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
   </g>
-<g id="unused-89"><rect x="1024" y="1024" width="128" height="128" fill="#090a0d" stroke="#343946"/><text x="1088" y="1092" text-anchor="middle" fill="#596273" font-size="12">UNUSED</text></g>
+<g id="tile-89-item-smokebomb">
+    <rect x="1024" y="1024" width="128" height="128" fill="#12151b" stroke="#4b5363"/>
+    <rect x="1032" y="1032" width="112" height="112" fill="none" stroke="#a579cf" stroke-dasharray="4 4" opacity=".45"/>
+    <rect x="1024" y="1024" width="128" height="5" fill="#a579cf"/>
+    <text x="1033" y="1048" fill="#a579cf" font-size="13" font-weight="700">89</text>
+    <text x="1088" y="1085" text-anchor="middle" fill="#f1eadc" font-size="12" font-weight="700">ITEM</text>
+    <text x="1088" y="1104" text-anchor="middle" fill="#b7afa0" font-size="11">smokebomb</text>
+    <text x="1088" y="1129" text-anchor="middle" fill="#596273" font-size="9">DRAW OVER THIS TILE</text>
+  </g>
 <g id="unused-90"><rect x="1152" y="1024" width="128" height="128" fill="#090a0d" stroke="#343946"/><text x="1216" y="1092" text-anchor="middle" fill="#596273" font-size="12">UNUSED</text></g></g>
 </svg>

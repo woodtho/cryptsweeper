@@ -3,24 +3,22 @@ import { createElement } from 'react';
 /* Central icon-set manifest and runtime extension API. Add a built-in family
    once here; specialized art domains can then provide artwork or inherit. */
 export const ICON_SET_MANIFEST = [
-  ['emoji', 'Emoji'], ['crypt', 'Graveyard'], ['marks', "Delver's Marks"], ['runes', 'Carved Runes'],
+  ['main', 'Main Icons'], ['emoji', 'Emoji'], ['crypt', 'Graveyard'], ['marks', "Delver's Marks"],
   ['dungeon', 'Dungeon'], ['deepwild', 'Deep Wild'], ['sunken', 'Sunken'], ['arcane', 'Arcane'],
-  ['gearworks', 'Gearworks'], ['beasts', 'Beasts'], ['stone', 'Etched Stone'], ['iron', 'Black Iron'],
-  ['bone', 'Ossuary'], ['thorn', 'Briar'], ['crystal', 'Hex Crystal'], ['clock', 'Clockwork'],
-  ['abyss', 'Abyssal'], ['candle', 'Candlelit'], ['royal', 'Old Kingdom'], ['blood', 'Blood Sigils'],
+  ['gearworks', 'Gearworks'], ['beasts', 'Beasts'],
 ];
 
 export const BUILTIN_ICON_SETS = Object.fromEntries(ICON_SET_MANIFEST.map(([id, label]) => [id, { id, label, builtin: true }]));
 
 export const FLAG_BOMB_ART = {
-  emoji: { flag: '🚩', bomb: '💣' }, crypt: { flag: '⚑', bomb: '🧨' }, marks: { flag: 'svg:flag', bomb: 'svg:mine' },
-  runes: { flag: '⚑', bomb: '✹' }, dungeon: { flag: '🚩', bomb: '🧨' }, deepwild: { flag: '🪶', bomb: '🌰' },
+  emoji: { flag: '🚩', bomb: '💣' }, crypt: { flag: '⚑', bomb: '🧨' }, marks: { flag: 'svg:flag', bomb: 'svg:bombmark' },
+  dungeon: { flag: '🚩', bomb: '🧨' }, deepwild: { flag: '🚩', bomb: '💥' },
   sunken: { flag: '⚐', bomb: '💥' }, arcane: { flag: '⚑', bomb: '🌠' }, gearworks: { flag: '🚩', bomb: '🧨' },
-  beasts: { flag: '🪶', bomb: '🐝' },
+  beasts: { flag: '🚩', bomb: '🐝' },
 };
 
 const INTERFACE_SLOTS = [
-  'health', 'gold', 'menu', 'deck', 'block', 'plating', 'insight', 'mines', 'picks', 'energy',
+  'health', 'gold', 'menu', 'deck', 'block', 'plating', 'insight', 'mines', 'picks', 'energy', 'turn',
   'draw', 'discard', 'exhaust', 'instinct', 'target', 'bag', 'log', 'cards', 'items', 'services',
   'puzzle', 'scan', 'upgrade', 'victory', 'bossRelic', 'camp', 'buried', 'lair', 'attack', 'defend',
   'crater', 'sentry', 'bulwark', 'relay', 'grub', 'flag', 'bomb', 'safe', 'event', 'shop',
@@ -38,17 +36,29 @@ export const ATLAS_SLOT_GROUPS = {
   item: ITEM_SLOTS,
 };
 export const ATLAS_GROUP_LABELS = { all: 'Complete set', map: 'Map', enemy: 'Enemies', interface: 'Interface & board', camp: 'Camp', item: 'Items' };
+/* Shape of the complete-set sheet, shared by the template generator, the
+   rendered sheets in assets/icon-atlas/sets, and the reader below. */
+export const ATLAS_LAYOUT = { columns: 10, rows: 9, tile: 128 };
 
 export function atlasSlots(group = 'all') {
   const domains = group === 'all' ? Object.keys(ATLAS_SLOT_GROUPS) : [group];
   return domains.flatMap(domain => ATLAS_SLOT_GROUPS[domain].map(key => ({ domain, key, label: key.replace(/([A-Z])/g, ' $1') })));
 }
 
+/* Sets contributed by code rather than by the player — see atlasSets.js, which
+   registers the rendered sheets shipped in assets/icon-atlas/sets. Kept out of
+   preferences so they are never written back to storage. */
+let registeredSets = {};
+export function registerIconSets(sets) { registeredSets = { ...registeredSets, ...sets }; }
+
 export function customIconSets(prefs) {
-  return prefs?.customIconSets && typeof prefs.customIconSets === 'object' ? prefs.customIconSets : {};
+  const stored = prefs?.customIconSets && typeof prefs.customIconSets === 'object' ? prefs.customIconSets : {};
+  return { ...registeredSets, ...stored };
 }
 export function iconSetEntries(prefs) {
-  return [...ICON_SET_MANIFEST.map(([id, label]) => [id, { id, label, builtin: true }]), ...Object.entries(customIconSets(prefs))];
+  const custom = customIconSets(prefs);
+  const builtins = ICON_SET_MANIFEST.map(([id, label]) => [id, custom[id] || { id, label, builtin: true }]);
+  return [...builtins, ...Object.entries(custom).filter(([id]) => !BUILTIN_ICON_SETS[id])];
 }
 export function iconSetIds(prefs) { return iconSetEntries(prefs).map(([id]) => id); }
 export function iconSetLabel(id, prefs) { return customIconSets(prefs)[id]?.label || BUILTIN_ICON_SETS[id]?.label || id; }

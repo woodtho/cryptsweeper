@@ -25,11 +25,16 @@ export const MECHANICS = {
   construct: { name: 'Construct', summary: 'A device built on an open tile. Constructs act each turn and can absorb enemy board attacks.', related: ['plating', 'block', 'entomb'] },
   power: { name: 'Power', summary: 'A card that creates a combat-long passive effect instead of entering the discard pile.', related: ['energy', 'exhaust'] },
   exhaust: { name: 'Exhaust', summary: 'Remove a card from your draw cycle for the rest of the current combat.', related: ['power', 'energy'] },
+  claustrophobia: { name: 'Claustrophobia', summary: 'A persistent Curse card. It is unplayable, and each copy in your deck makes every combat board spawn with 2 additional mines.', related: ['mines', 'deck', 'full clear'] },
+  vertigo: { name: 'Vertigo', summary: 'A persistent Curse card. Each copy reduces your maximum Picks by 1 in every combat, but never below 1.', related: ['picks', 'max picks', 'deck'] },
+  exhaustion: { name: 'Exhaustion', summary: 'A persistent Curse card. Each copy reduces your normal draw by 1 card per turn, but never below 3 cards.', related: ['deck', 'energy'] },
+  'night terrors': { name: 'Night Terrors', summary: 'A persistent Curse card. Each copy removes 1 Energy from the first turn of every combat.', related: ['energy', 'deck'] },
+  paranoia: { name: 'Paranoia', summary: 'A persistent Curse card. Each copy places one ordinary flag on a safe hidden tile at combat start.', related: ['flag', 'mines', 'deck'] },
   surveyor: { name: 'Surveyor', summary: 'A Delver focused on scans, safe inference, and converting Insight into damage.', related: ['scan', 'insight'] },
   warden: { name: 'Warden', summary: 'A defensive Delver who retains one quarter of their Block between turns.', related: ['block', 'plating'] },
 };
 
-const ALIASES = { pick: 'picks', flags: 'flag', 'verified-flag': 'verified flag', constructs: 'construct', lairs: 'lair' };
+const ALIASES = { pick: 'picks', flags: 'flag', 'verified-flag': 'verified flag', constructs: 'construct', lairs: 'lair', claustophobia: 'claustrophobia', nightterrors: 'night terrors' };
 export function mechanicKey(value) {
   const key = String(value || '').trim().toLowerCase().replace(/[.:,!]+$/, '');
   return MECHANICS[key] ? key : ALIASES[key];

@@ -5,8 +5,8 @@ import { useGame } from './useGame.js';
 import {
   run, ui, cbt, endTurn, cancelTargeting, closeModal, closeCutscene, goHome,
 } from '../engine/engine.js';
-import { isMuted, toggleMuted } from '../engine/sfx.js';
-import { setMood, isMusicOff, toggleMusicOff } from '../engine/music.js';
+import { getSfxVolume, isMuted, setSfxVolume, toggleMuted } from '../engine/sfx.js';
+import { getMusicVolume, setMood, isMusicOff, setMusicVolume, toggleMusicOff } from '../engine/music.js';
 import { applyPreferences, loadPreferences, savePreferences } from '../engine/preferences.js';
 import { TitleScreen, MapScreen, RewardScreen, CampScreen, ShopScreen, EventScreen, PuzzleScreen, GameOverScreen, InGameMenu } from './screens.jsx';
 import { CombatScreen } from './CombatScreen.jsx';
@@ -55,6 +55,8 @@ export function App() {
   useGame();
   const [muted, setMuted] = useState(isMuted());
   const [musicOff, setMusicOff] = useState(isMusicOff());
+  const [sfxLevel, setSfxLevel] = useState(getSfxVolume());
+  const [musicLevel, setMusicLevel] = useState(getMusicVolume());
   const [preferences, setPreferences] = useState(loadPreferences);
   const [gameMenuOpen, setGameMenuOpen] = useState(false);
   const [testTour, setTestTour] = useState(null);
@@ -82,7 +84,8 @@ export function App() {
   /* keep the ambient score in step with wherever the player is */
   useEffect(() => {
     let mood = 'title';
-    if (run && ui.screen !== 'title') {
+    if (ui.cutscene?.id === 'finale') mood = 'finale';
+    else if (run && ui.screen !== 'title') {
       if (ui.screen === 'combat') mood = run.combat?.kind === 'boss' ? 'boss' : 'combat';
       else if (ui.screen === 'camp') mood = 'camp';
       else if (ui.screen === 'shop') mood = 'shop';
@@ -137,9 +140,13 @@ export function App() {
     <TitleScreen
       muted={muted}
       musicOff={musicOff}
+      sfxLevel={sfxLevel}
+      musicLevel={musicLevel}
       preferences={preferences}
       onMutedChange={() => setMuted(toggleMuted())}
       onMusicOffChange={() => setMusicOff(toggleMusicOff())}
+      onSfxLevelChange={value => setSfxLevel(setSfxVolume(value))}
+      onMusicLevelChange={value => setMusicLevel(setMusicVolume(value))}
       onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))}
       onTestAll={() => startTestTour(TEST_ALL_CASES)}
       onTestSection={startTestTour}
@@ -164,9 +171,11 @@ export function App() {
       </div>
       {ui.cutscene && <Cutscene key={ui.cutscene.id} />}
       {gameMenuOpen && run && <InGameMenu
-        muted={muted} musicOff={musicOff} preferences={preferences}
+        muted={muted} musicOff={musicOff} sfxLevel={sfxLevel} musicLevel={musicLevel} preferences={preferences}
         onMutedChange={() => setMuted(toggleMuted())}
         onMusicOffChange={() => setMusicOff(toggleMusicOff())}
+        onSfxLevelChange={value => setSfxLevel(setSfxVolume(value))}
+        onMusicLevelChange={value => setMusicLevel(setMusicVolume(value))}
         onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))}
         onClose={() => setGameMenuOpen(false)} />}
       <MechanicTooltip />

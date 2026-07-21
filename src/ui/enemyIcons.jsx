@@ -3,7 +3,7 @@
    map's Delver's Marks: 24×24, 1.7px round strokes, currentColor throughout.
    Tokens are stored as 'svg:<name>' so they survive in preferences. */
 
-import { Mark, themedVector, VECTOR_THEMES } from './mapIcons.jsx';
+import { Mark } from './mapIcons.jsx';
 import { customIconSets, customSetBase, customSetIcon, iconSetLabel, resolveAtlasIcon } from './iconSets.js';
 
 export const BEAST_MARKS = {
@@ -164,9 +164,9 @@ const LEGACY_ENEMY_ICON_STYLES = {
   dungeon: {
     label: 'Dungeon',
     icons: {
-      grubber: '🐀', minelayer: '🗡️', warden: '🛡️', wisp: '🧚', shade: '🧛',
+      grubber: '🐀', minelayer: '👺', warden: '🗿', wisp: '🧚', shade: '🧛',
       tunneler: '🐍', clockwork: '🤺', gearhusk: '🔨', ossuary: '🦴',
-      miscounter: '🎲', detonata: '🔥', collapser: '⛓️', fogfather: '🌫️', nn99: '🐉',
+      miscounter: '🎲', detonata: '💣', collapser: '⛓️', fogfather: '🌫️', nn99: '🛰️',
     },
   },
   fauna: {
@@ -181,7 +181,7 @@ const LEGACY_ENEMY_ICON_STYLES = {
     label: 'Sunken',
     icons: {
       grubber: '🐟', minelayer: '🦐', warden: '🐳', wisp: '💧', shade: '🌊',
-      tunneler: '🐚', clockwork: '⚓', gearhusk: '⛵', ossuary: '🐡',
+      tunneler: '🪱', clockwork: '⚓', gearhusk: '⛵', ossuary: '🐡',
       miscounter: '🦞', detonata: '💥', collapser: '🌀', fogfather: '🚢', nn99: '🦑',
     },
   },
@@ -224,21 +224,9 @@ const ENEMY_BASE = {
   clockwork: 'cog', gearhusk: 'husk', ossuary: 'skull', miscounter: 'mask', detonata: 'bomb',
   collapser: 'spiral', fogfather: 'bell', nn99: 'lens',
 };
-const themedBeasts = {};
-for (const [theme, def] of Object.entries(VECTOR_THEMES)) {
-  for (const [name, mark] of Object.entries(BEAST_MARKS)) themedBeasts[`${theme}-${name}`] = themedVector(mark, def.frame);
-}
-Object.assign(BEAST_MARKS, themedBeasts);
-
-const VECTOR_ENEMY_ICON_STYLES = Object.fromEntries(Object.entries(VECTOR_THEMES).map(([theme, def]) => [theme, {
-  label: def.label,
-  icons: Object.fromEntries(Object.entries(ENEMY_BASE).map(([enemy, mark]) => [enemy, `svg:${theme}-${mark}`])),
-}]));
-
-/* The original artwork remains available alongside the ten new vector sets. */
+/* Native bestiaries plus the hand-drawn Delver's Bestiary. */
 export const ENEMY_ICON_STYLES = {
   ...LEGACY_ENEMY_ICON_STYLES,
-  ...VECTOR_ENEMY_ICON_STYLES,
   mixer: { label: 'Mix & Match', icons: {} },
 };
 
@@ -263,7 +251,7 @@ export function resolveEnemyIcon(icon, prefs = null) {
    first (emoji text or an 'svg:' mark token), then the chosen style, then
    the enemy's own emoji from data. */
 export function enemyIcon(key, def, prefs) {
-  let styleKey = prefs?.enemyIconStyle;
+  let styleKey = prefs?.enemyIconStyle || 'main';
   if (styleKey === 'mixer') {
     const choice = prefs?.enemyIconMix?.[key];
     styleKey = choice?.style && choice.style !== 'mixer' ? choice.style : 'classic';

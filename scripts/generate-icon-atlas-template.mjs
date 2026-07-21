@@ -1,13 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { atlasSlots } from '../src/ui/iconSets.js';
+import { ATLAS_LAYOUT, atlasSlots } from '../src/ui/iconSets.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, '../src/assets/icon-atlas');
-const tile = 128;
-const columns = 10;
-const rows = 9;
+const { tile, columns, rows } = ATLAS_LAYOUT;
 const width = columns * tile;
 const height = rows * tile;
 const slots = atlasSlots('all');

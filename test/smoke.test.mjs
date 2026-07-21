@@ -6,14 +6,14 @@ import {
   takeRewardCard, finishReward, genShop, buyShopCard,
   startPuzzle, puzzleClick, devourRing, hitEnemy, checkNNPhase,
   detonateForCards, fleeCombat,
-  SHAPES, annexTiles, addMineAt, clickTile, PICKS_PER_TURN,
+  SHAPES, annexTiles, addMineAt, clickTile, basePicksFor,
   saveRun, listSaves, loadRun, deleteSave, goHome,
   scanTile, addConstruct,
   campTrainPicks, closeCutscene, closeModal,
-  EVENT_CATALOG, eventChoice, currentEventView, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
+  EVENT_CATALOG, eventChoice, currentEventView, startSpecificEvent, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
   toggleLightsCell, toggleNonogramCell, answerSequence,
 } from '../src/engine/engine.js';
-import { CARDS, CLASSES, TRINKETS } from '../src/engine/data.js';
+import { CARDS, CLASSES, TRINKETS, STRATA, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import { observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep } from '../src/bot/gameBot.js';
@@ -68,8 +68,8 @@ T('opening cascade revealed tiles', board().cells.filter(x => x.revealed).length
 
 const safeHidden = hiddenIdx().find(i => !board().cells[i].mine);
 const insight0 = cbt().insight;
-revealTile(safeHidden, 'reveal');
-T('safe reveal opens tile', board().cells[safeHidden].revealed);
+const safeResult = revealTile(safeHidden, 'reveal');
+T('safe reveal opens tile', safeResult.safe);
 T('insight gained on safe reveal', cbt().insight > insight0);
 
 /* 4 — instinct saves first mine; second mine pierces block */
@@ -220,7 +220,8 @@ R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
 checkLogicPuzzle();
 T('Sudoku can be solved through engine actions', R().puzzle.solved === true);
 startPuzzle('crossword');
-T('crossword puzzle has a persisted 3x3 grid and clues', R().puzzle.type === 'crossword' && R().puzzle.values.length === 9 && R().puzzle.clues.length === 3);
+T('crossword puzzle has a persisted 3x3 grid and distinct clue lists', R().puzzle.type === 'crossword'
+  && R().puzzle.values.length === 9 && R().puzzle.acrossClues.length === 3 && R().puzzle.downClues.length === 3);
 R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
 checkLogicPuzzle();
 T('crossword can be solved through engine actions', R().puzzle.solved === true);
@@ -257,13 +258,15 @@ loadRun('slot2');
 T('mid-event saves preserve hidden outcomes without rerolling', ui.screen === 'event' && R().eventState.hiddenRoll === hiddenEventRoll && !R().eventState.observed);
 eventChoice('observe');
 eventChoice('a');
-T('behavioral choices resolve consequences and reveal the concept afterward', R().eventHistory.at(-1)?.id === 'mean-median' && ui.modal?.html.includes('What this tested') && ui.modal.html.includes('Mean versus median'));
+T('behavioral choices resolve with direct consequences and no lesson afterward', R().eventHistory.at(-1)?.id === 'mean-median'
+  && Boolean(ui.modal?.html) && !ui.modal.html.includes('What this tested') && !ui.modal.html.includes('Mean versus median'));
 const resolvedEventGold = R().gold;
 const resolvedHistoryLength = R().eventHistory.length;
 saveRun('slot2');
 closeModal();
 loadRun('slot2');
-T('resolved event explanations resume after an app reload', ui.screen === 'event' && ui.modal?.html.includes('What this tested'));
+T('resolved event consequences resume after an app reload', ui.screen === 'event'
+  && Boolean(ui.modal?.html) && !ui.modal.html.includes('What this tested'));
 eventChoice('b');
 T('a resumed resolved event cannot grant consequences twice', R().gold === resolvedEventGold && R().eventHistory.length === resolvedHistoryLength);
 closeModal();
@@ -370,7 +373,8 @@ startCombat('dig');
     board().cells.filter(x => !x.void).length === playable1 + 3
     && board().cells.filter(x => !x.void && x.scan === 'safe' && !x.mine).length >= 3);
 
-  T('turn starts with 4 picks', cc.picks === PICKS_PER_TURN && PICKS_PER_TURN === 4);
+  const classPicks = basePicksFor(R().cls);
+  T('turn starts with the selected Delver\'s picks', cc.picks === classPicks);
   let used = 0;
   while (cc.picks > 0 && used < 10) {
     const t = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
@@ -378,16 +382,16 @@ startCombat('dig');
     clickTile(t);
     used++;
   }
-  T('4 free clicks consume all picks', cc.picks === 0 && used === 4);
+  T('the Delver\'s free clicks consume all picks', cc.picks === 0 && used === classPicks);
   const extra = hiddenIdx().find(i => !board().cells[i].mine && !board().cells[i].flag);
   if (extra != null) {
     clickTile(extra);
-    T('5th free click is rejected', !board().cells[extra].revealed);
+    T('an extra free click is rejected', !board().cells[extra].revealed);
     revealTile(extra, 'card-safe');
     T('card reveals bypass the pick limit', board().cells[extra].revealed);
-  } else console.log('skip  5th-click test (no hidden safe tile left)');
+  } else console.log('skip  extra-click test (no hidden safe tile left)');
   endTurn();
-  if (R().combat && !cbt().over) T('picks reset next turn', cbt().picks === PICKS_PER_TURN);
+  if (R().combat && !cbt().over) T('picks reset next turn', cbt().picks === classPicks);
 }
 
 /* 12 — solver quality report (shaped boards) */
@@ -482,10 +486,43 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     CLASSES[cls].deck.length === 10
     && CLASSES[cls].deck.every(key => CARDS[key])
     && TRINKETS[CLASSES[cls].trinket]?.tier === 'starter'));
-  T('catalog contains exactly 200 uniquely named cards', Object.keys(CARDS).length === 200
-    && new Set(Object.values(CARDS).map(card => card.name)).size === 200);
-  T('every Delver has at least 19 class cards', classKeys.every(cls =>
-    Object.values(CARDS).filter(card => card.cls === cls).length >= 19));
+  const expectedBasePicks = {
+    sapper: 3, surveyor: 5, terraformer: 4, lamplighter: 4, gambler: 4,
+    chirurgeon: 3, archivist: 5, warden: 3, hexwright: 5, revenant: 4,
+  };
+  T('Delvers use the reviewed class-specific base-pick tiers', classKeys.every(cls =>
+    basePicksFor(cls) === expectedBasePicks[cls])
+    && new Set(classKeys.map(basePicksFor)).size === 3);
+  T('every Delver enters combat with their own base picks', classKeys.every(cls => {
+    newRun(cls, { testMode: true });
+    startCombat('dig');
+    return cbt().picks === expectedBasePicks[cls] && cbt().maxPicks === expectedBasePicks[cls];
+  }));
+  T('catalog contains exactly 704 uniquely named cards', Object.keys(CARDS).length === 704
+    && new Set(Object.values(CARDS).map(card => card.name)).size === 704);
+  T('every Delver has at least 64 class cards', classKeys.every(cls =>
+    Object.values(CARDS).filter(card => card.cls === cls).length >= 64));
+
+  const expansion = Object.entries(CARDS).filter(([key]) => key.startsWith('x500_'));
+  const tierCount = tier => expansion.filter(([, card]) => card.designTier === tier).length;
+  const allowedTargets = new Set(['hidden', 'open', 'number', 'row', 'anytile']);
+  const requiredDesignFields = ['mechanicsUsed', 'archetype', 'value', 'entry', 'keepOrRemove', 'example', 'balanceRisks', 'tuningRange', 'overlap'];
+  T('500-card expansion has the requested design distribution', expansion.length === 500
+    && tierCount('common') === 150 && tierCount('uncommon') === 135
+    && tierCount('rare') === 115 && tierCount('exceptional') === 50
+    && tierCount('burden') === 50);
+  T('all expansion definitions use existing card schema and mechanics hooks', expansion.every(([, card]) =>
+    ['Attack', 'Skill', 'Status', 'Curse'].includes(card.type)
+    && ['common', 'uncommon', 'rare', 'special'].includes(card.rarity)
+    && Array.isArray(card.cost) && card.cost.length === 2 && card.cost.every(cost => Number.isInteger(cost) && cost >= 0 && cost <= 3)
+    && Array.isArray(card.targets) && card.targets.every(target => allowedTargets.has(target))
+    && typeof card.text === 'function' && typeof card.text(0) === 'string' && typeof card.text(1) === 'string'
+    && typeof card.play === 'function'
+    && requiredDesignFields.every(field => card.design?.[field] && (field !== 'mechanicsUsed' || Array.isArray(card.design[field])))));
+  const burdens = expansion.filter(([, card]) => card.designTier === 'burden');
+  T('all deck burdens stay outside normal rewards and retain player agency', burdens.every(([, card]) =>
+    card.cls == null && card.rarity === 'special' && ['Status', 'Curse'].includes(card.type)
+    && card.exhaust === true && !card.unplayable && !/lose \d+ HP/i.test(card.text(0))));
 
   resetProgressionForTests();
   let progress = loadProgression();
@@ -514,23 +551,24 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
 {
   newRun('lamplighter', { daily: 'pick-economy' });
   startCombat('dig');
+  const lampBasePicks = basePicksFor('lamplighter');
   const picks0 = cbt().picks;
   CARDS.exp_lamplighter_7.play(0);
-  T('base pick economy starts at four and cards grant temporary picks',
-    picks0 === 4 && cbt().maxPicks === 4 && cbt().picks === 5);
+  T('class base pick economy and cards grant temporary picks',
+    picks0 === lampBasePicks && cbt().maxPicks === lampBasePicks && cbt().picks === lampBasePicks + 1);
 
   CARDS.lanternloan.play(1);
   T('an upgraded card can raise current and max picks for combat',
-    cbt().picks === 7 && cbt().maxPicks === 5);
+    cbt().picks === lampBasePicks + 3 && cbt().maxPicks === lampBasePicks + 1);
   cbt().enemies[0].hp += 100;
   cbt().enemies[0].maxHp += 100;
   const enemyHp = cbt().enemies[0].hp;
   CARDS.hardlesson.play(0);
   T('pick-spending attacks consume current picks for impact',
-    cbt().picks === 4 && cbt().enemies[0].hp === enemyHp - 18);
+    cbt().picks === lampBasePicks && cbt().enemies[0].hp === enemyHp - 18);
   CARDS.emergencyexit.play(0);
   T('trade-off cards can lower max picks in exchange for defense',
-    cbt().maxPicks === 4 && cbt().picks === 4 && cbt().plating >= 12);
+    cbt().maxPicks === lampBasePicks && cbt().picks === lampBasePicks && cbt().plating >= 12);
 
   newRun('lamplighter', { daily: 'pick-training' });
   campTrainPicks();
@@ -542,11 +580,53 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   deleteSave('pick-training');
   startCombat('dig');
   T('camp training persists and raises max picks for the run up to its cap',
-    R().pickBonus === 2 && cbt().maxPicks === PICKS_PER_TURN + 2 && cbt().picks === PICKS_PER_TURN + 2);
+    R().pickBonus === 2 && cbt().maxPicks === lampBasePicks + 2 && cbt().picks === lampBasePicks + 2);
 
   const marked = decorateMechanics('Gain Block, Scan a tile, then earn a pick for Full Clear.');
   T('mechanic glossary decorates specific terms with interactive hooks',
     ['block', 'scan', 'picks', 'full clear'].every(key => marked.includes(`data-mechanic="${key}"`)));
+  const curseMarked = decorateMechanics('Claustrophobia (sometimes misspelled claustophobia) adds mines.');
+  T('Claustrophobia and its common misspelling open the curse mechanic definition',
+    (curseMarked.match(/data-mechanic="claustrophobia"/g) || []).length === 2);
+}
+
+/* ================= persistent curse family ================= */
+{
+  const curseKeys = Object.keys(PERSISTENT_CURSES);
+  T('five persistent curse types have unplayable Curse cards', curseKeys.length === 5 && curseKeys.every(key =>
+    CARDS[key]?.type === 'Curse' && CARDS[key].unplayable && CARDS[key].cost == null));
+
+  newRun('sapper'); R().deck.push({ key:'claustrophobia', up:0 }); startCombat('dig');
+  T('Claustrophobia adds two mines to each combat board', cbt().boardSpec.mines === STRATA[0].mines + 2);
+
+  newRun('sapper'); R().deck.push({ key:'vertigo', up:0 }); startCombat('dig');
+  T('Vertigo reduces max Picks for the combat', cbt().maxPicks === basePicksFor('sapper') - 1);
+
+  newRun('sapper'); R().deck.push({ key:'exhaustion', up:0 }); startCombat('dig');
+  T('Exhaustion reduces normal cards drawn per turn', cbt().hand.length === 4);
+
+  newRun('sapper'); R().deck.push({ key:'nightterrors', up:0 }); startCombat('dig');
+  T('Night Terrors removes first-turn Energy without lowering max Energy', cbt().energy === cbt().maxEnergy - 1);
+
+  newRun('sapper'); R().deck.push({ key:'paranoia', up:0 }); startCombat('dig');
+  T('Paranoia starts combat with a false flag on a safe tile', board().cells.some(cell => cell.flag === 1 && !cell.mine));
+
+  newRun('sapper'); R().deck.push(...Array.from({ length:10 }, () => ({ key:'vertigo', up:0 }))); startCombat('dig');
+  const pickFloor = cbt().maxPicks === 1;
+  newRun('sapper'); R().deck.push(...Array.from({ length:10 }, () => ({ key:'exhaustion', up:0 }))); startCombat('dig');
+  const drawFloor = cbt().hand.length === 3;
+  newRun('sapper'); R().deck.push(...Array.from({ length:10 }, () => ({ key:'nightterrors', up:0 }))); startCombat('dig');
+  T('stacked economic curses respect their playable floors', pickFloor && drawFloor && cbt().energy === 0);
+
+  const eventCurses = new Set(); let eventApplied = true;
+  for (let i = 0; i < 80; i++) {
+    newRun('sapper', { daily:`persistent-curse-${i}`, testMode:true }); closeCutscene(); startSpecificEvent('corpse');
+    const curse = R().eventState.curseKey;
+    eventCurses.add(curse); eventChoice('b');
+    eventApplied &&= R().deck.some(card => card.key === curse);
+    closeModal();
+  }
+  T('curse-bearing events can apply every persistent curse type', eventApplied && curseKeys.every(key => eventCurses.has(key)));
 }
 
 /* ================= single free edition: no purchase or paywall gates ================= */

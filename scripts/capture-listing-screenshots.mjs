@@ -3,11 +3,13 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const cwd = process.cwd();
-const out = path.join(cwd, 'listing-assets', 'google-play');
+const out = process.env.CAPTURE_OUTPUT
+  ? path.resolve(cwd, process.env.CAPTURE_OUTPUT)
+  : path.join(cwd, 'listing-assets', 'google-play');
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const appUrl = 'http://127.0.0.1:4174/';
 const debugPort = 9333;
-const profile = path.join(cwd, 'tmp', 'listing-chrome-profile');
+const profile = path.join(cwd, 'tmp', `listing-chrome-profile-${process.pid}`);
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function waitFor(url, attempts = 100) {
@@ -20,7 +22,7 @@ async function waitFor(url, attempts = 100) {
 
 await rm(profile, { recursive: true, force: true });
 const vite = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm',
-  ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '4174'],
+  ['run', 'preview', '--', '--host', '127.0.0.1', '--port', '4174'],
   { cwd, stdio: 'ignore', windowsHide: true, shell: process.platform === 'win32' });
 const chrome = spawn(chromePath, [
   '--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run',
@@ -31,15 +33,21 @@ let ws;
 try {
   await waitFor(appUrl);
   await waitFor(`http://127.0.0.1:${debugPort}/json/version`);
-  const created = await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(appUrl)}`, { method: 'PUT' });
+  const created = await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`, { method: 'PUT' });
   const target = await created.json();
   ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
 
   let id = 0;
   const pending = new Map();
+  const runtimeErrors = [];
+  const networkErrors = [];
   ws.onmessage = event => {
     const message = JSON.parse(event.data);
+    if (message.method === 'Runtime.exceptionThrown') {
+      runtimeErrors.push(message.params?.exceptionDetails?.exception?.description || message.params?.exceptionDetails?.text || 'Unknown runtime error');
+    }
+    if (message.method === 'Network.loadingFailed') networkErrors.push(message.params?.errorText || 'Network request failed');
     if (!message.id || !pending.has(message.id)) return;
     const { resolve, reject } = pending.get(message.id);
     pending.delete(message.id);
@@ -56,11 +64,12 @@ try {
     return result.result.value;
   };
   const waitForSelector = async selector => {
-    for (let i = 0; i < 100; i += 1) {
+    for (let i = 0; i < 300; i += 1) {
       if (await evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`)) return;
       await delay(100);
     }
-    throw new Error(`Missing selector: ${selector}`);
+    const state = await evaluate(`({ url: location.href, title: document.title, ready: document.readyState, root: document.querySelector('#root')?.innerHTML, scripts: [...document.scripts].map(s => s.src) })`);
+    throw new Error(`Missing selector: ${selector}: ${JSON.stringify(state)}${runtimeErrors.length ? `\n${runtimeErrors.join('\n')}` : ''}${networkErrors.length ? `\n${networkErrors.join('\n')}` : ''}`);
   };
   const clickText = async text => {
     const clicked = await evaluate(`(() => {
@@ -104,6 +113,7 @@ try {
 
   await send('Page.enable');
   await send('Runtime.enable');
+  await send('Network.enable');
 
   const formFactors = [
     { name: 'phone', dir: 'phone', width: 360, height: 640, dpr: 3, mobile: true, all: true },
@@ -111,7 +121,7 @@ try {
     { name: 'tablet-10', dir: 'tablet-10', width: 800, height: 1280, dpr: 2, mobile: true },
     { name: 'pc', dir: 'pc/screenshots', width: 1280, height: 720, dpr: 1.5, mobile: false },
     { name: 'chromebook', dir: 'chromebook', width: 1280, height: 720, dpr: 1.5, mobile: false },
-  ];
+  ].filter(form => !process.env.CAPTURE_ONLY_FORM || form.name === process.env.CAPTURE_ONLY_FORM);
 
   for (const form of formFactors) {
     await setViewport(form);
