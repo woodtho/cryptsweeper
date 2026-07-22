@@ -4,6 +4,7 @@ import {
   run, ui, cbt, board, curTarget, effCost, endTurn,
   clickHandCard, cancelTargeting, selectEnemy, useGadget,
   openPileModal, LAIR_COLORS,
+  ENEMY_MODIFIERS,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { enemyIcon } from './enemyIcons.jsx';
@@ -45,6 +46,7 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji, preferen
       <div className="einfo">
         <div className="ename">
           {e.def.name}
+          {e.modifier && <span className={`enemy-modifier ${e.modifier}`} title={ENEMY_MODIFIERS[e.modifier].desc}>{ENEMY_MODIFIERS[e.modifier].mark} {ENEMY_MODIFIERS[e.modifier].name}</span>}
           {e.def.boss ? <> <span className="elite">BOSS</span></> : e.def.elite ? <> <span className="elite">ELITE</span></> : null}
           {buried ? <> <span className="dim">(buried — untargetable)</span></> : null}
         </div>
@@ -73,6 +75,7 @@ function EnemyToken({ e, idx, selected, onClick, emoji, preferences }) {
   return <button type="button" className={`enemy-token ${selected ? 'selected' : ''}`} onClick={() => onClick(idx)}
     aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} health. ${e.intent?.label || 'No intent'}`}>
     <span className="enemy-token-art">{e.data.buried ? <GameIcon name="buried" preferences={preferences} /> : emoji}</span>
+    {e.modifier && <span className={`enemy-token-modifier ${e.modifier}`} title={`${ENEMY_MODIFIERS[e.modifier].name}: ${ENEMY_MODIFIERS[e.modifier].desc}`}>{ENEMY_MODIFIERS[e.modifier].mark}</span>}
     <span className="enemy-token-hp"><GameIcon name="health" preferences={preferences} /> {e.hp}</span>
     <span className={`enemy-token-intent ${e.intent?.cls || ''}`} title={e.intent?.label}>{intentIcon}</span>
     {curTarget() === e && !e.data.buried && <span className="enemy-token-target">⌖</span>}
@@ -259,9 +262,10 @@ export function CombatScreen({ preferences = {} }) {
             const affordable = def.cost != null && effCost(card) <= c.energy;
             const center = (c.hand.length - 1) / 2;
             const isNew = !seenRef.current.ids.has(card.id);
+            const invalid = ui.invalidCard?.cardId === card.id;
             return (
-              <div key={card.id}
-                className={`handslot ${isNew ? 'deal' : ''}`}
+              <div key={invalid ? `${card.id}-${ui.invalidCard.seq}` : card.id}
+                className={`handslot ${isNew ? 'deal' : ''} ${invalid ? 'invalid-card' : ''}`}
                 style={{
                   '--rot': `${(i - center) * 2}deg`,
                   '--dip': `${Math.abs(i - center) * 4}px`,

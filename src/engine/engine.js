@@ -4,12 +4,14 @@ import {
   STRATA, CLASSES, CARDS, TRINKETS, GADGETS, ENEMIES, FIGHTS, NN99_PHASES, PERSISTENT_CURSES,
 } from './data.js';
 import { sfx } from './sfx.js';
+import { haptic } from './haptics.js';
 import { recordProgress } from './progression.js';
 import {
   recordEnemySeen, recordEnemyDefeated, recordCardSeen, recordCardOwned, recordCardPlayed,
   recordItemSeen, recordItemOwned, seedRunCollection, recordDelverProgress,
 } from './collection.js';
 import { recordDailyAttempt, recordDailyResult } from './daily.js';
+import { evaluateAchievements, recordRunHistory } from './legacy.js';
 import {
   EXTRA_EVENT_CATALOG, CORE_BEHAVIORAL_EVENTS,
   createBehavioralEventState, behavioralEventView, resolveBehavioralEvent,
@@ -26,6 +28,8 @@ export function subscribe(cb) { listeners.add(cb); return () => listeners.delete
 export function getVersion() { return version; }
 function notify() {
   version++;
+  const freshAchievements = evaluateAchievements(run, ui.screen);
+  if (freshAchievements.length) ui.achievement = { ...freshAchievements[0], id: Date.now() };
   recordProgress(run, ui.screen);
   recordDelverProgress(run, ui.screen);
   /* never stamp 'title' into the autosave — Continue must resume gameplay */
@@ -49,6 +53,7 @@ export function shuffle(arr) {
   return a;
 }
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+function effectiveHealing(n) { return run?.challenge === 'brittle' ? Math.ceil(n / 2) : n; }
 let _cardId = 0;
 function mkCard(key, up = 0) { return { id: ++_cardId, key, up }; }
 
@@ -57,6 +62,7 @@ export let run = null;
 export const ui = {
   screen: 'title', targeting: null, gadgetTargeting: null, flagMode: false,
   modal: null, cutscene: null, toasts: [], shakeSeq: 0, dmg: [],
+  invalidCard: null, deckChange: null, achievement: null,
 };
 
 const SAVE_VERSION = 1;
@@ -118,6 +124,12 @@ export function loadRun(slot) {
     run.pickBonus ??= 0;
     run.seenCutscenes ??= [];
     run.eventHistory ??= [];
+    run.eventThreads ??= {};
+    run.bossesDefeated ??= [];
+    run.challenge ??= null;
+    run.lastDamageSource ??= null;
+    run.runId ??= `${payload.savedAt || Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    run.historyRecorded ??= false;
     run.eventState ??= null;
     if (run.puzzle?.type === 'sudoku') {
       run.puzzle.size ??= 4;
@@ -130,7 +142,9 @@ export function loadRun(slot) {
       run.puzzle.values = run.puzzle.values.map(value => value === 1 ? 1 : value === 2 ? 2 : 0);
     }
     if (run.combat?.enemies) {
-      for (const enemy of run.combat.enemies) enemy.def = ENEMIES[enemy.key];
+      for (const enemy of run.combat.enemies) {
+        enemy.def = ENEMIES[enemy.key]; enemy.modifier ??= null; enemy.data ??= {};
+      }
       if (run.combat.picks == null) run.combat.picks = basePicksFor(run.cls);
       if (run.combat.maxPicks == null) run.combat.maxPicks = basePicksFor(run.cls) + run.pickBonus + (run.trinkets.includes('pitons') ? 1 : 0);
       run.combat.powers = {
@@ -209,10 +223,18 @@ export function newRun(clsKey, options = {}) {
     stratum: 0, map: null, pos: null, visited: {},
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
     surveyNext: false, seenEvents: [], combat: null, upgrades: 0, pickBonus: 0, winRecorded: false,
-    reward: null, shop: null, event: null, eventState: null, eventHistory: [], puzzle: null, seenCutscenes: [],
+    reward: null, shop: null, event: null, eventState: null, eventHistory: [], eventThreads: {}, puzzle: null, seenCutscenes: [],
+    bossesDefeated: [], lastDamageSource: null, challenge: options.challenge || null,
+    runId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, historyRecorded: false,
     daily: options.daily || null, testMode: Boolean(options.testMode),
     rngState: options.daily ? dailySeed(options.daily) : null,
   };
+  if (run.challenge === 'cursed') {
+    for (let i = 0; i < 2; i++) run.deck.push(mkCard(randPick(Object.keys(PERSISTENT_CURSES))));
+    run.gold += 100;
+  } else if (run.challenge === 'lean') {
+    run.deck = run.deck.slice(0, 8); run.gold = 20;
+  }
   genMapForStratum();
   seedRunCollection(run);
   if (run.daily) recordDailyAttempt(run.daily);
@@ -255,6 +277,15 @@ export function toast(msg, bad = false) {
   }, 2600);
   if (t && typeof t.unref === 'function') t.unref();
   notify();
+}
+function invalidCardFeedback(card, message) {
+  sfx('invalid'); haptic('invalid');
+  ui.invalidCard = { seq: (ui.invalidCard?.seq || 0) + 1, cardId: card?.id ?? null, message };
+  toast(message, true);
+}
+function deckChanged(kind, label) {
+  sfx(kind === 'upgrade' ? 'upgrade' : kind === 'remove' ? 'remove' : 'cardadd');
+  ui.deckChange = { id: Date.now() + Math.random(), kind, label };
 }
 export function log(msg) {
   if (run && run.combat) {
@@ -618,7 +649,7 @@ export function revealTile(i, cause) {
   }
   const count = openSafe(i);
   if (!run?.combat || c.over) return { safe: true, mine: false, cascade: count };
-  if (!c.setup && count > 0) sfx(count >= 4 ? 'cascade' : 'dig');
+  if (!c.setup && count > 0) { sfx(count >= 4 ? 'cascade' : 'dig'); haptic('dig'); }
   if (c.powers.leylines && count >= c.powers.leylines) { gainEnergy(1); toast('Ley Lines: +1⚡'); }
   checkFullClear();
   return { safe: true, mine: false, cascade: count };
@@ -660,6 +691,13 @@ export function openSafe(start) {
     if (!run?.combat || c.over) break;
     if (n === 0) for (const j of neighborsOf(i, b.size)) q.push(j);
   }
+  if (!c.setup && c.revealedThisTurn >= 3) {
+    for (const e of c.enemies) if (e.hp > 0 && e.data.modifierBuried) {
+      e.data.modifierBuried = false; e.data.buried = false;
+      e.intent = e.def.next(e);
+      toast(`${e.def.name} bursts from the stone!`);
+    }
+  }
   if (!c.setup && run.cls === 'lamplighter' && count >= 4 && !c.classState.kindleUsed) {
     c.classState.kindleUsed = true;
     gainEnergy(1);
@@ -693,6 +731,7 @@ function detonatePlayer(i, opts = {}) {
   cell.flag = 0; cell.scan = null;
   if (cell.primed || c.primed === i) { c.primed = null; cell.primed = false; }
   sfx('boom');
+  haptic('mine');
   ui.shakeSeq++;
   let dmg = STRATA[run.stratum].mineDmg;
   if (opts.half) dmg = Math.ceil(dmg / 2);
@@ -708,6 +747,7 @@ function detonatePlayer(i, opts = {}) {
   c.plating -= soak;
   const rest = dmg - soak;
   if (rest > 0) {
+    run.lastDamageSource = `A mine in ${STRATA[run.stratum].name}`;
     run.hp -= rest; pushDmg({ kind: 'player', amount: rest });
     log(`💥 Mine detonates: ${rest} damage (pierces Block)`);
     triggerPainPassive();
@@ -729,6 +769,7 @@ export function detonateForCards(i) {
   c.minesDetonated++;
   if (c.nitro > 0) { c.nitroBoost = c.nitro; c.nitro = 0; }
   sfx('boom');
+  haptic('mine');
   log('💥 Controlled detonation.');
   triggerPowderKeg();
   if (run.combat && run.cls === 'sapper' && !c.classState.passiveUsed) {
@@ -1121,8 +1162,10 @@ export function spendPicks(n = Infinity) {
   cbt().picks -= spent;
   return spent;
 }
-export function loseHP(n) {
+export function loseHP(n, source = 'A lingering wound') {
+  run.lastDamageSource = source;
   run.hp -= n;
+  sfx('hurt'); haptic('damage');
   pushDmg({ kind: 'player', amount: n });
   log(`🩸 You lose ${n} HP`);
   triggerPainPassive();
@@ -1157,8 +1200,10 @@ export function enemyAttack(e, n) {
   c.block -= soak;
   const rest = n - soak;
   if (rest > 0) {
+    run.lastDamageSource = e.def.name;
     run.hp -= rest;
     sfx('hurt');
+    haptic('damage');
     ui.shakeSeq++;
     pushDmg({ kind: 'player', amount: rest });
     log(`⚔ ${e.def.name} hits you for ${rest}${soak ? ` (${soak} blocked)` : ''}`);
@@ -1184,22 +1229,43 @@ function checkPlayerDeath() {
     cbt().over = true;
     sfx('defeat');
     ui.screen = 'gameover';
+    recordRunHistory(run, false);
     recordDailyRunEnd(false);
     notify();
   }
 }
 
 /* ================= enemies ================= */
-function spawnEnemy(key) {
+export const ENEMY_MODIFIERS = {
+  armoured: { name: 'Armoured', mark: '⛨', desc: 'Begins combat protected by Block.' },
+  burrowing: { name: 'Burrowing', mark: '⌄', desc: 'Untargetable until three safe tiles are revealed.' },
+  unstable: { name: 'Unstable', mark: '※', desc: 'Detonates for damage when defeated.' },
+  cursed: { name: 'Cursed', mark: '◈', desc: 'Adds a Dud to your combat discard pile.' },
+};
+
+function spawnEnemy(key, kind = 'dig') {
   const def = ENEMIES[key];
   const scale = Math.max(0, run.stratum - def.home);
   const e = {
     key, def, scale,
     maxHp: Math.round(def.hp * (1 + 0.45 * scale)),
-    hp: 0, block: 0, step: 0, data: {}, intent: null,
+    hp: 0, block: 0, step: 0, data: {}, intent: null, modifier: null,
   };
+  if (!def.boss) {
+    const chance = run.challenge === 'afflicted' ? 1 : kind === 'elite' ? 0.65 : 0.25 + run.stratum * 0.1;
+    if (random() < chance) e.modifier = randPick(Object.keys(ENEMY_MODIFIERS));
+  }
   e.hp = e.maxHp;
   return e;
+}
+
+function setupEnemyModifier(e) {
+  if (e.modifier === 'armoured') e.block += 8 + run.stratum * 4;
+  if (e.modifier === 'burrowing') { e.data.buried = true; e.data.modifierBuried = true; }
+  if (e.modifier === 'cursed') {
+    cbt().discard.push(mkCard('dud'));
+    log(`◈ ${e.def.name}'s curse adds a Dud to the discard pile.`);
+  }
 }
 export function aliveEnemies() { return run?.combat ? cbt().enemies.filter(e => e.hp > 0) : []; }
 function targetableEnemies() { return aliveEnemies().filter(e => !e.data.buried); }
@@ -1237,6 +1303,11 @@ function onEnemyDeath(e) {
   sfx('death');
   log(`☠ ${e.def.name} destroyed.`);
   if (e.def.onDeath) e.def.onDeath(e);
+  if (e.modifier === 'unstable' && run?.combat && !cbt().over) {
+    const blast = 3 + run.stratum * 2;
+    toast(`${e.def.name} ruptures for ${blast} damage!`, true);
+    loseHP(blast, `The unstable ${e.def.name}`);
+  }
   lairCrumble(e);
 }
 
@@ -1290,7 +1361,7 @@ export function startCombat(kind) {
     energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0),
     block: 0, plating: 0, insight: 0, turn: 0,
     maxPicks: Math.max(PERSISTENT_CURSES.vertigo.minimum, basePicksFor(run.cls) + (run.pickBonus || 0) + (hasT('pitons') ? 1 : 0)
-      + persistentCurseTotal('maxPicks')),
+      + persistentCurseTotal('maxPicks') + (run.challenge === 'noflags' ? 1 : 0)),
     revealedThisTurn: 0, sumThisTurn: 0, chordedThisTurn: false, minesDetonated: 0,
     powers: {
       powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
@@ -1323,10 +1394,11 @@ export function startCombat(kind) {
     log('🗺 Surveyed: the board starts partly revealed.');
   }
   for (const k of enemyKeys) {
-    const e = spawnEnemy(k);
+    const e = spawnEnemy(k, kind);
     c.enemies.push(e);
     recordEnemySeen(k);
     if (e.def.setup) e.def.setup(e);
+    setupEnemyModifier(e);
     e.intent = e.def.next(e);
   }
   if (hasT('detector') || hasT('loadedcoin')) {
@@ -1441,6 +1513,7 @@ export function endTurn() {
   }
   for (const e of c.enemies) {
     if (e.hp <= 0 || c.over) continue;
+    if (e.data.modifierBuried) { log(`⌄ ${e.def.name} circles beneath the board.`); continue; }
     e.block = 0;
     e.def.act(e, e.intent);
     if (c.over) break;
@@ -1479,10 +1552,10 @@ export function clickHandCard(handIdx) {
   }
   const card = c.hand[handIdx];
   const def = CARDS[card.key];
-  if (def.unplayable) { toast('Unplayable.', true); return; }
+  if (def.unplayable) { invalidCardFeedback(card, `${def.name} is a ${def.type} and cannot be played.`); return; }
   const cost = effCost(card);
-  if (cost > c.energy) { toast('Not enough ⚡', true); return; }
-  if (def.can && !def.can(card.up)) { toast(def.canMsg || "Can't play that now.", true); return; }
+  if (cost > c.energy) { invalidCardFeedback(card, `${def.name} needs ${cost} Energy; you have ${c.energy}.`); return; }
+  if (def.can && !def.can(card.up)) { invalidCardFeedback(card, def.canMsg || `${def.name}'s condition is not currently met.`); return; }
   if (def.targets.length) {
     ui.targeting = { handIdx, specs: def.targets, picked: [], optional: !!def.optionalTargets };
     notify();
@@ -1577,6 +1650,7 @@ export function clickTile(i) {
 }
 
 export function toggleFlag(i) {
+  if (run.challenge === 'noflags') { toast('Unmarked Stone forbids flags.', true); sfx('invalid'); haptic('invalid'); return; }
   if (hasT('dowsingrod')) { toast('The Dowsing Rod forbids flags.', true); return; }
   const cell = board().cells[i];
   if (!isHiddenUsable(i)) return;
@@ -1587,6 +1661,7 @@ export function toggleFlag(i) {
     toast('Read the Tell: correct flag draws 1');
   }
   sfx('flag');
+  haptic('flag');
   notify();
 }
 
@@ -1621,6 +1696,10 @@ function combatVictory() {
   const c = cbt();
   const kind = c.kind;
   let gold = kind === 'boss' ? 75 : kind === 'elite' ? 30 : 10 + randInt(11);
+  if (kind === 'boss') {
+    run.bossesDefeated ??= [];
+    for (const enemy of c.enemies) if (!run.bossesDefeated.includes(enemy.key)) run.bossesDefeated.push(enemy.key);
+  }
   if (c.fullCleared) gold += 15;
   run.gold += gold;
   sfx('coin');
@@ -1668,6 +1747,7 @@ export function takeRewardCard(i) {
   run.deck.push(mkCard(r.cards[i].key, r.cards[i].up));
   recordCardOwned(r.cards[i].key);
   toast(`Added ${CARDS[r.cards[i].key].name}${r.cards[i].up ? '+' : ''} to your deck`);
+  deckChanged('add', `${CARDS[r.cards[i].key].name}${r.cards[i].up ? '+' : ''} joins the deck`);
   notify();
 }
 export function takeRewardTrinket() {
@@ -1697,7 +1777,7 @@ export function takeRewardGadget() {
 
 function advanceStratum() {
   run.stratum++;
-  run.hp = Math.min(run.maxHp, run.hp + Math.floor(run.maxHp * 0.25));
+  run.hp = Math.min(run.maxHp, run.hp + effectiveHealing(Math.floor(run.maxHp * 0.25)));
   toast(`Descending… you rest and recover. Welcome to ${STRATA[run.stratum].name}`);
   genMapForStratum();
   queueCutscene(`descent-${run.stratum}`, {}, true);
@@ -1709,7 +1789,8 @@ export function finishReward() {
   run.reward = null;
   if (r.kind === 'boss') {
     if (run.stratum >= 2) {
-      sfx('victory'); ui.screen = 'victory'; queueCutscene('finale', {}, true); recordDailyRunEnd(true); notify(); return;
+      sfx('victory'); haptic('victory'); ui.screen = 'victory'; queueCutscene('finale', {}, true);
+      recordRunHistory(run, true); recordDailyRunEnd(true); notify(); return;
     }
     advanceStratum();
     notify();
@@ -1721,8 +1802,9 @@ export function finishReward() {
 
 /* ================= camp / shop / events ================= */
 export function campHeal() {
-  const heal = Math.floor(run.maxHp * 0.3);
+  const heal = effectiveHealing(Math.floor(run.maxHp * 0.3));
   run.hp = Math.min(run.maxHp, run.hp + heal);
+  sfx('heal');
   toast(`Rested: +${heal} HP`);
   ui.screen = 'map'; notify();
 }
@@ -1747,6 +1829,7 @@ export function doUpgrade(deckIdx) {
   run.upgrades = (run.upgrades || 0) + 1;
   ui.modal = null;
   toast(`${CARDS[run.deck[deckIdx].key].name}+ !`);
+  deckChanged('upgrade', `${CARDS[run.deck[deckIdx].key].name} was upgraded`);
   if (ui.screen === 'camp' || ui.screen === 'puzzle') ui.screen = 'map';
   notify();
 }
@@ -1775,6 +1858,7 @@ export function buyShopCard(i) {
   run.gold -= it.price; it.sold = true;
   run.deck.push(mkCard(it.key));
   recordCardOwned(it.key);
+  deckChanged('add', `${CARDS[it.key].name} joins the deck`);
   notify();
 }
 export function buyShopTrinket(i) {
@@ -1804,6 +1888,7 @@ export function doRemove(deckIdx) {
   const [c] = run.deck.splice(deckIdx, 1);
   ui.modal = null;
   toast(`Removed ${CARDS[c.key].name}.`);
+  deckChanged('remove', `${CARDS[c.key].name} was laid to rest`);
   notify();
 }
 export function gotoMap() {
@@ -1932,12 +2017,31 @@ function prepareEventState(key) {
 export function currentEventView() {
   const event = EVENT_CATALOG[run?.event];
   if (!event) return null;
+  if (run.eventState?.chainReturn) {
+    const thread = run.eventThreads?.[run.eventState.threadKey];
+    return {
+      stageLabel: 'A choice remembered',
+      text: `The chamber remembers that you chose “${thread?.choiceLabel || thread?.choice || 'your path'}” at ${event.title}. Its consequence has followed you here.`,
+      choices: [
+        { key: 'stand', label: 'Stand by the choice', desc: 'Accept its delayed reward and its lingering burden.' },
+        { key: 'amend', label: 'Make amends', desc: 'Pay gold to turn the old consequence toward recovery.' },
+      ],
+    };
+  }
   if (!event.behavioral) return { text: event.text, choices: event.choices, stageLabel: 'Decision' };
   if (!run.eventState) prepareEventState(run.event);
   return behavioralEventView(event, run.eventState);
 }
 
 function startEvent() {
+  run.eventThreads ??= {};
+  const pending = Object.entries(run.eventThreads).filter(([, thread]) => thread.stage === 1);
+  if (pending.length && random() < 0.45) {
+    const [key] = randPick(pending);
+    run.event = key;
+    run.eventState = { chainReturn: true, threadKey: key };
+    ui.screen = 'event'; notify(); return;
+  }
   const all = [...Object.keys(EVENT_CATALOG), 'puzzle'];
   const unseen = all.filter(e => !run.seenEvents.includes(e));
   const pick = randPick(unseen.length ? unseen : all);
@@ -1977,18 +2081,19 @@ function applyEventEffect(effect = {}) {
   }
   if (effect.maxHp) {
     run.maxHp += effect.maxHp;
-    run.hp = Math.min(run.maxHp, run.hp + effect.maxHp);
+    run.hp = Math.min(run.maxHp, run.hp + effectiveHealing(effect.maxHp));
     lines.push(`Gain ${effect.maxHp} max HP.`);
   }
   if (effect.heal) {
     const before = run.hp;
-    run.hp = Math.min(run.maxHp, run.hp + effect.heal);
+    run.hp = Math.min(run.maxHp, run.hp + effectiveHealing(effect.heal));
     lines.push(`Recover ${run.hp - before} HP.`);
   }
   if (effect.curse && CARDS[effect.curse]) {
     run.deck.push(mkCard(effect.curse));
     recordCardOwned(effect.curse);
     lines.push(`Add ${CARDS[effect.curse].name} to your deck.`);
+    deckChanged('add', `${CARDS[effect.curse].name} stains the deck`);
   }
   if (effect.upgrade) {
     const eligible = run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null);
@@ -1996,6 +2101,7 @@ function applyEventEffect(effect = {}) {
     if (card) {
       card.up = 1; run.upgrades = (run.upgrades || 0) + 1;
       lines.push(`Upgrade ${CARDS[card.key].name}.`);
+      deckChanged('upgrade', `${CARDS[card.key].name} was upgraded`);
     } else {
       run.gold += 15;
       lines.push('Gain 15 gold.');
@@ -2016,6 +2122,28 @@ function applyEventEffect(effect = {}) {
 
 export function eventChoice(which) {
   const behavioral = EVENT_CATALOG[run.event];
+  if (run.eventState?.chainReturn) {
+    const thread = run.eventThreads[run.eventState.threadKey];
+    thread.stage = 2; thread.returnChoice = which;
+    let html;
+    if (which === 'stand') {
+      run.gold += 25;
+      run.deck.push(mkCard('dud'));
+      recordCardOwned('dud');
+      deckChanged('add', 'A remembered Dud joins the deck');
+      html = `<p>You repeat your old answer. The crypt pays its debt: <b>gain 25 gold</b>, but the memory becomes a <b>Dud</b>.</p>`;
+    } else {
+      const paid = Math.min(15, run.gold);
+      run.gold -= paid;
+      const healed = Math.min(effectiveHealing(8), run.maxHp - run.hp);
+      run.hp += healed;
+      if (healed) sfx('heal');
+      html = `<p>You alter the old bargain. <b>Pay ${paid} gold</b> and <b>recover ${healed} HP</b>.</p>`;
+    }
+    run.eventHistory.push({ id: run.event, chain: true, choice: which, stratum: run.stratum, floor: run.floors });
+    eventResult(`↻ ${behavioral.title}: Remembered`, html);
+    return;
+  }
   if (behavioral?.behavioral) {
     if (!run.eventState) prepareEventState(run.event);
     const result = resolveBehavioralEvent(behavioral, run.eventState, which);
@@ -2031,6 +2159,11 @@ export function eventChoice(which) {
       id: run.event, choice: which, observed: run.eventState.observed,
       stratum: run.stratum, floor: run.floors,
     });
+    run.eventThreads ??= {};
+    if (!run.eventThreads[run.event]) {
+      const chosen = behavioral.actions?.find(action => action.key === which);
+      run.eventThreads[run.event] = { stage: 1, choice: which, choiceLabel: chosen?.label || which, floor: run.floors };
+    }
     const html = `<p>${result.action.label}. The chamber answers.</p>${consequenceLines.map(line => `<p><b>${line}</b></p>`).join('')}`;
     run.eventState.result = { title: `${behavioral.emoji} ${result.title}`, html };
     eventResult(`${behavioral.emoji} ${result.title}`, html);

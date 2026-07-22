@@ -12,12 +12,14 @@ import {
   campTrainPicks, closeCutscene, closeModal,
   EVENT_CATALOG, eventChoice, currentEventView, startSpecificEvent, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
   toggleLightsCell, toggleNonogramCell, answerSequence,
+  clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS, STRATA, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import { observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep } from '../src/bot/gameBot.js';
 import { decorateMechanics } from '../src/ui/mechanics.js';
+import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, evaluateAchievements, loadAchievements, loadGraveyard, recordRunHistory } from '../src/engine/legacy.js';
 
 let failures = 0;
 const storage = new Map();
@@ -643,6 +645,84 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   R().reward = { kind: 'boss', cards: [], cardTaken: true };
   finishReward();
   T('Stratum 2 boss reward advances directly to Stratum 3', R().stratum === 2 && ui.screen === 'map');
+}
+
+/* ================= feedback, legacy, modifiers, chains, and challenges ================= */
+{
+  newRun('sapper', { challenge:'cursed', daily:'challenge-cursed' });
+  T('Debt Below challenge starts with two persistent curses and bonus gold',
+    R().deck.length === 12 && R().gold === 150 && R().deck.filter(card => PERSISTENT_CURSES[card.key]).length === 2);
+
+  newRun('sapper', { challenge:'lean', daily:'challenge-lean' });
+  T('Lean Descent starts with the promised eight-card low-gold build', R().deck.length === 8 && R().gold === 20);
+
+  newRun('sapper', { challenge:'afflicted', daily:'challenge-afflicted' }); startCombat('dig');
+  T('Afflicted Host gives every non-boss enemy a recognized modifier',
+    cbt().enemies.length > 0 && cbt().enemies.every(enemy => ENEMY_MODIFIERS[enemy.modifier]));
+
+  const modifierProof = { armoured:false, burrowing:false, unstable:false, cursed:false };
+  for (let i = 0; i < 120 && !Object.values(modifierProof).every(Boolean); i++) {
+    newRun('sapper', { challenge:'afflicted', daily:`modifier-proof-${i}` }); startCombat('dig');
+    const enemy = cbt().enemies[0];
+    if (enemy.modifier === 'armoured') modifierProof.armoured = enemy.block >= 8;
+    if (enemy.modifier === 'cursed') modifierProof.cursed = cbt().discard.some(card => card.key === 'dud');
+    if (enemy.modifier === 'burrowing') {
+      const startedBuried = enemy.data.modifierBuried && enemy.data.buried;
+      enemy.maxHp += 500; enemy.hp += 500;
+      for (const idx of hiddenIdx().filter(idx => !board().cells[idx].mine)) {
+        openSafe(idx);
+        if (!enemy.data.modifierBuried) break;
+      }
+      modifierProof.burrowing = startedBuried && !enemy.data.modifierBuried && !enemy.data.buried;
+    }
+    if (enemy.modifier === 'unstable') {
+      enemy.block = 0;
+      const before = R().hp;
+      hitEnemy(enemy, enemy.hp, { bypassGate:true, noNitro:true });
+      modifierProof.unstable = R().hp === before - (3 + R().stratum * 2);
+    }
+  }
+  T('Armoured, Burrowing, Unstable, and Cursed modifiers each apply their distinct behavior',
+    Object.values(modifierProof).every(Boolean));
+
+  newRun('sapper', { challenge:'noflags', daily:'challenge-noflags' }); startCombat('dig');
+  const noFlagPicks = cbt().maxPicks === basePicksFor('sapper') + 1;
+  const hidden = hiddenIdx()[0]; toggleFlag(hidden);
+  T('Unmarked Stone forbids flags and grants one Pick', noFlagPicks && board().cells[hidden].flag === 0);
+
+  newRun('sapper', { challenge:'brittle', daily:'challenge-brittle' }); R().hp = 1;
+  const expectedBrittle = Math.min(R().maxHp, 1 + Math.ceil(Math.floor(R().maxHp * .3) / 2));
+  campHeal();
+  T('Brittle Bones halves camp healing', R().hp === expectedBrittle);
+  T('challenge catalog exposes five selectable rule sets', Object.keys(CHALLENGES).length === 5);
+
+  newRun('sapper', { daily:'invalid-card-feedback' }); startCombat('dig');
+  cbt().hand.unshift({ id:999999, key:'claustrophobia', up:0 });
+  clickHandCard(0);
+  T('invalid card actions provide a specific reason and shake target',
+    ui.invalidCard?.cardId === 999999 && ui.invalidCard.message.includes('cannot be played'));
+
+  newRun('sapper', { daily:'event-chain' }); startSpecificEvent('corpse'); eventChoice('b');
+  const thread = R().eventThreads.corpse;
+  R().event = 'corpse'; R().eventState = { chainReturn:true, threadKey:'corpse' };
+  const remembered = currentEventView(); eventChoice('stand');
+  T('event choices return later with remembered text and consequences',
+    thread?.stage === 2 && remembered.stageLabel === 'A choice remembered' && R().eventHistory.some(row => row.chain));
+
+  clearGraveyard();
+  newRun('sapper', { challenge:'lean', daily:'graveyard-record' });
+  R().lastDamageSource = 'The test stone'; R().bossesDefeated = ['collapser'];
+  const grave = recordRunHistory(R(), false);
+  const savedGraves = loadGraveyard();
+  T('graveyard records build, death cause, bosses, challenge, and run records',
+    grave && savedGraves[0].cause === 'The test stone' && savedGraves[0].bosses[0] === 'collapser'
+      && savedGraves[0].challenge === 'lean' && savedGraves[0].deck.length === 8);
+
+  storage.delete('cryptsweeper.achievements.v1');
+  R().fullClears = 1; R().bossesDefeated = ['collapser']; R().gold = 260;
+  const fresh = evaluateAchievements(R(), 'map');
+  T('achievement ledger persists independently earned milestones',
+    fresh.length >= 3 && Object.keys(loadAchievements()).every(key => ACHIEVEMENTS[key]));
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');

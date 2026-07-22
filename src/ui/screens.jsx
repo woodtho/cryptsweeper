@@ -17,6 +17,7 @@ import { UNLOCKS, isDelverUnlocked, loadProgression } from '../engine/progressio
 import {
   TRACKS, previewTrack, stopPreview, previewingTrackId,
   isMusicPaused, setMusicPaused, restartMusic, isMusicLooping, setMusicLooping,
+  getInfiniteMusicParams, setInfiniteMusicParam,
 } from '../engine/music.js';
 import { localDateKey, loadDailyRecords } from '../engine/daily.js';
 import { loadPreferences } from '../engine/preferences.js';
@@ -32,15 +33,17 @@ import { customIconSets, customSetBase, customSetIcon, iconSetLabel } from './ic
 import { registerBackHandler } from './backNav.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
 import { gridNavigationIndex } from '../engine/puzzleValidation.js';
+import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, loadAchievements, loadGraveyard } from '../engine/legacy.js';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = {
   play: 'Choose your Delver', how: 'How to play', saves: 'Saved descents', settings: 'Settings', daily: 'Daily challenge',
   delvers: 'Delver index', enemies: 'Enemy index', items: 'Item index', cards: 'Card index', test: 'Undermine test lab',
   music: 'The crypt jukebox',
+  graveyard: 'The Delver Graveyard', achievements: 'Carved achievements', challenges: 'Challenge descents',
 };
 
-function DelverPicker({ daily = null }) {
+function DelverPicker({ daily = null, challenge = null }) {
   const progress = loadProgression();
   const prefs = loadPreferences();
   const [fullArt, setFullArt] = useState(null);
@@ -59,7 +62,7 @@ function DelverPicker({ daily = null }) {
               <span className="art-expand-hint">Full art</span>
             </button>
             <button type="button" className="delver-select" disabled={!earned}
-              onClick={() => newRun(k, daily ? { daily } : {})}>
+              onClick={() => newRun(k, { ...(daily ? { daily } : {}), ...(challenge ? { challenge } : {}) })}>
               <div className="delver-body">
                 <h3>{c.name}</h3>
                 <div className="role">{c.role}</div>
@@ -81,9 +84,9 @@ function DelverPicker({ daily = null }) {
 }
 
 export function TitleScreen({
-  muted, musicOff, sfxLevel, musicLevel, preferences,
+  muted, musicOff, sfxLevel, musicLevel, hapticsOn, preferences,
   onMutedChange, onMusicOffChange, onSfxLevelChange, onMusicLevelChange,
-  onPreferenceChange, onTestAll, onTestSection,
+  onHapticsChange, onPreferenceChange, onTestAll, onTestSection,
 }) {
   const [panel, setPanel] = useState('home');
   const [titleTaps, setTitleTaps] = useState(0);
@@ -132,12 +135,15 @@ export function TitleScreen({
             <button className="home-action compact" onClick={() => open('saves')}><span>Saves</span><small>{saves.length} checkpoint{saves.length === 1 ? '' : 's'}</small></button>
             <button className="home-action compact" onClick={() => open('settings')}><span>Settings</span><small>Sound, motion, and display</small></button>
             <button className="home-action compact" onClick={() => open('music')}><span>Jukebox</span><small>Play the music you've unlocked</small></button>
+            <button className="home-action compact" onClick={() => open('challenges')}><span>Challenges</span><small>Descend under harsher rules</small></button>
+            <button className="home-action compact" onClick={() => open('graveyard')}><span>Graveyard</span><small>Remember completed and fallen builds</small></button>
           </div>
           <div className="home-index-grid" aria-label="Collection indexes">
             <button className="home-action compact" onClick={() => open('delvers')}><span>Delver index</span><small>Runs, wins, depth, and lifetime stats</small></button>
             <button className="home-action compact" onClick={() => open('enemies')}><span>Enemy index</span><small>Encounters, defeats, and custom faces</small></button>
             <button className="home-action compact" onClick={() => open('items')}><span>Item index</span><small>Trinkets and gadgets discovered</small></button>
             <button className="home-action compact" onClick={() => open('cards')}><span>Card index</span><small>Cards seen, obtained, and played</small></button>
+            <button className="home-action compact" onClick={() => open('achievements')}><span>Achievements</span><small>Carvings earned across every descent</small></button>
           </div>
           {testUnlocked && <button className="home-action test-lab-action" onClick={() => open('test')}><span>Test lab</span><small>Launch encounters, puzzles, scenes, rewards, and combat directly</small></button>}
         </div>
@@ -152,6 +158,9 @@ export function TitleScreen({
           {panel === 'music' && <JukeboxPanel musicOff={musicOff} musicLevel={musicLevel}
             onMusicOffChange={onMusicOffChange} onMusicLevelChange={onMusicLevelChange} />}
           {panel === 'daily' && <DailyPanel today={daily} />}
+          {panel === 'challenges' && <ChallengePanel />}
+          {panel === 'graveyard' && <GraveyardPanel />}
+          {panel === 'achievements' && <AchievementPanel />}
           {panel === 'test' && <TestLab onTestAll={onTestAll} onTestSection={onTestSection} />}
           {panel === 'how' && <HowToPlay />}
           {panel === 'saves' && <div className="save-list">
@@ -177,6 +186,8 @@ export function TitleScreen({
             <SettingSlider label="SFX volume" value={sfxLevel} onChange={onSfxLevelChange} />
             <SettingToggle label="Music" detail="Recorded soundtrack with an adaptive crypt ambience" checked={!musicOff} onChange={onMusicOffChange} />
             <SettingSlider label="Music volume" value={musicLevel} onChange={onMusicLevelChange} />
+            <SettingToggle label="Haptics" detail="Touch feedback for digging, flags, damage, mines, and victory" checked={hapticsOn} onChange={onHapticsChange} />
+            <InfiniteJukeboxControls />
             <SettingToggle label="Reduce motion" detail="Disables shakes, floating effects, and decorative animation" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
             <SettingToggle label="High contrast" detail="Brightens text, borders, and board information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
             <SettingToggle label="Large tiles" detail="Increases board tiles where the screen has room" checked={preferences.largeTiles} onChange={() => onPreferenceChange('largeTiles', !preferences.largeTiles)} />
@@ -442,6 +453,60 @@ export function InterfaceIconSettings({ preferences, onPreferenceChange }) {
   </div>;
 }
 
+function ChallengePanel() {
+  const [selected, setSelected] = useState(null);
+  if (selected) return <div className="challenge-picker">
+    <button className="btn" onClick={() => setSelected(null)}>← Change challenge</button>
+    <div className="challenge-banner"><span>{CHALLENGES[selected].mark}</span><div><b>{CHALLENGES[selected].name}</b><small>{CHALLENGES[selected].desc}</small></div></div>
+    <DelverPicker challenge={selected} />
+  </div>;
+  return <div className="challenge-grid">
+    {Object.entries(CHALLENGES).map(([key, challenge]) => <button type="button" className="challenge-card" key={key} onClick={() => setSelected(key)}>
+      <span>{challenge.mark}</span><div><b>{challenge.name}</b><small>{challenge.desc}</small></div><i>Choose ▸</i>
+    </button>)}
+  </div>;
+}
+
+function AchievementPanel() {
+  const earned = loadAchievements();
+  return <div className="achievement-grid">
+    {Object.entries(ACHIEVEMENTS).map(([key, achievement]) => <article className={`achievement-stone ${earned[key] ? 'earned' : ''}`} key={key}>
+      <span>{earned[key] ? '✦' : '◇'}</span><div><b>{earned[key] ? achievement.name : 'Uncarved stone'}</b><small>{achievement.desc}</small>
+        {earned[key] && <time>{new Date(earned[key].earnedAt).toLocaleDateString()}</time>}</div>
+    </article>)}
+  </div>;
+}
+
+function GraveyardPanel() {
+  const [graves, setGraves] = useState(loadGraveyard);
+  const [openId, setOpenId] = useState(null);
+  if (!graves.length) return <div className="graveyard empty"><div className="grave-moon">☾</div><p>No names are carved here yet.</p><small>Completed and fallen descents will raise a stone in this ground.</small></div>;
+  return <div className="graveyard">
+    <div className="graveyard-sky"><span className="grave-moon">☾</span><p>{graves.length} remembered descent{graves.length === 1 ? '' : 's'}</p></div>
+    <div className="grave-row">
+      {graves.map((grave, index) => {
+        const cls = CLASSES[grave.cls];
+        const open = grave.id === openId;
+        return <article className={`grave ${grave.won ? 'survivor' : 'fallen'} grave-shape-${index % 3}`} key={grave.id}>
+          <button type="button" className="headstone" onClick={() => setOpenId(open ? null : grave.id)} aria-expanded={open}>
+            <span className="grave-mark">{grave.won ? '✦' : '†'}</span><b>{cls?.name || grave.cls}</b>
+            <small>{grave.won ? 'Returned from below' : grave.cause}</small><time>{new Date(grave.endedAt).toLocaleDateString()}</time>
+          </button>
+          {open && <div className="grave-inscription">
+            <p><b>Depth:</b> Stratum {grave.stratum + 1} · {grave.floors} floors</p>
+            <p><b>Record:</b> {grave.fullClears} Full Clears · {grave.safeReveals} safe tiles · {grave.gold}g</p>
+            {grave.challenge && <p><b>Challenge:</b> {CHALLENGES[grave.challenge]?.name || grave.challenge}</p>}
+            {(grave.bosses || []).length > 0 && <p><b>Bosses:</b> {grave.bosses.map(key => ENEMIES[key]?.name || key).join(', ')}</p>}
+            <div className="grave-build"><b>Final deck ({(grave.deck || []).length})</b><span>{(grave.deck || []).map((card, i) => <i key={`${card.key}-${i}`}>{CARDS[card.key]?.name || card.key}{card.up ? '+' : ''}</i>)}</span></div>
+            <p><b>Trinkets:</b> {(grave.trinkets || []).map(key => TRINKETS[key]?.name || key).join(', ') || 'None'}</p>
+          </div>}
+        </article>;
+      })}
+    </div>
+    <button className="btn danger graveyard-clear" onClick={() => { clearGraveyard(); setGraves([]); }}>Clear graveyard</button>
+  </div>;
+}
+
 function SettingToggle({ label, detail, checked, onChange }) {
   return <label className="setting-row">
     <span><b>{label}</b><small>{detail}</small></span>
@@ -459,6 +524,23 @@ function SettingSlider({ label, value, onChange }) {
   </label>;
 }
 
+function InfiniteJukeboxControls({ scope = 'game' }) {
+  const [values, setValues] = useState(() => getInfiniteMusicParams(scope));
+  const change = (key, value) => setValues(setInfiniteMusicParam(scope, key, value));
+  return <div className="infinite-controls">
+    <div className="infinite-controls-head"><b>{scope === 'jukebox' ? 'Jukebox infinite mix' : 'Game infinite mix'}</b><small>{scope === 'jukebox'
+      ? 'Separate tuning used only for infinite previews in this player'
+      : 'Used by the adaptive score on the home screen and throughout the delve'}</small></div>
+    <SettingSlider label="Branch chance" value={values.branch} onChange={value => change('branch', value)} />
+    <SettingSlider label="Section length" value={values.segment} onChange={value => change('segment', value)} />
+    <SettingSlider label="Minimum jump distance" value={values.distance} onChange={value => change('distance', value)} />
+    <SettingSlider label="Ambient mix" value={values.ambient} onChange={value => change('ambient', value)} />
+    <SettingSlider label="Musical activity" value={values.activity} onChange={value => change('activity', value)} />
+    <SettingSlider label="Cave details" value={values.cave} onChange={value => change('cave', value)} />
+    <SettingSlider label="Combat pulse" value={values.pulse} onChange={value => change('pulse', value)} />
+  </div>;
+}
+
 /* Home-screen jukebox: play any score mood heard so far. Locked rows show how
    to earn them; previews keep playing while browsing the menu and end when a
    run takes the score back (music.js clears the preview on any non-title mood). */
@@ -467,13 +549,14 @@ function JukeboxPanel({ musicOff, musicLevel, onMusicOffChange, onMusicLevelChan
   const [playingId, setPlayingId] = useState(previewingTrackId);
   const [paused, setPaused] = useState(isMusicPaused);
   const [looping, setLooping] = useState(isMusicLooping);
+  const [playbackMode, setPlaybackMode] = useState('infinite');
   const unlocked = TRACKS.filter(track => track.unlock(progress));
   const play = track => {
     if (playingId === track.id) {
       const next = setMusicPaused(!paused); setPaused(next); return;
     }
     if (musicOff) onMusicOffChange(); // playing a track is an explicit request for music
-    previewTrack(track);
+    previewTrack(track, playbackMode);
     setMusicPaused(false); setPaused(false);
     setPlayingId(track.id);
   };
@@ -486,6 +569,11 @@ function JukeboxPanel({ musicOff, musicLevel, onMusicOffChange, onMusicLevelChan
   const stop = () => {
     stopPreview(); setMusicPaused(true); setPaused(true); setPlayingId(null);
   };
+  const chooseMode = mode => {
+    setPlaybackMode(mode);
+    const current = TRACKS.find(track => track.id === playingId);
+    if (current) { previewTrack(current, mode); setMusicPaused(false); setPaused(false); }
+  };
   return <div className="jukebox">
     <p className="dim">Moods of the Undermine's score, collected as you meet them below. {unlocked.length} of {TRACKS.length} heard.
       {' '}Music keeps playing while you browse; starting a run hands the score back to the descent.</p>
@@ -497,10 +585,13 @@ function JukeboxPanel({ musicOff, musicLevel, onMusicOffChange, onMusicLevelChan
       }}>{paused || !playingId ? '▶ Play' : 'Ⅱ Pause'}</button>
       <button className="btn" onClick={() => move(1)} disabled={!unlocked.length} aria-label="Next track">▶</button>
       <button className="btn" onClick={() => { restartMusic(); setPaused(false); setMusicPaused(false); }}>↺ Restart</button>
-      <button className={`btn ${looping ? 'primary' : ''}`} aria-pressed={looping} onClick={() => setLooping(setMusicLooping(!looping))}>↻ Loop</button>
+      <button className={`btn ${playbackMode === 'infinite' ? 'primary' : ''}`} aria-pressed={playbackMode === 'infinite'} onClick={() => chooseMode('infinite')}>∞ Infinite</button>
+      <button className={`btn ${playbackMode === 'direct' ? 'primary' : ''}`} aria-pressed={playbackMode === 'direct'} onClick={() => chooseMode('direct')}>♪ Direct</button>
+      <button className={`btn ${looping ? 'primary' : ''}`} disabled={playbackMode === 'infinite'} aria-pressed={looping} onClick={() => setLooping(setMusicLooping(!looping))}>↻ Direct loop</button>
       <button className="btn" onClick={stop} disabled={!playingId}>■ Stop</button>
     </div>
     <SettingSlider label="Music volume" value={musicLevel} onChange={onMusicLevelChange} />
+    <InfiniteJukeboxControls scope="jukebox" />
     {TRACKS.map(track => {
       const earned = Boolean(track.unlock(progress));
       const playing = playingId === track.id;
@@ -520,9 +611,9 @@ function JukeboxPanel({ musicOff, musicLevel, onMusicOffChange, onMusicLevelChan
 }
 
 export function InGameMenu({
-  muted, musicOff, sfxLevel, musicLevel, preferences,
+  muted, musicOff, sfxLevel, musicLevel, hapticsOn, preferences,
   onMutedChange, onMusicOffChange, onSfxLevelChange, onMusicLevelChange,
-  onPreferenceChange, onClose,
+  onHapticsChange, onPreferenceChange, onClose,
 }) {
   const [tab, setTab] = useState('game');
   const [musicPaused, setPaused] = useState(isMusicPaused);
@@ -549,11 +640,13 @@ export function InGameMenu({
           <SettingSlider label="SFX volume" value={sfxLevel} onChange={onSfxLevelChange} />
           <SettingToggle label="Music" detail="Spooky adaptive score" checked={!musicOff} onChange={onMusicOffChange} />
           <SettingSlider label="Music volume" value={musicLevel} onChange={onMusicLevelChange} />
+          <SettingToggle label="Haptics" detail="Touch feedback for important actions" checked={hapticsOn} onChange={onHapticsChange} />
           <div className="setting-row music-transport"><span><b>Music player</b><small>Control the current adaptive track</small></span><div>
             <button className="btn" onClick={() => setPaused(setMusicPaused(!musicPaused))}>{musicPaused ? '▶ Resume' : 'Ⅱ Pause'}</button>
             <button className="btn" onClick={restartMusic}>↺ Restart</button>
           </div></div>
           <SettingToggle label="Loop music" detail="Repeat the current soundtrack indefinitely" checked={musicLoops} onChange={() => setLoops(setMusicLooping(!musicLoops))} />
+          <InfiniteJukeboxControls />
           <SettingToggle label="Reduce motion" detail="Disable animation and screen shake" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
           <SettingToggle label="High contrast" detail="Brighter board and interface information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
           <SettingToggle label="Large text" detail="Increase interface text" checked={preferences.largeText} onChange={() => onPreferenceChange('largeText', !preferences.largeText)} />

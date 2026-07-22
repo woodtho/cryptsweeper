@@ -6,7 +6,11 @@ import {
   run, ui, cbt, endTurn, cancelTargeting, closeModal, closeCutscene, goHome,
 } from '../engine/engine.js';
 import { getSfxVolume, isMuted, setSfxVolume, toggleMuted } from '../engine/sfx.js';
-import { getMusicVolume, setMood, isMusicOff, setMusicVolume, toggleMusicOff } from '../engine/music.js';
+import { isHapticsEnabled, setHapticsEnabled } from '../engine/haptics.js';
+import {
+  getMusicVolume, setMood, isMusicOff, setMusicVolume, toggleMusicOff,
+  suspendMusic, resumeMusic, setMusicDanger,
+} from '../engine/music.js';
 import { applyPreferences, loadPreferences, savePreferences } from '../engine/preferences.js';
 import { TitleScreen, MapScreen, RewardScreen, CampScreen, ShopScreen, EventScreen, PuzzleScreen, GameOverScreen, InGameMenu } from './screens.jsx';
 import { CombatScreen } from './CombatScreen.jsx';
@@ -51,12 +55,25 @@ function TestTour({ tour, onMove, onStop }) {
   </aside>;
 }
 
+function MetaFeedback() {
+  return <>
+    {ui.deckChange && <aside key={ui.deckChange.id} className={`deck-change ${ui.deckChange.kind}`} aria-live="polite">
+      <span className="deck-change-mark">{ui.deckChange.kind === 'upgrade' ? '✦' : ui.deckChange.kind === 'remove' ? '✕' : '+'}</span>
+      <div><small>Deck changed</small><b>{ui.deckChange.label}</b></div>
+    </aside>}
+    {ui.achievement && <aside key={ui.achievement.id} className="achievement-unlock" aria-live="polite">
+      <span>🏆</span><div><small>Achievement unearthed</small><b>{ui.achievement.name}</b></div>
+    </aside>}
+  </>;
+}
+
 export function App() {
   useGame();
   const [muted, setMuted] = useState(isMuted());
   const [musicOff, setMusicOff] = useState(isMusicOff());
   const [sfxLevel, setSfxLevel] = useState(getSfxVolume());
   const [musicLevel, setMusicLevel] = useState(getMusicVolume());
+  const [hapticsOn, setHapticsOn] = useState(isHapticsEnabled());
   const [preferences, setPreferences] = useState(loadPreferences);
   const [gameMenuOpen, setGameMenuOpen] = useState(false);
   const [testTour, setTestTour] = useState(null);
@@ -97,6 +114,11 @@ export function App() {
   });
 
   useEffect(() => {
+    const ratio = run?.maxHp ? run.hp / run.maxHp : 1;
+    setMusicDanger(ui.screen === 'combat' && ratio <= 0.25 ? 1 - ratio * 2 : 0);
+  });
+
+  useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [ui.screen]);
 
@@ -114,12 +136,17 @@ export function App() {
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined;
-    let listener;
+    let backListener, stateListener;
     NativeApp.addListener('backButton', () => {
       // full back chain; if nothing consumed it we're at a top level, so leave the app
       if (!handleBack(true)) NativeApp.exitApp();
-    }).then(handle => { listener = handle; });
-    return () => listener?.remove();
+    }).then(handle => { backListener = handle; });
+    /* Android lock/home/app-switch events explicitly suspend both the selected
+       jukebox preview and the adaptive home/delve soundtrack. */
+    NativeApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) resumeMusic(); else suspendMusic();
+    }).then(handle => { stateListener = handle; });
+    return () => { backListener?.remove(); stateListener?.remove(); };
   }, []);
 
   /* mine detonations / heavy hits rattle the whole crypt */
@@ -142,11 +169,13 @@ export function App() {
       musicOff={musicOff}
       sfxLevel={sfxLevel}
       musicLevel={musicLevel}
+      hapticsOn={hapticsOn}
       preferences={preferences}
       onMutedChange={() => setMuted(toggleMuted())}
       onMusicOffChange={() => setMusicOff(toggleMusicOff())}
       onSfxLevelChange={value => setSfxLevel(setSfxVolume(value))}
       onMusicLevelChange={value => setMusicLevel(setMusicVolume(value))}
+      onHapticsChange={() => setHapticsOn(setHapticsEnabled(!hapticsOn))}
       onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))}
       onTestAll={() => startTestTour(TEST_ALL_CASES)}
       onTestSection={startTestTour}
@@ -164,7 +193,7 @@ export function App() {
 
   return (
     <>
-      <div id="app">
+      <div id="app" className={run?.maxHp && run.hp / run.maxHp <= 0.25 ? 'critical-health' : ''}>
         {screen}
         <Toasts />
         <ModalHost />
@@ -176,9 +205,11 @@ export function App() {
         onMusicOffChange={() => setMusicOff(toggleMusicOff())}
         onSfxLevelChange={value => setSfxLevel(setSfxVolume(value))}
         onMusicLevelChange={value => setMusicLevel(setMusicVolume(value))}
+        hapticsOn={hapticsOn} onHapticsChange={() => setHapticsOn(setHapticsEnabled(!hapticsOn))}
         onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))}
         onClose={() => setGameMenuOpen(false)} />}
       <MechanicTooltip />
+      <MetaFeedback />
       {testTour && <TestTour tour={testTour} onStop={() => setTestTour(null)} onMove={delta => {
         const next = testTour.index + delta;
         if (next >= testTour.cases.length) { setTestTour(null); return; }

@@ -47,15 +47,35 @@ let desired = { mood: 'title', stratum: 0 };
 let preview = null; // jukebox override: { id, mood, stratum } — wins over `desired` until cleared
 let recording = null, recordingId = null;
 let paused = false, looping = true, musicVolume = 1;
+const PARAM_DEFAULTS = {
+  ambient: 0.65, activity: 0.5, cave: 0.5, pulse: 0.5,
+  branch: 0.35, segment: 0.4, distance: 0.35,
+};
+let parameterProfiles = { game: { ...PARAM_DEFAULTS }, jukebox: { ...PARAM_DEFAULTS } };
+let nextRemixAt = 0;
+let danger = 0;
 let stepIx = 4;
 let nextPulse = 0;
 let off = false;
 try { off = typeof localStorage !== 'undefined' && localStorage.getItem('cs_music_off') === '1'; } catch { /* private mode */ }
 try { looping = typeof localStorage === 'undefined' || localStorage.getItem('cs_music_loop') !== '0'; } catch { /* private mode */ }
 try { musicVolume = Math.max(0, Math.min(1, Number(localStorage.getItem('cs_music_volume') ?? 1))); } catch { /* private mode */ }
+function cleanParams(saved = {}) {
+  return Object.fromEntries(Object.entries(PARAM_DEFAULTS).map(([key, fallback]) => [key,
+    Math.max(0, Math.min(1, Number.isFinite(Number(saved[key])) ? Number(saved[key]) : fallback))]));
+}
+try {
+  const legacy = JSON.parse(localStorage.getItem('cs_infinite_music_params') || '{}');
+  parameterProfiles.game = cleanParams(JSON.parse(localStorage.getItem('cs_infinite_music_game') || JSON.stringify(legacy)));
+  parameterProfiles.jukebox = cleanParams(JSON.parse(localStorage.getItem('cs_infinite_music_jukebox') || '{}'));
+} catch { parameterProfiles = { game: { ...PARAM_DEFAULTS }, jukebox: { ...PARAM_DEFAULTS } }; }
 
 function active() { return preview || desired; }
 function mood() { return MOODS[active().mood] || MOODS.title; }
+function profileName() { return preview ? 'jukebox' : 'game'; }
+function activeParams() { return parameterProfiles[profileName()]; }
+function infinitePlayback() { return !preview || preview.playbackMode !== 'direct'; }
+function ambientGain() { return infinitePlayback() ? Math.max(0.0001, 0.1 * activeParams().ambient * musicVolume) : 0.0001; }
 
 const RECORDINGS = {
   home: homeTheme,
@@ -103,10 +123,11 @@ function syncRecording() {
   if (recordingId !== id) {
     stopRecording();
     recording = new Audio(RECORDINGS[id]);
-    recording.loop = looping;
+    recording.loop = infinitePlayback() || looping;
     recording.preload = 'auto';
     recording.volume = 0.58 * musicVolume;
     recordingId = id;
+    nextRemixAt = 0;
   }
   recording.play().catch(() => {
     /* A platform may still defer playback until its next user gesture. */
@@ -121,14 +142,16 @@ function rootHz() {
 function applyMood() {
   if (!ctx) return;
   const m = mood();
+  const p = activeParams();
   const t = ctx.currentTime;
   const f = rootHz();
   droneOscs[0]?.frequency.setTargetAtTime(f, t, 1.2);
   droneOscs[1]?.frequency.setTargetAtTime(f * 1.007, t, 1.2); // slow beating against the root
   droneOscs[2]?.frequency.setTargetAtTime(f * 2 ** (m.interval / 12), t, 1.2);
-  filter.frequency.setTargetAtTime(m.cutoff, t, 1.0);
+  filter.frequency.setTargetAtTime(m.cutoff + danger * 160, t, 1.0);
   droneGain.gain.setTargetAtTime(m.drone * 0.085, t, 1.5);
-  windGain?.gain.setTargetAtTime(m.wind * 0.022, t, 2.0);
+  master.gain.setTargetAtTime(ambientGain(), t, 0.08);
+  windGain?.gain.setTargetAtTime(m.wind * 0.044 * p.cave, t, 2.0);
   nextPulse = t + 0.8;
   syncRecording();
 }
@@ -198,7 +221,7 @@ function heartbeat() {
   osc.type = 'sine';
   osc.frequency.setValueAtTime(rootHz() * 2, t0);
   osc.frequency.exponentialRampToValueAtTime(rootHz(), t0 + 0.3);
-  env.gain.setValueAtTime(0.09, t0);
+  env.gain.setValueAtTime(0.18 * activeParams().pulse, t0);
   env.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
   osc.connect(env);
   env.connect(master);
@@ -209,10 +232,37 @@ function heartbeat() {
 function tick() {
   if (!ctx || ctx.state !== 'running') return;
   const m = mood();
-  if (Math.random() < m.density) pluck();
-  if (Math.random() < m.drip) drip();
-  if (Math.random() < m.bell) bell();
-  if (m.pulse && ctx.currentTime >= nextPulse) { heartbeat(); nextPulse = ctx.currentTime + m.pulse; }
+  const p = activeParams();
+  if (infinitePlayback()) {
+    const activity = 0.25 + p.activity * 1.5;
+    if (Math.random() < m.density * activity) pluck();
+    if (Math.random() < m.drip * p.cave * 2) drip();
+    if (Math.random() < m.bell * p.cave * 2) bell();
+    if (m.pulse && p.pulse > 0 && ctx.currentTime >= nextPulse) {
+      heartbeat(); nextPulse = ctx.currentTime + m.pulse * (1 - danger * 0.25);
+    }
+    remixTick(p);
+  }
+}
+
+/* The infinite player periodically branches to another distant section of the
+   same recording. It is intentionally conservative: direct mode never seeks,
+   and short/unfinished media simply loops without branching. */
+function remixTick(p) {
+  if (!recording || recording.paused || !Number.isFinite(recording.duration) || recording.duration < 45) return;
+  const sectionLength = 5 + p.segment * 20;
+  if (!nextRemixAt) nextRemixAt = recording.currentTime + sectionLength;
+  if (recording.currentTime < nextRemixAt) return;
+  if (Math.random() < p.branch) {
+    const margin = 8;
+    const minimumDistance = 10 + p.distance * Math.min(80, recording.duration / 2);
+    let target = recording.currentTime;
+    for (let attempt = 0; attempt < 12 && Math.abs(target - recording.currentTime) < minimumDistance; attempt++) {
+      target = margin + Math.random() * Math.max(1, recording.duration - margin * 2);
+    }
+    if (Math.abs(target - recording.currentTime) >= minimumDistance) recording.currentTime = target;
+  }
+  nextRemixAt = recording.currentTime + sectionLength;
 }
 
 function start() {
@@ -223,7 +273,7 @@ function start() {
   master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, ctx.currentTime);
   /* The generated bed stays below the mastered soundtrack recordings. */
-  master.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.065 * musicVolume), ctx.currentTime + 4);
+  master.gain.exponentialRampToValueAtTime(ambientGain(), ctx.currentTime + 4);
   master.connect(ctx.destination);
 
   filter = ctx.createBiquadFilter();
@@ -332,6 +382,13 @@ export function setMood(name, stratum = 0) {
   else arm();
 }
 
+export function setMusicDanger(next) {
+  const value = Math.max(0, Math.min(1, Number(next) || 0));
+  if (value === danger) return;
+  danger = value;
+  if (ctx) applyMood();
+}
+
 /* ---- jukebox: play any unlocked mood from the title screen ----
    The catalog names match the soundtrack plan in docs/music-prompts.md, so
    when composed tracks replace these generative moods the list stands. */
@@ -349,9 +406,12 @@ export const TRACKS = [
   { id: 'finale', name: 'The Crypt Remembered', detail: 'Finale', mood: 'finale', stratum: 0, recording: 'finale', unlock: p => p.wins >= 1, hint: 'Win a run' },
 ];
 
-export function previewTrack(track) {
+export function previewTrack(track, playbackMode = 'infinite') {
   if (!track || !MOODS[track.mood]) return;
-  preview = { id: track.id, mood: track.mood, stratum: track.stratum || 0, recording: track.recording };
+  preview = {
+    id: track.id, mood: track.mood, stratum: track.stratum || 0, recording: track.recording,
+    playbackMode: playbackMode === 'direct' ? 'direct' : 'infinite',
+  };
   /* previews come from a click, so the gesture gate is open */
   if (started) applyMood();
   else if (!off) start();
@@ -377,7 +437,7 @@ export function restartMusic() {
 export function isMusicLooping() { return looping; }
 export function setMusicLooping(next) {
   looping = Boolean(next);
-  if (recording) recording.loop = looping;
+  if (recording) recording.loop = infinitePlayback() || looping;
   try { localStorage.setItem('cs_music_loop', looping ? '1' : '0'); } catch { /* private mode */ }
   return looping;
 }
@@ -385,9 +445,34 @@ export function getMusicVolume() { return musicVolume; }
 export function setMusicVolume(next) {
   musicVolume = Math.max(0, Math.min(1, Number(next)));
   if (recording) recording.volume = 0.58 * musicVolume;
-  if (master && ctx) master.gain.setTargetAtTime(Math.max(0.0001, 0.065 * musicVolume), ctx.currentTime, 0.05);
+  if (master && ctx) master.gain.setTargetAtTime(ambientGain(), ctx.currentTime, 0.05);
   try { localStorage.setItem('cs_music_volume', String(musicVolume)); } catch { /* private mode */ }
   return musicVolume;
+}
+
+export function getInfiniteMusicParams(scope = 'game') {
+  const selected = scope === 'jukebox' ? 'jukebox' : 'game';
+  return { ...parameterProfiles[selected] };
+}
+export function setInfiniteMusicParam(scope, key, next) {
+  const selected = scope === 'jukebox' ? 'jukebox' : 'game';
+  if (!(key in PARAM_DEFAULTS)) return getInfiniteMusicParams(selected);
+  parameterProfiles = {
+    ...parameterProfiles,
+    [selected]: { ...parameterProfiles[selected], [key]: Math.max(0, Math.min(1, Number(next))) },
+  };
+  try { localStorage.setItem(`cs_infinite_music_${selected}`, JSON.stringify(parameterProfiles[selected])); } catch { /* private mode */ }
+  if (ctx && profileName() === selected) applyMood();
+  return getInfiniteMusicParams(selected);
+}
+
+export function suspendMusic() {
+  recording?.pause();
+  ctx?.suspend().catch(() => {});
+}
+export function resumeMusic() {
+  if (off) return;
+  ctx?.resume().then(() => { if (!paused) syncRecording(); }).catch(() => {});
 }
 
 export function isMusicOff() { return off; }
@@ -401,13 +486,8 @@ export function toggleMusicOff() {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (!ctx) return;
-    if (document.hidden) {
-      ctx.suspend().catch(() => {});
-      recording?.pause();
-    } else if (!off) {
-      ctx.resume().catch(() => {});
-      syncRecording();
-    }
+    if (document.hidden) suspendMusic();
+    else resumeMusic();
   });
+  window.addEventListener('pagehide', suspendMusic);
 }

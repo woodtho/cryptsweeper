@@ -3,18 +3,21 @@ import { run, ui, openDeckModal } from '../engine/engine.js';
 import { loadPreferences } from '../engine/preferences.js';
 import { itemVector } from './themedIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
+import { CHALLENGES } from '../engine/legacy.js';
 
 export function TopBar({ children }) {
   const prefs = loadPreferences();
   const combat = ui.screen === 'combat';
+  const critical = run.hp / run.maxHp <= 0.25;
   return (
     <div className={`topbar-shell ${combat ? 'combat-topbar-shell' : ''}`}>
       <div className="topbar-menu-row">
         <button className="btn top-home" onClick={() => window.dispatchEvent(new Event('cryptsweeper:open-game-menu'))} title="Game menu"><GameIcon name="menu" preferences={prefs} /> Menu</button>
       </div>
       <div className={`topbar ${combat ? 'combat-topbar' : ''}`}>
-        <span className="stat hpbar" data-mechanic="health" tabIndex="0" style={{ position: 'relative' }}>
+        <span className={`stat hpbar ${critical ? 'critical' : ''}`} data-mechanic="health" tabIndex="0" style={{ position: 'relative' }}>
           <GameIcon name="health" preferences={prefs} /> <b>{run.hp}</b>/{run.maxHp}
+          {critical && <small className="critical-label">CRITICAL</small>}
           {ui.dmg.filter(d => d.kind === 'player').map((d, k) => (
             <span key={d.id} className={`dmgfloat player ${d.amount > 0 ? '' : 'soft'}`}
               style={{ left: 4 + (k % 3) * 22 }}>
@@ -24,6 +27,7 @@ export function TopBar({ children }) {
         </span>
         <span className="stat gold" data-mechanic="gold" tabIndex="0"><GameIcon name="gold" preferences={prefs} /> <b>{run.gold}</b>g</span>
         <span className="stat dim hud-secondary">{STRATA[run.stratum].name}</span>
+        {run.challenge && <span className="stat challenge-hud" title={CHALLENGES[run.challenge]?.desc}>{CHALLENGES[run.challenge]?.mark} {CHALLENGES[run.challenge]?.name}</span>}
         <span className={`classsig hud-secondary ${run.cls}`} title={CLASSES[run.cls].passive.replace(/<[^>]+>/g, '')}>
           {CLASSES[run.cls].name.replace('THE ', '')}
         </span>

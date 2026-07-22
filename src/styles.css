@@ -361,6 +361,11 @@ h1.logo .flag {
 .setting-row.setting-slider { cursor: default; }
 .setting-row.setting-slider input[type="range"] { width: min(52%, 320px); height: 28px; accent-color: var(--candle); }
 .music-transport > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.infinite-controls { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--etch-hi); background: rgba(14,17,22,.72); }
+.infinite-controls-head { padding: 4px 6px 7px; }
+.infinite-controls-head b { display: block; color: var(--candle); font-family: var(--display); letter-spacing: .08em; text-transform: uppercase; }
+.infinite-controls-head small { display: block; margin-top: 3px; color: var(--bone-dim); font: 10px/1.4 var(--mono); }
+.infinite-controls .setting-row { padding: 9px 11px; }
 .setting-link { font: inherit; color: inherit; text-align: left; }
 .setting-link:hover { border-color: var(--candle); }
 .setting-link:hover .setting-link-arrow { color: var(--candle); }
@@ -551,10 +556,17 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
   .how-section-body > ul { padding-left: 20px; font-size: 13px; }
   .symbol-grid, .delver-rules, .controls-grid, .glossary-grid { grid-template-columns: 1fr; }
   .index-grid { grid-template-columns: 1fr; }
+  .challenge-grid,.achievement-grid { grid-template-columns:1fr; }
+  .grave-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .controls-card { border-left: 0; border-top: 1px solid var(--etch); padding: 18px 0 0; }
 }
 .topbar .stat b { font-size: 15px; }
 .hpbar { color: var(--blood-hi); }
+.hpbar.critical { animation: criticalpulse 1.15s ease-in-out infinite; }
+.critical-label { margin-left: 5px; color: #ff7668; font: 700 8px/1 var(--mono); letter-spacing: .12em; }
+#app.critical-health::after { content: ''; position: fixed; z-index: 900; inset: 0; pointer-events: none; box-shadow: inset 0 0 46px rgba(158,20,18,.28), inset 0 0 10px rgba(255,52,38,.18); animation: criticaledge 1.8s ease-in-out infinite; }
+@keyframes criticalpulse { 50% { color: #fff; text-shadow: 0 0 10px var(--blood-hi); } }
+@keyframes criticaledge { 50% { opacity: .48; } }
 .seg {
   --cut: 5px;
   --face: #000;
@@ -1391,6 +1403,8 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
 }
 /* cards are dealt from the draw pile, staggered */
 .handslot.deal { animation: dealin .34s cubic-bezier(.2, .9, .3, 1.25) backwards; }
+.handslot.invalid-card { animation: invalidcard .28s ease-out; }
+@keyframes invalidcard { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px) rotate(-1deg); } 55% { transform: translateX(5px) rotate(1deg); } 78% { transform: translateX(-2px); } }
 @keyframes dealin {
   from { transform: translateX(90px) translateY(34px) rotate(10deg); opacity: 0; }
 }
@@ -1421,6 +1435,56 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
 .modal { animation: modalin .18s ease-out; }
 @keyframes modalin { from { transform: scale(.94) translateY(10px); opacity: 0; } }
 #app.shake { animation: crumble .38s linear; }
+
+/* persistent feedback notices */
+.deck-change,.achievement-unlock { position: fixed; z-index: 1300; left: 50%; top: calc(env(safe-area-inset-top) + 18px); transform: translateX(-50%); width: min(92vw, 430px); display: flex; align-items: center; gap: 12px; padding: 12px 15px; border: 1px solid var(--candle); background: rgba(10,12,16,.96); box-shadow: 0 12px 36px #000; animation: metafeedback 2.7s ease both; pointer-events: none; }
+.achievement-unlock { top: calc(env(safe-area-inset-top) + 82px); border-color: var(--moss); }
+.deck-change-mark,.achievement-unlock>span { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid currentColor; color: var(--candle); font-size: 22px; }
+.deck-change.remove .deck-change-mark { color: var(--blood-hi); }
+.deck-change.upgrade .deck-change-mark,.achievement-unlock>span { color: var(--moss); }
+.deck-change small,.achievement-unlock small { display: block; color: var(--bone-dim); font: 9px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.deck-change b,.achievement-unlock b { display: block; margin-top: 3px; font-family: var(--display); }
+@keyframes metafeedback { 0% { opacity:0; transform:translate(-50%,-18px) scale(.96); } 9%,82% { opacity:1; transform:translate(-50%,0) scale(1); } 100% { opacity:0; transform:translate(-50%,-8px); } }
+
+.enemy-modifier { margin-left: 6px; padding: 2px 5px; border: 1px solid var(--etch-hi); color: var(--candle); font: 700 8px/1 var(--mono); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+.enemy-token { position: relative; }
+.enemy-token-modifier { position: absolute; left: -3px; top: -4px; display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--candle); border-radius: 50%; background: var(--abyss-0); color: var(--candle); font: 700 10px/1 var(--mono); }
+
+/* challenges, achievements, and the graveyard */
+.challenge-grid,.achievement-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.challenge-card,.achievement-stone { min-height: 112px; display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 12px; padding: 13px; border: 1px solid var(--etch); background: linear-gradient(145deg,#151820,#090b0e); color: var(--bone); text-align: left; }
+.challenge-card>span,.achievement-stone>span { color: var(--candle); font-size: 28px; text-align: center; }
+.challenge-card b,.achievement-stone b { display:block; font-family:var(--display); letter-spacing:.07em; text-transform:uppercase; }
+.challenge-card small,.achievement-stone small,.challenge-banner small { display:block; margin-top:5px; color:var(--bone-dim); font:10px/1.4 var(--mono); }
+.challenge-card i { color:var(--candle); font:normal 9px/1 var(--mono); }
+.challenge-card:hover { border-color:var(--candle); transform:translateY(-2px); }
+.challenge-banner { display:flex; align-items:center; gap:14px; margin:12px 0; padding:14px; border:1px solid var(--candle); background:rgba(201,151,59,.08); }
+.challenge-banner>span { font-size:34px; color:var(--candle); }
+.achievement-stone { grid-template-columns:42px 1fr; opacity:.55; filter:grayscale(.7); }
+.achievement-stone.earned { opacity:1; filter:none; border-color:var(--moss); }
+.achievement-stone time { display:block; margin-top:7px; color:var(--moss); font:9px/1 var(--mono); }
+.graveyard { position:relative; min-height:360px; overflow:hidden; padding:18px 14px 42px; border:1px solid #343845; background:radial-gradient(circle at 75% 8%,rgba(172,185,207,.12),transparent 20%),linear-gradient(#11151d 0 42%,#0b0e0d 42%); }
+.graveyard::before { content:''; position:absolute; left:-5%; right:-5%; bottom:-30px; height:46%; border-radius:50% 50% 0 0; background:linear-gradient(#172019,#090c09); box-shadow:0 -4px 20px rgba(0,0,0,.55); }
+.graveyard.empty { display:grid; place-content:center; text-align:center; color:var(--bone-dim); }
+.graveyard.empty p { color:var(--bone); font-family:var(--display); font-size:20px; }
+.graveyard-sky { position:relative; z-index:1; display:flex; justify-content:space-between; color:var(--bone-dim); font:10px/1 var(--mono); }
+.grave-moon { color:#d8d5c6; font-size:44px; text-shadow:0 0 22px rgba(230,230,210,.4); }
+.grave-row { position:relative; z-index:2; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 12px; align-items:end; margin-top:28px; }
+.grave { position:relative; min-width:0; }
+.headstone { width:100%; min-height:152px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:24px 10px 15px; border:1px solid #555a60; border-radius:48% 48% 4px 4px; background:linear-gradient(135deg,#383c3f,#1c2022); color:#d0cbbb; box-shadow:inset 0 0 18px rgba(0,0,0,.55),5px 8px 0 rgba(0,0,0,.3); text-align:center; }
+.grave-shape-1 .headstone { border-radius:3px 3px 0 0; }
+.grave-shape-2 .headstone { clip-path:polygon(50% 0,100% 24%,100% 100%,0 100%,0 24%); border-radius:0; }
+.grave.survivor .headstone { border-color:var(--candle); }
+.grave-mark { font-size:24px; color:var(--bone-dim); }
+.grave.survivor .grave-mark { color:var(--candle); }
+.headstone b { margin-top:6px; font:700 11px/1.2 var(--display); letter-spacing:.08em; }
+.headstone small { margin-top:7px; color:#aaa697; font:8px/1.3 var(--mono); }
+.headstone time { margin-top:7px; color:#777b78; font:8px/1 var(--mono); }
+.grave-inscription { margin-top:6px; padding:11px; border:1px solid #41464a; background:rgba(7,9,9,.96); color:var(--bone-dim); font-size:10px; }
+.grave-inscription p { margin:5px 0; }
+.grave-build>span { display:flex; flex-wrap:wrap; gap:3px; margin-top:5px; }
+.grave-build i { padding:2px 4px; border:1px solid var(--etch); color:var(--bone-dim); font:normal 8px/1.2 var(--mono); }
+.graveyard-clear { position:relative; z-index:2; margin-top:24px; }
 @keyframes crumble {
   15% { transform: translate(-4px, 2px); }
   30% { transform: translate(4px, -3px); }

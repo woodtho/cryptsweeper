@@ -96,6 +96,11 @@ const RECIPES = {
   turn:     () => noise({ t: .18, fc: 500, fc2: 150, g: .11 }),
   defeat:   () => { [330, 262, 208, 156].forEach((f, i) => tone({ f, t: .35, type: 'triangle', g: .12, when: i * .22 })); },
   victory:  () => { [392, 523, 659, 784, 1046].forEach((f, i) => tone({ f, t: .3, type: 'triangle', g: .11, when: i * .12 })); },
+  invalid:  () => tone({ f: 145, f2: 105, t: .11, type: 'square', g: .055 }),
+  heal:     () => { tone({ f: 150, f2: 290, t: .2, type: 'triangle', g: .13 }); tone({ f: 290, f2: 440, t: .14, type: 'sine', g: .07, when: .12 }); },
+  cardadd:  () => { tone({ f: 260, f2: 420, t: .16, type: 'triangle', g: .10 }); noise({ t: .09, fc: 1900, type: 'highpass', g: .035 }); },
+  upgrade:  () => { [330, 440, 660].forEach((f, i) => tone({ f, t: .18, type: 'triangle', g: .08, when: i * .07 })); },
+  remove:   () => tone({ f: 180, f2: 55, t: .26, type: 'triangle', g: .13 }),
 };
 
 export function sfx(name) {
