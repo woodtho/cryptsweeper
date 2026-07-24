@@ -10,7 +10,10 @@ const DELVERS = ['sapper', 'surveyor', 'terraformer', 'lamplighter', 'gambler', 
 const BOSSES = ['collapser', 'fogfather', 'nn99'];
 const ELITES = ['ossuary', 'miscounter', 'detonata'];
 const CURSES = ['claustrophobia', 'vertigo', 'exhaustion', 'nightterrors', 'paranoia'];
-const BOSS_TRINKETS = ['lamp', 'dowsingrod'];
+const BOSS_TRINKETS = [
+  'lamp', 'dowsingrod', 'bedrockheart', 'devouringpick', 'fogglass',
+  'silverthread', 'signalcore', 'protocolcoil', 'wardenseal', 'veincompass',
+];
 
 /* Aggregate helpers over the collection/progression records (see collection.js). */
 const sumField = (obj, field) => Object.values(obj || {}).reduce((n, entry) => n + (Number(entry?.[field]) || 0), 0);
@@ -198,6 +201,8 @@ export function recordRunHistory(run, won) {
     gold: run.gold || 0, fullClears: run.fullClears || 0, safeReveals: run.safeReveals || 0,
     cause: won ? 'Survived the Undermine' : (run.lastDamageSource || 'Lost beneath unnamed stone'),
     bosses: [...(run.bossesDefeated || [])],
+    veinBoons: { ...(run.veinBoons || {}) },
+    relicUpgrades: { ...(run.relicUpgrades || {}) },
     deck: (run.deck || []).map(card => ({ key: card.key, up: card.up || 0 })),
     trinkets: [...(run.trinkets || [])], gadgets: [...(run.gadgets || [])],
   };

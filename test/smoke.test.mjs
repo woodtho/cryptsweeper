@@ -3,7 +3,7 @@ import {
   run, ui, cbt, board,
   genBoard, solveScore, neighborsOf, numAt, hiddenIdx, isHiddenUsable,
   newRun, reachableNodes, startCombat, revealTile, openSafe, chordAt, endTurn,
-  takeRewardCard, finishReward, genShop, buyShopCard,
+  takeRewardCard, takeBossTrinket, takeVeinBoon, finishReward, genShop, buyShopCard,
   startPuzzle, puzzleClick, devourRing, hitEnemy, checkNNPhase,
   detonateForCards, fleeCombat,
   SHAPES, annexTiles, addMineAt, clickTile, basePicksFor,
@@ -13,7 +13,7 @@ import {
   EVENT_CATALOG, eventChoice, currentEventView, startSpecificEvent, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
   toggleLightsCell, toggleNonogramCell, answerSequence,
   clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS, ENEMY_EFFECTS,
-  applyEnemyEffect, enemyAttack,
+  applyEnemyEffect, enemyAttack, fogTiles, effCost, BOSS_RELIC_KEYS, VEIN_BOONS,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
@@ -800,6 +800,67 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   finishReward();
   T('bottom Vein guardians generate another segment and preserve total depth',
     R().stratum === 3 && R().veinSegments === 1 && R().veinDepth === 12 && R().pos === null && ui.screen === 'map');
+}
+
+/* ================= expanded boss relics and endless Vein rewards ================= */
+{
+  T('boss relic pool contains ten permanent build-changing relics',
+    BOSS_RELIC_KEYS.length === 10 && BOSS_RELIC_KEYS.every(key => TRINKETS[key]?.tier === 'boss'));
+
+  newRun('sapper', { daily:'boss-relic-offer', testMode:true });
+  testLaunch('reward', 'boss');
+  const firstOffer = [...R().reward.bossTrinkets];
+  T('boss rewards offer three unowned relics with guardian-themed choices',
+    firstOffer.length === 3 && firstOffer.some(key => TRINKETS[key]?.boss === 'collapser'));
+  takeBossTrinket(firstOffer[0]);
+  T('choosing a boss relic records one permanent reward and closes the offer',
+    R().trinkets.includes(firstOffer[0]) && R().reward.bossTrinkets === null);
+
+  newRun('sapper', { daily:'dowsing-rod', testMode:true });
+  R().trinkets.push('dowsingrod');
+  startCombat('dig');
+  const scanCard = { id:987650, key:'scancard', up:0 };
+  cbt().hand.unshift(scanCard);
+  const flagTarget = hiddenIdx().find(i => board().cells[i].flag === 0);
+  toggleFlag(flagTarget);
+  T('Dowsing Rod keeps manual flags available and makes the first Scan card free',
+    board().cells[flagTarget].flag === 1 && effCost(scanCard) === 0);
+  T('Dowsing Rod begins each turn with safe guidance or a verified mine',
+    board().cells.some(cell => cell.glow || cell.flag === 2));
+
+  newRun('sapper', { daily:'boss-relic-hooks', testMode:true });
+  R().trinkets.push('bedrockheart', 'veincompass', 'protocolcoil', 'wardenseal', 'fogglass');
+  startCombat('dig');
+  const startPlating = cbt().plating;
+  const normalCard = cbt().hand.find(card => CARDS[card.key].cost?.[card.up ? 1 : 0] > 0);
+  const normalCost = normalCard ? CARDS[normalCard.key].cost[normalCard.up ? 1 : 0] : 0;
+  const fogBefore = board().cells.filter(cell => cell.revealed).length;
+  fogTiles(5);
+  cbt().block = 0; cbt().plating = 0;
+  const hpBeforeSeal = R().hp;
+  enemyAttack(cbt().enemies[0], 10);
+  T('defensive and economy relic hooks apply at combat start',
+    cbt().maxPicks === basePicksFor('sapper') + 1 && normalCard && effCost(normalCard) === Math.max(0, normalCost - 1));
+  T('Bedrock Heart, Fogglass Prism, and Warden Seal apply their distinct defenses',
+    startPlating >= 8 && fogBefore === board().cells.filter(cell => cell.revealed).length && R().hp === hpBeforeSeal - 4);
+
+  newRun('sapper', { daily:'vein-boon-offer', testMode:true });
+  R().stratum = 3;
+  R().trinkets = [...new Set([...R().trinkets, ...BOSS_RELIC_KEYS])];
+  testLaunch('reward', 'boss');
+  const boonOffer = [...R().reward.veinBoons];
+  const maxBeforeBoon = R().maxHp;
+  R().reward.veinBoons = ['vitality', ...boonOffer.filter(key => key !== 'vitality').slice(0, 2)];
+  takeVeinBoon('vitality');
+  T('exhausting the permanent pool produces three repeatable Vein boons',
+    boonOffer.length === 3 && boonOffer.every(key => VEIN_BOONS[key]));
+  T('Living Ore applies and records its repeatable maximum-Health boon',
+    R().maxHp === maxBeforeBoon + 8 && R().veinBoons.vitality === 1 && R().reward.veinBoons === null);
+  R().reward = { kind:'boss', veinBoons:['resonance'], bossTrinkets:null };
+  takeVeinBoon('resonance');
+  T('Relic Temper permanently upgrades one owned boss relic',
+    Object.values(R().relicUpgrades).reduce((total, level) => total + level, 0) === 1
+      && R().veinBoons.resonance === 1);
 }
 
 /* ================= feedback, legacy, modifiers, chains, and challenges ================= */

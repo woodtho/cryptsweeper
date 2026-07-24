@@ -15,7 +15,7 @@ import { evaluateAchievements, recordRunHistory } from './legacy.js';
 import { loadPreferences } from './preferences.js';
 import {
   EXTRA_EVENT_CATALOG, CORE_BEHAVIORAL_EVENTS,
-  createBehavioralEventState, behavioralEventView, resolveBehavioralEvent,
+  createBehavioralEventState, behavioralEventView, behavioralEventFollowup, resolveBehavioralEvent,
 } from './events.js';
 import {
   sudokuShape, solveSudoku, countSudokuSolutions, sudokuDifficulty,
@@ -131,6 +131,8 @@ export function loadRun(slot) {
     run.veinDepth ??= 0;
     run.veinSegments ??= 0;
     run.veinBossesDefeated ??= 0;
+    run.veinBoons ??= {};
+    run.relicUpgrades ??= {};
     run.coreWon ??= false;
     run.challenge ??= null;
     run.lastDamageSource ??= null;
@@ -152,7 +154,8 @@ export function loadRun(slot) {
         enemy.def = ENEMIES[enemy.key]; enemy.modifier ??= null; enemy.data ??= {}; enemy.effects ??= {};
       }
       if (run.combat.picks == null) run.combat.picks = basePicksFor(run.cls);
-      if (run.combat.maxPicks == null) run.combat.maxPicks = basePicksFor(run.cls) + run.pickBonus + (run.trinkets.includes('pitons') ? 1 : 0);
+      if (run.combat.maxPicks == null) run.combat.maxPicks = basePicksFor(run.cls) + run.pickBonus
+        + (run.trinkets.includes('pitons') ? 1 : 0) + (run.trinkets.includes('veincompass') ? 1 : 0);
       run.combat.powers = {
         powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
         blastDividend: false, blastDividendUsed: false, stonechoir: false,
@@ -211,6 +214,29 @@ function pushDmg(fx) {
 export function cbt() { return run.combat; }
 export function board() { return run?.combat?.board || null; }
 export function hasT(key) { return run.trinkets.includes(key); }
+function relicLevel(key) { return Math.max(0, Number(run?.relicUpgrades?.[key]) || 0); }
+
+export const BOSS_RELIC_KEYS = Object.keys(TRINKETS).filter(key => TRINKETS[key].tier === 'boss');
+const BOSS_RELIC_POOLS = {
+  collapser: ['bedrockheart', 'devouringpick', 'wardenseal', 'veincompass'],
+  fogfather: ['dowsingrod', 'fogglass', 'silverthread', 'wardenseal'],
+  nn99: ['lamp', 'signalcore', 'protocolcoil', 'veincompass'],
+};
+export const VEIN_BOONS = {
+  resonance: { name: 'Relic Temper', mark: '♢', desc: 'Permanently temper one random owned boss relic, strengthening its numerical effect.' },
+  vitality: { name: 'Living Ore', mark: '♥', desc: 'Permanently gain 8 maximum Health and recover 8 Health.' },
+  reforge: { name: 'Deep Reforge', mark: '⟡', desc: 'Upgrade two random cards in your deck. If every card is upgraded, gain 100 gold.' },
+  transmute: { name: 'Vein Transmutation', mark: '⇄', desc: 'Transform one random non-Curse card into an upgraded rare card for your Delver or the neutral pool.' },
+  cache: { name: 'Bottomless Cache', mark: '◆', desc: 'Gain 75 gold and a random gadget. If your gadget slots are full, gain 25 additional gold.' },
+};
+
+function bossRelicOffer(bossKey) {
+  const unowned = BOSS_RELIC_KEYS.filter(key => !run.trinkets.includes(key));
+  if (!unowned.length) return [];
+  const themed = (BOSS_RELIC_POOLS[bossKey] || []).filter(key => unowned.includes(key));
+  const fallback = shuffle(unowned.filter(key => !themed.includes(key)));
+  return [...shuffle(themed), ...fallback].slice(0, 3);
+}
 
 function dailySeed(date) {
   let h = 2166136261;
@@ -231,7 +257,7 @@ export function newRun(clsKey, options = {}) {
     surveyNext: false, seenEvents: [], combat: null, upgrades: 0, pickBonus: 0, winRecorded: false,
     reward: null, shop: null, event: null, eventState: null, eventHistory: [], eventThreads: {}, puzzle: null, seenCutscenes: [],
     bossesDefeated: [], lastDamageSource: null, challenge: options.challenge || null,
-    veinDepth: 0, veinSegments: 0, veinBossesDefeated: 0, coreWon: false,
+    veinDepth: 0, veinSegments: 0, veinBossesDefeated: 0, veinBoons: {}, relicUpgrades: {}, coreWon: false,
     runId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, historyRecorded: false,
     daily: options.daily || null, testMode: Boolean(options.testMode),
     rngState: options.daily ? dailySeed(options.daily) : null,
@@ -724,6 +750,12 @@ export function openSafe(start) {
     if (n === 0) for (const j of neighborsOf(i, b.size)) q.push(j);
   }
   if (!c.setup && c.revealedThisTurn >= 3) {
+    if (hasT('signalcore') && !c.signalCoreUsed) {
+      c.signalCoreUsed = true;
+      const energy = 1 + relicLevel('signalcore');
+      gainEnergy(energy);
+      toast(`Signal Core: three safe reveals grant +${energy} Energy`);
+    }
     for (const e of c.enemies) if (e.hp > 0 && e.data.modifierBuried) {
       e.data.modifierBuried = false; e.data.buried = false;
       e.intent = e.def.next(e);
@@ -802,6 +834,11 @@ export function detonateForCards(i) {
   haptic('mine');
   log('💥 Controlled detonation.');
   triggerPowderKeg();
+  if (run.combat && hasT('devouringpick')) {
+    const damage = 5 + relicLevel('devouringpick') * 2;
+    hitAll(damage, { bypassGate: true, noNitro: true });
+    toast(`Devouring Pick: ${damage} damage to all enemies`);
+  }
   if (run.combat && run.cls === 'sapper' && !c.classState.passiveUsed) {
     c.classState.passiveUsed = true;
     hitAll(4, { noNitro: true });
@@ -830,6 +867,12 @@ export function scanTile(i) {
   cell.scan = cell.mine ? 'mine' : 'safe';
   sfx('scan');
   const c = cbt();
+  if (fresh && !cell.mine && !c.setup && hasT('silverthread')
+      && (c.silverThreadUsesThisTurn || 0) < 1 + relicLevel('silverthread')) {
+    c.silverThreadUsesThisTurn = (c.silverThreadUsesThisTurn || 0) + 1;
+    gainEnergy(1);
+    toast('Silver Thread: safe Scan grants +1 Energy');
+  }
   if (fresh && !c.setup && run.cls === 'surveyor') {
     c.classState.scanCount++;
     if (c.classState.scanCount % 4 === 0) {
@@ -948,6 +991,7 @@ function checkFullClear() {
   b.cleared = true;
   c.fullCleared = true;
   run.fullClears++;
+  if (hasT('bedrockheart')) gainPlating(4 + relicLevel('bedrockheart'));
   sfx('fullclear');
   ui.shakeSeq++;
   toast(`★ FULL CLEAR — the board collapses: ${FULL_CLEAR_DMG} damage to ALL enemies!`);
@@ -1078,6 +1122,13 @@ export function layMines(n, col) {
 
 export function fogTiles(n) {
   const b = board(), c = cbt();
+  if (hasT('fogglass') && (c.fogglassUses || 0) < 1 + relicLevel('fogglass')) {
+    c.fogglassUses = (c.fogglassUses || 0) + 1;
+    sfx('block');
+    log('🔮 Fogglass Prism scatters the fog.');
+    toast('Fogglass Prism negates the Fog');
+    return;
+  }
   const cand = shuffle(b.cells.map((_, i) => i).filter(i => {
     const cell = b.cells[i];
     return cell.revealed && !cell.void && !cell.crater && !cell.construct;
@@ -1273,6 +1324,12 @@ export function drawCards(n) {
 export function enemyAttack(e, n) {
   if (!run?.combat) return;
   const c = cbt();
+  if (hasT('wardenseal') && !c.wardenSealUsed) {
+    const original = n;
+    c.wardenSealUsed = true;
+    n = Math.max(0, n - 6 - relicLevel('wardenseal') * 2);
+    log(`🛡 Warden Seal weakens ${e.def.name}'s attack from ${original} to ${n}.`);
+  }
   if (e.effects?.jammed > 0) {
     const original = n;
     n = Math.max(0, Math.floor(n * 0.6));
@@ -1448,7 +1505,7 @@ function checkWin() {
 /* ================= combat setup & turns ================= */
 function minePenalty() {
   let p = persistentCurseTotal('boardMines');
-  if (hasT('lamp')) p += 4;
+  if (hasT('lamp')) p += Math.max(0, 4 - relicLevel('lamp'));
   return p;
 }
 
@@ -1472,8 +1529,10 @@ export function startCombat(kind) {
     enemies: [], hand: [], discard: [], exhaust: [], powersPlayed: [],
     draw: shuffle(run.deck.map(c => ({ ...c }))),
     energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0) + (run.challenge === 'wardenroad' ? 1 : 0),
-    block: 0, plating: run.challenge === 'wardenroad' ? 6 : 0, insight: 0, turn: 0,
+    block: 0, plating: (run.challenge === 'wardenroad' ? 6 : 0)
+      + (hasT('bedrockheart') ? 8 + relicLevel('bedrockheart') * 2 : 0), insight: 0, turn: 0,
     maxPicks: Math.max(PERSISTENT_CURSES.vertigo.minimum, basePicksFor(run.cls) + (run.pickBonus || 0) + (hasT('pitons') ? 1 : 0)
+      + (hasT('veincompass') ? 1 + relicLevel('veincompass') : 0)
       + persistentCurseTotal('maxPicks') + (run.challenge === 'noflags' ? 1 : 0)),
     revealedThisTurn: 0, sumThisTurn: 0, chordedThisTurn: false, minesDetonated: 0,
     powers: {
@@ -1565,10 +1624,14 @@ function startTurn() {
   c.classState.painUsed = false;
   c.classState.exhaustUsed = false;
   c.powers.blastDividendUsed = false;
+  c.signalCoreUsed = false;
+  c.dowsingScanUses = 0;
+  c.protocolCoilUsed = false;
+  c.silverThreadUsesThisTurn = 0;
   const normalDraw = 5 + (hasT('indexcard') && c.turn === 1 ? 1 : 0) - (hasT('emberjar') && c.turn > 1 ? 1 : 0)
     + persistentCurseTotal('cardsPerTurn');
   drawCards(Math.max(PERSISTENT_CURSES.exhaustion.minimum, normalDraw));
-  updateGlow();
+  applyDowsingReading();
   notify();
 }
 
@@ -1578,6 +1641,21 @@ function updateGlow() {
   if (!hasT('dowsingrod')) return;
   const safe = provablySafe();
   if (safe != null) b.cells[safe].glow = true;
+}
+
+function applyDowsingReading() {
+  updateGlow();
+  if (!hasT('dowsingrod')) return;
+  if (board().cells.some(cell => cell.glow)) {
+    log('🪄 Dowsing Rod highlights provably safe ground.');
+    return;
+  }
+  const mine = randPick(hiddenIdx().filter(i => board().cells[i].mine && board().cells[i].flag !== 2));
+  if (mine != null) {
+    verifyFlag(mine);
+    log('🪄 Dowsing Rod verifies a mine because no safe deduction is available.');
+    toast('Dowsing Rod verifies one mine');
+  }
 }
 
 /* Provably-safe finder for Dowsing Rod: uses visible numbers + verified flags + scans. */
@@ -1660,11 +1738,18 @@ export function fleeCombat() {
 }
 
 /* ================= cards: play & targeting ================= */
+function isScanCard(card) {
+  const def = CARDS[card?.key];
+  return Boolean(def?.text && /\bScan\b/i.test(String(def.text(card.up ? 1 : 0))));
+}
+
 export function effCost(card) {
   const def = CARDS[card.key];
   if (def.cost == null) return null;
   let cost = def.cost[card.up ? 1 : 0];
   if (card.key === 'entombcard' && hasT('keystone') && !cbt().keystoneUsed) cost = 0;
+  if (hasT('protocolcoil') && !cbt().protocolCoilUsed) cost = Math.max(0, cost - 1 - relicLevel('protocolcoil'));
+  if (hasT('dowsingrod') && (cbt().dowsingScanUses || 0) < 1 + relicLevel('dowsingrod') && isScanCard(card)) cost = 0;
   return cost;
 }
 
@@ -1726,6 +1811,10 @@ function resolveCard(handIdx, picked) {
   recordCardPlayed(card.key);
   const cost = effCost(card);
   if (card.key === 'entombcard' && hasT('keystone') && !c.keystoneUsed && cost === 0) c.keystoneUsed = true;
+  if (hasT('protocolcoil') && !c.protocolCoilUsed) c.protocolCoilUsed = true;
+  if (hasT('dowsingrod') && (c.dowsingScanUses || 0) < 1 + relicLevel('dowsingrod') && isScanCard(card)) {
+    c.dowsingScanUses = (c.dowsingScanUses || 0) + 1;
+  }
   c.energy -= cost;
   c.hand.splice(handIdx, 1);
   sfx('play');
@@ -1776,7 +1865,6 @@ export function clickTile(i) {
 
 export function toggleFlag(i) {
   if (run.challenge === 'noflags') { toast('Unmarked Stone forbids flags.', true); sfx('invalid'); haptic('invalid'); return; }
-  if (hasT('dowsingrod')) { toast('The Dowsing Rod forbids flags.', true); return; }
   const cell = board().cells[i];
   if (!isHiddenUsable(i)) return;
   cell.flag = cell.flag ? 0 : 1;
@@ -1820,6 +1908,10 @@ export function useGadget(key) {
 function combatVictory() {
   const c = cbt();
   const kind = c.kind;
+  const bossKey = kind === 'boss' ? c.enemies.find(enemy => enemy.def.boss)?.key || null : null;
+  const bossTrinkets = kind === 'boss' ? bossRelicOffer(bossKey) : null;
+  const veinBoons = kind === 'boss' && run.stratum === 3 && bossTrinkets.length === 0
+    ? shuffle(Object.keys(VEIN_BOONS)).slice(0, 3) : null;
   let gold = kind === 'boss' ? 75 : kind === 'elite' ? 30 : 10 + randInt(11);
   if (kind === 'boss') {
     run.bossesDefeated ??= [];
@@ -1837,7 +1929,7 @@ function combatVictory() {
     cardTaken: false,
     gadget: (kind !== 'boss' && random() < (kind === 'elite' ? 0.5 : 0.3)) ? randPick(Object.keys(GADGETS)) : null,
     trinket: kind === 'elite' ? unownedTrinket() : null,
-    bossTrinkets: kind === 'boss' ? ['lamp', 'dowsingrod'].filter(k => !run.trinkets.includes(k)) : null,
+    bossKey, bossTrinkets, veinBoons,
     veinExit: run.stratum === 3 && run.pos?.r === MAP_ROWS - 1,
   };
   for (const card of run.reward.cards) recordCardSeen(card.key);
@@ -1896,6 +1988,61 @@ export function takeBossTrinket(key) {
   run.trinkets.push(key);
   recordItemOwned(`trinket:${key}`);
   r.bossTrinkets = null;
+  r.veinBoons = null;
+  notify();
+}
+
+export function takeVeinBoon(key) {
+  const r = run.reward;
+  if (!r?.veinBoons?.includes(key) || !VEIN_BOONS[key]) return;
+  if (key === 'resonance') {
+    const relic = randPick(BOSS_RELIC_KEYS.filter(relicKey => run.trinkets.includes(relicKey)));
+    if (relic) {
+      run.relicUpgrades ??= {};
+      run.relicUpgrades[relic] = (run.relicUpgrades[relic] || 0) + 1;
+      toast(`${TRINKETS[relic].name} tempered to +${run.relicUpgrades[relic]}`);
+    } else run.gold += 100;
+  } else if (key === 'vitality') {
+    run.maxHp += 8;
+    run.hp = Math.min(run.maxHp, run.hp + 8);
+  } else if (key === 'reforge') {
+    const targets = shuffle(run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null)).slice(0, 2);
+    if (!targets.length) run.gold += 100;
+    for (const card of targets) {
+      card.up = 1;
+      run.upgrades = (run.upgrades || 0) + 1;
+      deckChanged('upgrade', `${CARDS[card.key].name} was reforged`);
+    }
+  } else if (key === 'transmute') {
+    const candidates = run.deck.map((card, index) => ({ card, index }))
+      .filter(({ card }) => CARDS[card.key]?.cost != null && CARDS[card.key]?.rarity !== 'curse');
+    const chosen = randPick(candidates);
+    const pool = Object.keys(CARDS).filter(cardKey => {
+      const def = CARDS[cardKey];
+      return def.rarity === 'rare' && (def.cls === run.cls || def.cls === 'neutral') && cardKey !== chosen?.card.key;
+    });
+    const replacement = randPick(pool);
+    if (chosen && replacement) {
+      const oldName = CARDS[chosen.card.key].name;
+      run.deck[chosen.index] = mkCard(replacement, 1);
+      recordCardSeen(replacement);
+      recordCardOwned(replacement);
+      deckChanged('upgrade', `${oldName} became ${CARDS[replacement].name}+`);
+    } else run.gold += 100;
+  } else if (key === 'cache') {
+    run.gold += 75;
+    if (run.gadgets.length < 3) {
+      const gadget = randPick(Object.keys(GADGETS));
+      run.gadgets.push(gadget);
+      recordItemSeen(`gadget:${gadget}`);
+      recordItemOwned(`gadget:${gadget}`);
+    } else run.gold += 25;
+  }
+  run.veinBoons ??= {};
+  run.veinBoons[key] = (run.veinBoons[key] || 0) + 1;
+  r.veinBoons = null;
+  r.bossTrinkets = null;
+  toast(`${VEIN_BOONS[key].name} claimed`);
   notify();
 }
 export function takeRewardGadget() {
@@ -2203,19 +2350,17 @@ function prepareEventState(key) {
   );
 }
 
+/* Honest puzzles are a distinct event-room outcome rather than one entry hidden
+   among the full event catalog. This keeps them common enough to be a recurring
+   run mechanic while preserving event-chain returns as the highest priority. */
+export const HONEST_PUZZLE_EVENT_CHANCE = 0.35;
+
 export function currentEventView() {
   const event = EVENT_CATALOG[run?.event];
   if (!event) return null;
   if (run.eventState?.chainReturn) {
     const thread = run.eventThreads?.[run.eventState.threadKey];
-    return {
-      stageLabel: 'A choice remembered',
-      text: `The chamber remembers that you chose “${thread?.choiceLabel || thread?.choice || 'your path'}” at ${event.title}. Its consequence has followed you here.`,
-      choices: [
-        { key: 'stand', label: 'Stand by the choice', desc: 'Accept its delayed reward and its lingering burden.' },
-        { key: 'amend', label: 'Make amends', desc: 'Pay gold to turn the old consequence toward recovery.' },
-      ],
-    };
+    return behavioralEventFollowup(event, thread);
   }
   if (event.falsePurge) {
     const picks = falsePurgeChoices();
@@ -2243,11 +2388,14 @@ function startEvent() {
     run.eventState = { chainReturn: true, threadKey: key };
     ui.screen = 'event'; notify(); return;
   }
-  const all = [...Object.keys(EVENT_CATALOG), 'puzzle'];
+  if (random() < HONEST_PUZZLE_EVENT_CHANCE) {
+    startPuzzle('random');
+    return;
+  }
+  const all = Object.keys(EVENT_CATALOG);
   const unseen = all.filter(e => !run.seenEvents.includes(e));
   const pick = randPick(unseen.length ? unseen : all);
   run.seenEvents.push(pick);
-  if (pick === 'puzzle') { startPuzzle('random'); return; }
   run.event = pick;
   prepareEventState(pick);
   ui.screen = 'event';
@@ -2343,6 +2491,7 @@ export function eventChoice(which) {
   }
   if (run.eventState?.chainReturn) {
     const thread = run.eventThreads[run.eventState.threadKey];
+    const followup = behavioralEventFollowup(behavioral, thread);
     thread.stage = 2; thread.returnChoice = which;
     let html;
     if (which === 'stand') {
@@ -2350,17 +2499,17 @@ export function eventChoice(which) {
       run.deck.push(mkCard('dud'));
       recordCardOwned('dud');
       deckChanged('add', 'A remembered Dud joins the deck');
-      html = `<p>You repeat your old answer. The crypt pays its debt: <b>gain 25 gold</b>, but the memory becomes a <b>Dud</b>.</p>`;
+      html = `<p>${followup.results.stand}</p><p><b>Gain 25 gold.</b></p><p><b>Add a Dud to your deck.</b></p>`;
     } else {
       const paid = Math.min(15, run.gold);
       run.gold -= paid;
       const healed = Math.min(effectiveHealing(8), run.maxHp - run.hp);
       run.hp += healed;
       if (healed) sfx('heal');
-      html = `<p>You alter the old bargain. <b>Pay ${paid} gold</b> and <b>recover ${healed} HP</b>.</p>`;
+      html = `<p>${followup.results.amend}</p><p><b>Pay ${paid} gold.</b></p><p><b>Recover ${healed} HP.</b></p>`;
     }
     run.eventHistory.push({ id: run.event, chain: true, choice: which, stratum: run.stratum, floor: run.floors });
-    eventResult(`↻ ${behavioral.title}: Remembered`, html);
+    eventResult(`↻ ${followup.title}`, html);
     return;
   }
   if (behavioral?.behavioral) {
@@ -2744,13 +2893,19 @@ export function testLaunch(kind, value = null) {
     run.stratum = clamp(Number(value) || 0, 0, STRATA.length - 1);
     genMapForStratum(); startCombat('boss'); ui.cutscene = null; return;
   } else if (kind === 'reward') {
-    const rewardKind = value || 'dig';
+    const forceVeinBoon = value === 'veinboon';
+    const rewardKind = forceVeinBoon ? 'boss' : value || 'dig';
+    if (forceVeinBoon) run.stratum = 3;
+    const bossKey = rewardKind === 'boss' ? randPick(FIGHTS[run.stratum].boss)?.[0] || null : null;
+    const bossTrinkets = rewardKind === 'boss' ? (forceVeinBoon ? [] : bossRelicOffer(bossKey)) : null;
     run.combat = null;
     run.reward = {
       gold: rewardKind === 'boss' ? 150 : rewardKind === 'elite' ? 90 : 50,
       kind: rewardKind, fullClear: true, cards: rollCardReward(true), cardTaken: false,
       gadget: randPick(Object.keys(GADGETS)), trinket: rewardKind === 'elite' ? unownedTrinket() : null,
-      bossTrinkets: rewardKind === 'boss' ? ['lamp', 'dowsingrod'].filter(k => !run.trinkets.includes(k)) : null,
+      bossKey, bossTrinkets,
+      veinBoons: rewardKind === 'boss' && run.stratum === 3 && (forceVeinBoon || bossTrinkets.length === 0)
+        ? shuffle(Object.keys(VEIN_BOONS)).slice(0, 3) : null,
     };
     ui.screen = 'reward';
   } else if (kind === 'cutscene') {

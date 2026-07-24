@@ -492,6 +492,98 @@ export function behavioralEventView(event, state) {
   };
 }
 
+const FOLLOWUP_SCENES = [
+  {
+    title: 'The Debt Comes Walking',
+    text: (event, choice) => `A soot-streaked courier catches you beneath a dead lantern. Word of “${choice}” at ${event.title} travelled farther than you did. The courier carries your share of what followed—and the name of someone who paid for it.`,
+    stand: ['Take the courier’s parcel', 'Accept the profit and carry its damaged history with you.'],
+    amend: ['Send aid back up the trail', 'Spend from your purse to change who bears the ending.'],
+    stood: 'You break the seal. Coin spills out beside a useless token kept as evidence of the bargain.',
+    amended: 'You add your seal to the return parcel. Somewhere above, the story acquires a kinder final line.',
+  },
+  {
+    title: 'Fresh Chalk Over Old Marks',
+    text: (event, choice) => `Your own route-mark waits on the wall ahead, copied in fresher chalk by crews that came after you. Beneath ${event.title}, another hand has written: “${choice}.” Two arrows leave the inscription—one toward a hidden dividend, one toward the camp harmed along the way.`,
+    stand: ['Follow the dividend mark', 'Collect what later crews left for the decision’s author.'],
+    amend: ['Follow the camp mark', 'Carry restitution to the people living with the result.'],
+    stood: 'The dividend is real, packed into a wall niche with a dead scrap of advice that now clutters your pack.',
+    amended: 'The camp accepts your coin and tends your wounds before scraping the old mark from the wall.',
+  },
+  {
+    title: 'The Story at the Fire',
+    text: (event, choice) => `A campfire tale falls silent when you enter. It is the story of ${event.title}, though the teller has made you braver, crueler, and much taller. The remembered turning point remains true: “${choice}.” The listeners ask which ending they should carry deeper.`,
+    stand: ['Let the legend stand', 'Claim the storyteller’s tribute and accept the lie that comes with it.'],
+    amend: ['Tell them what it cost', 'Pay for the camp’s losses and leave behind a truer account.'],
+    stood: 'They cheer the cleaner ending and press tribute into your hands. Its ugliest detail follows you as dead weight.',
+    amended: 'You correct the tale one painful detail at a time. The camp returns the honesty with salve and quiet.',
+  },
+  {
+    title: 'An Entry in Red Ink',
+    text: (event, choice) => `The rat merchant unfolds a page you never signed. ${event.title} heads the account, and “${choice}” is entered beneath it in red. Your decision produced a surplus, he explains. It also produced a claimant.`,
+    stand: ['Close the account in your favour', 'Take the surplus and inherit the worthless clause attached to it.'],
+    amend: ['Settle with the claimant', 'Spend gold to clear the account and repair some of its harm.'],
+    stood: 'The merchant counts out your share, then slides the contract’s useless final clause into your deck.',
+    amended: 'The merchant bites each coin before accepting it. He burns the red page and offers a restorative from under the counter.',
+  },
+  {
+    title: 'A Shrine to the Decision',
+    text: (event, choice) => `Someone has built a thumb-sized shrine from debris salvaged after ${event.title}. Your words—“${choice}”—are scratched across its base. One bowl holds offerings from those who prospered. The other bears the names of those who did not.`,
+    stand: ['Empty the offering bowl', 'Take the accumulated reward and its unwanted votive token.'],
+    amend: ['Fill the bowl of names', 'Leave restitution and rest beside the people the shrine remembers.'],
+    stood: 'You gather the offerings. A cracked votive clings to the last coin and refuses to be thrown away.',
+    amended: 'Your payment joins the bowl of names. The shrine keeper binds your wounds before you depart.',
+  },
+  {
+    title: 'The Crypt Rehearses You',
+    text: (event, choice) => `Stone figures jerk to life in a crude reenactment of ${event.title}. One wears your face. When it speaks, the crypt uses your own remembered words: “${choice}.” The scene has two endings, and the figures wait for you to choose which becomes permanent.`,
+    stand: ['Repeat the old ending', 'Preserve the profitable version and take its flawed stone prop.'],
+    amend: ['Break the scene and recast it', 'Pay to alter the ending before the stone remembers forever.'],
+    stood: 'The figures bow and disgorge their stage gold. Your stone double leaves one worthless prop in your hands.',
+    amended: 'You smash your double before it can speak again. Warm mineral water runs from the fracture and closes your wounds.',
+  },
+  {
+    title: 'Those Who Followed',
+    text: (event, choice) => `A rival crew blocks the passage, not with weapons but with an argument. They followed the precedent you set at ${event.title}: “${choice}.” It made them rich enough to pay you and wounded enough to hate the debt.`,
+    stand: ['Demand the founder’s share', 'Take payment for the precedent and accept their bitter keepsake.'],
+    amend: ['Waive the debt and make repairs', 'Put gold toward their losses and ask their healer for help.'],
+    stood: 'They pay every coin without looking at you. Their broken tally-token lands in your pack like an accusation.',
+    amended: 'You return part of what the precedent earned. Suspicion softens just enough for their healer to work.',
+  },
+  {
+    title: 'What You Left Behind',
+    text: (event, choice) => `An object from ${event.title} lies impossibly in the centre of your path, altered by the choice to “${choice}.” It has gathered coin around itself like filings around a lodestone. It has also grown a small, stubborn shadow.`,
+    stand: ['Claim what gathered here', 'Take the coin and carry the shadow’s dead weight onward.'],
+    amend: ['Lay the memory to rest', 'Spend gold on a proper ending and recover beside it.'],
+    stood: 'The gathered coin comes free. The shadow hardens into a useless thing that will not leave your deck.',
+    amended: 'You give the memory ceremony, payment, and a final place. When you rise, the ache of the road has eased.',
+  },
+];
+
+function followupSceneIndex(event, thread) {
+  const seed = `${event.title}:${thread?.choice || ''}:${thread?.floor || 0}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = ((hash * 31) + seed.charCodeAt(i)) >>> 0;
+  return hash % FOLLOWUP_SCENES.length;
+}
+
+/* Follow-ups use a stable scene selected from the originating decision, so a
+   saved run resumes with the same callback while different events tell visibly
+   different stories. Keys remain stand/amend for legacy save compatibility. */
+export function behavioralEventFollowup(event, thread) {
+  const scene = FOLLOWUP_SCENES[followupSceneIndex(event, thread)];
+  const choice = thread?.choiceLabel || thread?.choice || 'the path you chose';
+  return {
+    title: scene.title,
+    stageLabel: 'A choice remembered',
+    text: scene.text(event, choice),
+    choices: [
+      { key: 'stand', label: scene.stand[0], desc: scene.stand[1] },
+      { key: 'amend', label: scene.amend[0], desc: scene.amend[1] },
+    ],
+    results: { stand: scene.stood, amend: scene.amended },
+  };
+}
+
 export function resolveBehavioralEvent(event, state, key) {
   if (state.stage === 'resolved') return null;
   if (key === 'observe' && !state.observed && [0, 4, 6, 7].includes(state.profile % 8)) {

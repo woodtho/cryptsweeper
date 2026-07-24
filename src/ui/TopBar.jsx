@@ -39,7 +39,7 @@ export function TopBar({ children }) {
         <span className="trinketrow hud-secondary">
           {run.trinkets.map(t => (
             <span key={t} className={`trinket ${TRINKETS[t].tier === 'boss' ? 'boss' : ''}`}
-              title={`${TRINKETS[t].name}: ${TRINKETS[t].desc}`}>{itemVector(t, prefs)}</span>
+              title={`${TRINKETS[t].name}${run.relicUpgrades?.[t] ? ` +${run.relicUpgrades[t]}` : ''}: ${TRINKETS[t].desc}`}>{itemVector(t, prefs)}</span>
           ))}
         </span>
         {run.gadgets.length > 0 && ui.screen !== 'combat' && (

@@ -23,6 +23,7 @@ export const TEST_LAB_SECTIONS = [
     entry('Normal fight', 'combat', 'dig'), entry('Elite fight', 'combat', 'elite'),
     ...STRATA.map((stratum, i) => entry(`Boss · ${stratum.name}`, 'boss', i, 'danger')),
     ...['dig', 'elite', 'boss'].map(kind => entry(`${kind[0].toUpperCase() + kind.slice(1)} reward`, 'reward', kind)),
+    entry('Vein boon reward', 'reward', 'veinboon', 'primary'),
     entry('Game over screen', 'gameover'), entry('Victory screen', 'victory'),
   ] },
   { label: 'Honest puzzles', testAllLabel: 'Test all puzzles', entries: puzzles.map(([key, label]) => entry(label, 'puzzle', key)) },

@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { CLASSES, CARDS, TRINKETS, GADGETS, STRATA, ENEMIES } from '../engine/data.js';
 import {
   run, ui, MAP_ROWS, newRun, reachableNodes, mapClosure, enterNode, score, resetToTitle,
-  takeRewardCard, takeRewardTrinket, takeBossTrinket, takeRewardGadget, finishReward,
+  takeRewardCard, takeRewardTrinket, takeBossTrinket, takeVeinBoon, takeRewardGadget, finishReward,
   campHeal, campUpgrade, campSurvey, campTrainPicks, basePicksFor,
   buyShopCard, buyShopTrinket, buyShopGadget, buyRemoval, gotoMap,
   EVENT_CATALOG, eventChoice, togglePuzzleScan, setLogicPuzzleCell, checkLogicPuzzle,
   toggleLightsCell, toggleNonogramCell, toggleSudokuNoteMode, answerSequence,
   currentEventView,
   listSaves, loadRun, saveRun, deleteSave, goHome,
-  ENEMY_MODIFIERS, ENEMY_EFFECTS,
+  ENEMY_MODIFIERS, ENEMY_EFFECTS, VEIN_BOONS,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
@@ -582,7 +582,8 @@ function GraveyardPanel() {
       {selectedGrave.challenge && <p><b>Challenge:</b> {CHALLENGES[selectedGrave.challenge]?.name || selectedGrave.challenge}</p>}
       {(selectedGrave.bosses || []).length > 0 && <p><b>Bosses:</b> {selectedGrave.bosses.map(key => ENEMIES[key]?.name || key).join(', ')}</p>}
       <div className="grave-build"><b>Final deck ({(selectedGrave.deck || []).length})</b><span>{(selectedGrave.deck || []).map((card, i) => <i key={`${card.key}-${i}`}>{CARDS[card.key]?.name || card.key}{card.up ? '+' : ''}</i>)}</span></div>
-      <p><b>Trinkets:</b> {(selectedGrave.trinkets || []).map(key => TRINKETS[key]?.name || key).join(', ') || 'None'}</p>
+      <p><b>Trinkets:</b> {(selectedGrave.trinkets || []).map(key => `${TRINKETS[key]?.name || key}${selectedGrave.relicUpgrades?.[key] ? ` +${selectedGrave.relicUpgrades[key]}` : ''}`).join(', ') || 'None'}</p>
+      {Object.keys(selectedGrave.veinBoons || {}).length > 0 && <p><b>Vein boons:</b> {Object.entries(selectedGrave.veinBoons).map(([key, count]) => `${VEIN_BOONS[key]?.name || key}${count > 1 ? ` ×${count}` : ''}`).join(', ')}</p>}
       <nav className="grave-detail-nav"><button type="button" className="btn" disabled={graves[0]?.id === openId} onClick={() => moveGrave(-1)}>← Newer</button><small>Swipe to read nearby stones</small><button type="button" className="btn" disabled={graves[graves.length - 1]?.id === openId} onClick={() => moveGrave(1)}>Older →</button></nav>
     </section>}
   </div>;
@@ -857,6 +858,8 @@ function HowToPlay() {
     <HowSection icon={<GameIcon name="bag" preferences={prefs} />} title="Gold, rewards, items, camps, and shops" open={Boolean(search)} visible={sectionVisible.economy}>
       <ul>
         <li>Combat rewards include Gold and a card choice. Elites can award trinkets, ordinary fights can find gadgets, and bosses offer boss relics before the next stratum.</li>
+        <li>Bosses offer up to three unowned relics, prioritizing relics tied to that guardian. Once every permanent boss relic is owned, Vein bosses offer repeatable boons: relic tempering, maximum Health, deck reforging, card transformation, or a gold-and-gadget cache.</li>
+        <li><b>Boss relics:</b> {Object.entries(TRINKETS).filter(([, item]) => item.tier === 'boss').map(([key, item], index, all) => <span key={key}>{item.name} — {item.desc}{index < all.length - 1 ? '; ' : '.'}</span>)}</li>
         <li><b>Trinkets</b> are passive and last for the run. <b>Gadgets</b> are consumable tools; you can carry at most three gadget copies. Tap the bag to inspect all items and use gadgets.</li>
         <li>Shops sell cards, trinkets, gadgets, and card removal. Gold is run-specific and prices vary; each removal raises the next removal cost.</li>
         <li>At camp, choose one: Rest heals 30% max Health, Smith upgrades a card, Survey starts the next fight 25% revealed, or Train adds one Max Pick up to the run's +2 training cap.</li>
@@ -1080,12 +1083,25 @@ export function RewardScreen() {
         )}
         {r.bossTrinkets && r.bossTrinkets.length > 0 && (
           <>
-            <p><GameIcon name="bossRelic" preferences={prefs} /> Boss relic — choose one:</p>
+            <p><GameIcon name="bossRelic" preferences={prefs} /> {r.bossKey ? `${ENEMIES[r.bossKey]?.name || 'Boss'} relic` : 'Boss relic'} — choose one:</p>
             <div className="choicelist">
               {r.bossTrinkets.map(k => (
                 <div key={k} className="choice" onClick={() => takeBossTrinket(k)}>
                   <span className="cname"><span className="inline-vector-icon">{itemVector(k, prefs)}</span> {TRINKETS[k].name}</span>
                   <div className="cdesc">{TRINKETS[k].desc}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        {r.veinBoons && r.veinBoons.length > 0 && (
+          <>
+            <p><GameIcon name="bossRelic" preferences={prefs} /> The permanent relic pool is exhausted. Choose one Vein boon:</p>
+            <div className="choicelist">
+              {r.veinBoons.map(key => (
+                <div key={key} className="choice" onClick={() => takeVeinBoon(key)}>
+                  <span className="cname">{VEIN_BOONS[key].mark} {VEIN_BOONS[key].name}</span>
+                  <div className="cdesc">{VEIN_BOONS[key].desc}</div>
                 </div>
               ))}
             </div>

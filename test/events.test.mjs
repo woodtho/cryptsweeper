@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import {
   run, ui, newRun, closeCutscene, startSpecificEvent, currentEventView, eventChoice,
-  EVENT_CATALOG,
+  EVENT_CATALOG, HONEST_PUZZLE_EVENT_CHANCE,
 } from '../src/engine/engine.js';
+import { behavioralEventFollowup } from '../src/engine/events.js';
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -40,6 +41,17 @@ const evaluativeLabel = /\b(safe|risky|risk|prudent|correct|wrong|smart|clever|f
 const interpretiveResult = /what this tested|not graded|correct choice|wrong choice|stronger decision|lesson|strategy|rational|bias|theorem|fallacy|expected value|probability/i;
 
 test('event audit covers exactly the live 111-event catalog', ids.length === 111);
+test('Honest puzzles have a recurring event-room frequency', HONEST_PUZZLE_EVENT_CHANCE >= 0.30
+  && HONEST_PUZZLE_EVENT_CHANCE <= 0.40);
+const followups = ids.map((id, index) => behavioralEventFollowup(EVENT_CATALOG[id], {
+  choice: 'a', choiceLabel: EVENT_CATALOG[id].actions[0].label, floor: index,
+}));
+test('follow-up events use a varied bank of narrative callback scenes',
+  new Set(followups.map(followup => followup.title)).size === 8);
+test('every follow-up names the originating event and remembered action', ids.every((id, index) =>
+  followups[index].text.includes(EVENT_CATALOG[id].title)
+  && followups[index].text.includes(EVENT_CATALOG[id].actions[0].label)
+  && followups[index].choices.every(choice => choice.label && choice.desc)));
 test('the per-event deliverable covers all 111 IDs and every requested review field', review.events.length === 111
   && new Set(review.events.map(event => event.id)).size === 111
   && review.events.every(event => requiredReviewFields.every(field => Object.hasOwn(event, field))));
