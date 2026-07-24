@@ -14,13 +14,17 @@ import {
   toggleLightsCell, toggleNonogramCell, answerSequence,
   clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS, ENEMY_EFFECTS,
   applyEnemyEffect, enemyAttack, fogTiles, effCost, BOSS_RELIC_KEYS, VEIN_BOONS,
+  runElapsedMs, formatRunTime, setRunTimerActive,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import { observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep } from '../src/bot/gameBot.js';
 import { decorateMechanics, mechanicTextParts, MECHANICS } from '../src/ui/mechanics.js';
-import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, evaluateAchievements, loadAchievements, loadGraveyard, recordRunHistory } from '../src/engine/legacy.js';
+import {
+  ACHIEVEMENTS, CHALLENGES, clearGraveyard, evaluateAchievements, loadAchievements,
+  loadGraveyard, recordRunHistory, clearSpeedruns, loadSpeedruns, recordSpeedrun,
+} from '../src/engine/legacy.js';
 import { loadPreferences, savePreferences } from '../src/engine/preferences.js';
 import { readFileSync } from 'node:fs';
 
@@ -55,6 +59,16 @@ for (const shape of SHAPES) {
 /* 2 — run + map */
 newRun('surveyor');
 T('run created, 10-card deck', R() && R().deck.length === 10);
+{
+  const started = R().timerStartedAt;
+  const before = R().elapsedMs;
+  setRunTimerActive(false, started + 1234);
+  T('run timer accumulates active time and pauses cleanly',
+    R().elapsedMs === before + 1234 && runElapsedMs(started + 9000) === before + 1234);
+  setRunTimerActive(true, started + 5000);
+  T('resumed run timer excludes paused time',
+    runElapsedMs(started + 7500) === before + 3734 && formatRunTime(3734, true) === '0:03.73');
+}
 T('new run queues the opening cutscene', ui.cutscene?.id === 'opening');
 closeCutscene();
 T('cutscene can be dismissed through engine state', ui.cutscene === null);
@@ -793,6 +807,8 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
     .reduce((count, row) => count + Object.values(row).filter(type => type === 'boss').length, 0);
   T('NN-99 opens the endless fourth stratum without ending the run',
     R().stratum === 3 && R().coreWon && ui.screen === 'map' && R().map.nodes[11][2] === 'boss');
+  T('NN-99 freezes a finite speedrun clear time while the Vein run continues',
+    Number.isFinite(R().coreClearMs) && loadSpeedruns().sapper?.some(row => row.id === R().runId));
   T('Vein maps place bosses away from the bottom', roamingVeinBosses >= 1);
 
   R().veinDepth = 12; R().pos = { r:11, c:2 };
@@ -955,6 +971,15 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   T('graveyard records build, death cause, bosses, challenge, and run records',
     grave && savedGraves[0].cause === 'The test stone' && savedGraves[0].bosses[0] === 'collapser'
       && savedGraves[0].challenge === 'lean' && savedGraves[0].deck.length === 8);
+
+  clearSpeedruns();
+  const speedBase = { coreWon:true, testMode:false, cls:'surveyor', floors:30, fullClears:2, challenge:null };
+  recordSpeedrun({ ...speedBase, runId:'slow', coreClearMs:125000 });
+  recordSpeedrun({ ...speedBase, runId:'fast', coreClearMs:91000 });
+  recordSpeedrun({ ...speedBase, runId:'lab', coreClearMs:1000, testMode:true });
+  const speedRows = loadSpeedruns().surveyor;
+  T('speedrun board groups and sorts valid clears by Delver while excluding test runs',
+    speedRows.length === 2 && speedRows[0].id === 'fast' && speedRows[1].id === 'slow');
 
   storage.delete('cryptsweeper.achievements.v1');
   R().fullClears = 1; R().bossesDefeated = ['collapser']; R().gold = 260;

@@ -1,9 +1,20 @@
+import { useEffect, useState } from 'react';
 import { STRATA, CLASSES, TRINKETS, GADGETS } from '../engine/data.js';
-import { run, ui, openDeckModal } from '../engine/engine.js';
+import { run, ui, openDeckModal, formatRunTime, runElapsedMs } from '../engine/engine.js';
 import { loadPreferences } from '../engine/preferences.js';
 import { itemVector } from './themedIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
 import { CHALLENGES } from '../engine/legacy.js';
+
+function RunTimer() {
+  const [elapsed, setElapsed] = useState(() => runElapsedMs());
+  useEffect(() => {
+    setElapsed(runElapsedMs());
+    const timer = setInterval(() => setElapsed(runElapsedMs()), 250);
+    return () => clearInterval(timer);
+  }, [run?.runId]);
+  return <span className="run-timer" title="Active run time. Pauses while the app is backgrounded." aria-label={`Run time ${formatRunTime(elapsed)}`}>◷ {formatRunTime(elapsed)}</span>;
+}
 
 export function TopBar({ children }) {
   const prefs = loadPreferences();
@@ -12,6 +23,7 @@ export function TopBar({ children }) {
   return (
     <div className={`topbar-shell ${combat ? 'combat-topbar-shell' : ''}`}>
       <div className="topbar-menu-row">
+        <RunTimer />
         <button className="btn top-home" onClick={() => window.dispatchEvent(new Event('cryptsweeper:open-game-menu'))} title="Game menu"><GameIcon name="menu" preferences={prefs} /> Menu</button>
       </div>
       <div className={`topbar ${combat ? 'combat-topbar' : ''}`}>

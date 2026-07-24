@@ -719,8 +719,9 @@ kbd { border: 1px solid var(--etch-hi); background: var(--stone-2); padding: 3px
   padding: 10px 18px; margin-bottom: 12px;
   font-family: var(--mono); font-size: 13.5px;
 }
-.topbar-menu-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.topbar-menu-row { display: flex; justify-content: space-between; align-items:center; gap:10px; margin-bottom: 6px; }
 .top-home { min-height: 30px; padding: 5px 11px; }
+.run-timer { padding:5px 10px; border:1px solid var(--etch); background:rgba(8,10,13,.82); color:var(--candle); font:700 11px/1 var(--mono); letter-spacing:.08em; font-variant-numeric:tabular-nums; }
 .header-pile {
   min-width: 38px; height: 30px; padding: 0 7px; border: 1px solid var(--etch-hi);
   background: var(--stone-2); color: var(--bone); font: 700 11px/1 var(--mono);
@@ -1821,6 +1822,27 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
 .achievement-stone { grid-template-columns:42px 1fr; opacity:.55; filter:grayscale(.7); }
 .achievement-stone.earned { opacity:1; filter:none; border-color:var(--moss); }
 .achievement-stone time { display:block; margin-top:7px; color:var(--moss); font:9px/1 var(--mono); }
+.speedrun-board { display:grid; gap:14px; }
+.speedrun-board-head { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; padding:16px; border:1px solid var(--candle); background:linear-gradient(135deg,rgba(53,40,19,.72),rgba(8,10,13,.96)); }
+.speedrun-board-head>span { color:var(--candle); font-size:36px; }
+.speedrun-board-head b { display:block; color:var(--bone); font:20px/1 var(--display); letter-spacing:.12em; }
+.speedrun-board-head small { display:block; margin-top:6px; color:var(--bone-dim); font:9px/1.4 var(--mono); }
+.speedrun-board-head strong { color:var(--candle); font:700 20px/1 var(--mono); font-variant-numeric:tabular-nums; }
+.speedrun-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.speedrun-card { min-width:0; padding:13px; border:1px solid var(--etch); background:linear-gradient(145deg,#141820,#090b0e); }
+.speedrun-card.empty { opacity:.62; }
+.speedrun-card.recorded { border-color:#4f594d; box-shadow:inset 3px 0 0 var(--moss); }
+.speedrun-card>header { display:grid; grid-template-columns:38px 1fr auto; align-items:center; gap:10px; }
+.speedrun-sigil { display:grid; place-items:center; width:36px; height:36px; border:1px solid currentColor; border-radius:50%; color:var(--candle); font:18px/1 var(--display); }
+.speedrun-card header b { display:block; color:var(--bone); font:13px/1.15 var(--display); letter-spacing:.07em; text-transform:uppercase; }
+.speedrun-card header small { display:block; margin-top:4px; color:var(--bone-dim); font:8px/1.2 var(--mono); }
+.speedrun-card header strong { color:var(--candle); font:700 14px/1 var(--mono); font-variant-numeric:tabular-nums; }
+.speedrun-card ol { display:grid; gap:4px; margin:12px 0 0; padding:0; list-style:none; }
+.speedrun-card li { display:grid; grid-template-columns:18px 74px 1fr auto; align-items:center; gap:7px; padding:6px 7px; background:rgba(255,255,255,.025); color:var(--bone-dim); font:8px/1.2 var(--mono); }
+.speedrun-card li i { color:var(--candle); font-style:normal; }
+.speedrun-card li time { color:var(--bone); font-weight:700; font-variant-numeric:tabular-nums; }
+.speedrun-card li span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.speedrun-card li small { color:#737971; }
 .graveyard { position:relative; min-height:560px; overflow:hidden; padding:18px 14px 22px; border:1px solid #343845; background:radial-gradient(circle at 75% 8%,rgba(172,185,207,.12),transparent 20%),linear-gradient(#11151d 0 32%,#0b0e0d 32%); }
 .graveyard::before { content:''; position:absolute; left:-8%; right:-8%; top:27%; bottom:-70px; border-radius:48% 52% 0 0; background:radial-gradient(ellipse at 35% 16%,#263229 0 3%,transparent 4%),radial-gradient(ellipse at 72% 44%,#1c271f 0 5%,transparent 6%),linear-gradient(#1d281f,#090c09 76%); box-shadow:0 -4px 20px rgba(0,0,0,.55); }
 .graveyard.empty { display:grid; place-content:center; text-align:center; color:var(--bone-dim); }
@@ -1879,6 +1901,11 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
 .graveyard-map-plot>em { margin-top:4px; color:#767c78; font:normal 8px/1.2 var(--mono); }
 
 @media (max-width:700px) {
+  .speedrun-grid { grid-template-columns:1fr; }
+  .speedrun-board-head { grid-template-columns:auto 1fr; }
+  .speedrun-board-head>strong { grid-column:1/-1; padding-top:10px; border-top:1px solid var(--etch); text-align:center; }
+  .speedrun-card li { grid-template-columns:18px 72px 1fr; }
+  .speedrun-card li small { display:none; }
   .graveyard { min-height:660px; padding-inline:9px; }
   .grave-row { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(3,158px); min-height:485px; gap:0 10px; padding:0 2%; margin-top:0; }
   .grave:nth-child(-n+3) { transform:none; filter:none; }
@@ -2017,7 +2044,8 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
   }
   .topbar-menu-row { margin-bottom: 6px; }
   .topbar > .hud-secondary, .combat-topbar > .hud-secondary { display: none !important; }
-  .top-home { width: 100%; justify-content: center; padding: 5px 10px; }
+  .top-home { flex:1 1 auto; justify-content: center; padding: 5px 10px; }
+  .run-timer { flex:0 0 auto; min-width:94px; text-align:center; }
   .combat-topbar-shell { min-height: 148px; }
   .combat-topbar {
     display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));

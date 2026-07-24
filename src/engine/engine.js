@@ -11,7 +11,7 @@ import {
   recordItemSeen, recordItemOwned, seedRunCollection, recordDelverProgress,
 } from './collection.js';
 import { recordDailyAttempt, recordDailyResult } from './daily.js';
-import { evaluateAchievements, recordRunHistory } from './legacy.js';
+import { evaluateAchievements, recordRunHistory, recordSpeedrun } from './legacy.js';
 import { loadPreferences } from './preferences.js';
 import {
   EXTRA_EVENT_CATALOG, CORE_BEHAVIORAL_EVENTS,
@@ -86,12 +86,46 @@ function saveSummary(slot, payload) {
   return {
     slot, savedAt: payload.savedAt, cls: r.cls, hp: r.hp, maxHp: r.maxHp,
     stratum: r.stratum, floors: r.floors, veinDepth: r.veinDepth || 0, daily: r.daily || null,
+    elapsedMs: Math.max(0, Number(r.elapsedMs) || 0),
   };
+}
+
+function checkpointRunTimer(now = Date.now()) {
+  if (!run || run.timerStartedAt == null) return;
+  run.elapsedMs = Math.max(0, Number(run.elapsedMs) || 0) + Math.max(0, now - run.timerStartedAt);
+  run.timerStartedAt = now;
+}
+
+export function runElapsedMs(now = Date.now()) {
+  if (!run) return 0;
+  const elapsed = Math.max(0, Number(run.elapsedMs) || 0);
+  return run.timerStartedAt == null ? elapsed : elapsed + Math.max(0, now - run.timerStartedAt);
+}
+
+export function formatRunTime(ms, precise = false) {
+  const total = Math.max(0, Number(ms) || 0);
+  const hours = Math.floor(total / 3600000);
+  const minutes = Math.floor(total / 60000) % 60;
+  const seconds = Math.floor(total / 1000) % 60;
+  const base = `${hours ? `${hours}:` : ''}${String(minutes).padStart(hours ? 2 : 1, '0')}:${String(seconds).padStart(2, '0')}`;
+  return precise ? `${base}.${String(Math.floor(total / 10) % 100).padStart(2, '0')}` : base;
+}
+
+export function setRunTimerActive(active, now = Date.now()) {
+  if (!run) return;
+  if (active) {
+    if (ui.screen !== 'title' && run.timerStartedAt == null) run.timerStartedAt = now;
+    return;
+  }
+  checkpointRunTimer(now);
+  run.timerStartedAt = null;
+  persistRun('auto');
 }
 
 function persistRun(slot) {
   if (typeof localStorage === 'undefined' || !run) return false;
   try {
+    checkpointRunTimer();
     const payload = { version: SAVE_VERSION, savedAt: Date.now(), screen: ui.screen, cutscene: ui.cutscene, run };
     localStorage.setItem(slotKey(slot), JSON.stringify(payload, saveReplacer));
     return true;
@@ -134,6 +168,9 @@ export function loadRun(slot) {
     run.veinBoons ??= {};
     run.relicUpgrades ??= {};
     run.coreWon ??= false;
+    run.elapsedMs = Math.max(0, Number(run.elapsedMs) || 0);
+    run.timerStartedAt = ['gameover', 'victory'].includes(payload.screen) ? null : Date.now();
+    run.coreClearMs ??= null;
     run.challenge ??= null;
     run.lastDamageSource ??= null;
     run.runId ??= `${payload.savedAt || Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -192,6 +229,7 @@ export function deleteSave(slot) {
 }
 
 export function goHome() {
+  setRunTimerActive(false);
   persistRun('auto'); // capture the resumable screen before leaving it
   ui.screen = 'title';
   ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false; ui.battlePreview = null;
@@ -259,6 +297,7 @@ export function newRun(clsKey, options = {}) {
     bossesDefeated: [], lastDamageSource: null, challenge: options.challenge || null,
     veinDepth: 0, veinSegments: 0, veinBossesDefeated: 0, veinBoons: {}, relicUpgrades: {}, coreWon: false,
     runId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, historyRecorded: false,
+    elapsedMs: 0, timerStartedAt: Date.now(), coreClearMs: null,
     daily: options.daily || null, testMode: Boolean(options.testMode),
     rngState: options.daily ? dailySeed(options.daily) : null,
   };
@@ -1372,6 +1411,7 @@ function checkPlayerDeath() {
     cbt().over = true;
     sfx('defeat');
     ui.screen = 'gameover';
+    setRunTimerActive(false);
     recordRunHistory(run, false);
     recordDailyRunEnd(false);
     notify();
@@ -2066,6 +2106,9 @@ function advanceStratum() {
 function markCoreVictory() {
   if (run.coreWon) return;
   run.coreWon = true;
+  checkpointRunTimer();
+  run.coreClearMs = run.elapsedMs;
+  recordSpeedrun(run);
   sfx('victory');
   haptic('victory');
   recordProgress(run, 'victory');

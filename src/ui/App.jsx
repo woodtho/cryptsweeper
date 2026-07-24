@@ -4,6 +4,7 @@ import { App as NativeApp } from '@capacitor/app';
 import { useGame } from './useGame.js';
 import {
   run, ui, cbt, endTurn, cancelTargeting, closeModal, closeCutscene, closeBattlePreview, goHome,
+  setRunTimerActive,
 } from '../engine/engine.js';
 import { getSfxVolume, isMuted, setSfxVolume, toggleMuted } from '../engine/sfx.js';
 import { isHapticsEnabled, setHapticsEnabled } from '../engine/haptics.js';
@@ -146,9 +147,16 @@ export function App() {
     /* Android lock/home/app-switch events explicitly suspend both the selected
        jukebox preview and the adaptive home/delve soundtrack. */
     NativeApp.addListener('appStateChange', ({ isActive }) => {
+      setRunTimerActive(isActive);
       if (isActive) resumeMusic(); else suspendMusic();
     }).then(handle => { stateListener = handle; });
     return () => { backListener?.remove(); stateListener?.remove(); };
+  }, []);
+
+  useEffect(() => {
+    const onVisibility = () => setRunTimerActive(!document.hidden);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   /* mine detonations / heavy hits rattle the whole crypt */

@@ -10,6 +10,7 @@ import {
   currentEventView,
   listSaves, loadRun, saveRun, deleteSave, goHome,
   ENEMY_MODIFIERS, ENEMY_EFFECTS, VEIN_BOONS,
+  formatRunTime, runElapsedMs,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
@@ -34,7 +35,7 @@ import { customIconSets, customSetBase, customSetIcon, iconSetLabel } from './ic
 import { registerBackHandler } from './backNav.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
 import { gridNavigationIndex } from '../engine/puzzleValidation.js';
-import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, loadAchievements, loadGraveyard } from '../engine/legacy.js';
+import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, loadAchievements, loadGraveyard, loadSpeedruns } from '../engine/legacy.js';
 import { InteractiveTutorial } from './InteractiveTutorial.jsx';
 import { MechanicTerms } from './MechanicTerms.jsx';
 
@@ -44,7 +45,11 @@ const PANEL_TITLES = {
   delvers: 'Delver index', enemies: 'Enemy index', items: 'Item index', cards: 'Card index', test: 'Undermine test lab',
   music: 'The crypt jukebox',
   graveyard: 'The Delver Graveyard', achievements: 'Carved achievements', challenges: 'Challenges and daily descent',
+  speedruns: 'Descent speed records',
+  collection: 'Collection',
 };
+/* sub-panels reached through the consolidated Collection menu item; Back returns here, not home */
+const COLLECTION_PANELS = ['delvers', 'enemies', 'items', 'cards', 'achievements'];
 
 function DelverPicker({ daily = null, challenge = null }) {
   const progress = loadProgression();
@@ -106,7 +111,7 @@ export function TitleScreen({
   // hardware back / Escape returns a sub-panel to the main menu instead of exiting
   useEffect(() => {
     if (panel === 'home') return undefined;
-    return registerBackHandler(() => { setPanel('home'); return true; });
+    return registerBackHandler(() => { setPanel(COLLECTION_PANELS.includes(panel) ? 'collection' : 'home'); return true; });
   }, [panel]);
   const tapTitle = () => {
     if (testUnlocked) { open('test'); return; }
@@ -133,7 +138,7 @@ export function TitleScreen({
 
       {panel === 'home' ? (
         <div className="home-menu" aria-label="Main menu">
-          {auto && <button className="home-action primary" onClick={() => loadRun('auto')}><span>Continue descent</span><small>{auto.stratum === 3 ? `Vein Depth ${auto.veinDepth || 0}` : `Stratum ${auto.stratum + 1}`} · {auto.hp}/{auto.maxHp} HP · {auto.floors} floors</small></button>}
+          {auto && <button className="home-action primary" onClick={() => loadRun('auto')}><span>Continue descent</span><small>{auto.stratum === 3 ? `Vein Depth ${auto.veinDepth || 0}` : `Stratum ${auto.stratum + 1}`} · {auto.hp}/{auto.maxHp} HP · {auto.floors} floors · {formatRunTime(auto.elapsedMs)}</small></button>}
           <button className="home-action" onClick={() => open('play')}><span>New run</span><small>Choose a Delver and enter the Undermine</small></button>
           <button className={`home-action daily challenge-home ${dailyPlayed ? '' : 'unplayed'}`} onClick={() => open('challenges')}>
             <span>Challenges {!dailyPlayed && <i className="daily-unplayed-badge"><b /> Daily unplayed</i>}</span>
@@ -141,24 +146,19 @@ export function TitleScreen({
           </button>
           <div className="home-menu-grid">
             <button className="home-action compact" onClick={() => open('how')}><span>Tutorial &amp; How to Play</span><small>Interactive practice and searchable rules</small></button>
+            <button className="home-action compact" onClick={() => open('collection')}><span>Collection</span><small>Delver, enemy, item &amp; card indexes and achievements</small></button>
             <button className="home-action compact" onClick={() => open('saves')}><span>Saves</span><small>{saves.length} checkpoint{saves.length === 1 ? '' : 's'}</small></button>
             <button className="home-action compact" onClick={() => open('settings')}><span>Settings</span><small>Sound, motion, and display</small></button>
             <button className="home-action compact" onClick={() => open('music')}><span>Jukebox</span><small>Play the music you've unlocked</small></button>
             <button className="home-action compact" onClick={() => open('graveyard')}><span>Graveyard</span><small>Remember completed and fallen builds</small></button>
-          </div>
-          <div className="home-index-grid" aria-label="Collection indexes">
-            <button className="home-action compact" onClick={() => open('delvers')}><span>Delver index</span><small>Runs, wins, depth, and lifetime stats</small></button>
-            <button className="home-action compact" onClick={() => open('enemies')}><span>Enemy index</span><small>Encounters, defeats, and custom faces</small></button>
-            <button className="home-action compact" onClick={() => open('items')}><span>Item index</span><small>Trinkets and gadgets discovered</small></button>
-            <button className="home-action compact" onClick={() => open('cards')}><span>Card index</span><small>Cards seen, obtained, and played</small></button>
-            <button className="home-action compact" onClick={() => open('achievements')}><span>Achievements</span><small>Carvings earned across every descent</small></button>
+            <button className="home-action compact" onClick={() => open('speedruns')}><span>Speedrun records</span><small>Fastest completed descent for every Delver</small></button>
           </div>
           {testUnlocked && <button className="home-action test-lab-action" onClick={() => open('test')}><span>Test lab</span><small>Launch encounters, puzzles, scenes, rewards, and combat directly</small></button>}
         </div>
       ) : (
         <section className="home-panel screenpanel">
           <div className="home-panel-head">
-            <button className="btn" onClick={() => open('home')}>← Back</button>
+            <button className="btn" onClick={() => open(COLLECTION_PANELS.includes(panel) ? 'collection' : 'home')}>← Back</button>
             <p className="eyebrow">{PANEL_TITLES[panel]}</p>
           </div>
 
@@ -167,6 +167,7 @@ export function TitleScreen({
             onMusicOffChange={onMusicOffChange} onMusicLevelChange={onMusicLevelChange} />}
           {panel === 'challenges' && <ChallengePanel today={daily} />}
           {panel === 'graveyard' && <GraveyardPanel />}
+          {panel === 'speedruns' && <SpeedrunPanel />}
           {panel === 'achievements' && <AchievementPanel />}
           {panel === 'test' && <TestLab onTestAll={onTestAll} onTestSection={onTestSection} />}
           {panel === 'how' && <HowToPlay />}
@@ -176,7 +177,7 @@ export function TitleScreen({
               const label = slot === 'auto' ? 'Autosave' : `Save slot ${i}`;
               return <div className="save-row" key={`${slot}-${saveRevision}`}>
                 <div><b>{label}</b>{item
-                  ? <small>{CLASSES[item.cls]?.name || item.cls} · {item.stratum === 3 ? `Vein Depth ${item.veinDepth || 0}` : `Stratum ${item.stratum + 1}`} · {item.hp}/{item.maxHp} HP · {new Date(item.savedAt).toLocaleString()}</small>
+                  ? <small>{CLASSES[item.cls]?.name || item.cls} · {item.stratum === 3 ? `Vein Depth ${item.veinDepth || 0}` : `Stratum ${item.stratum + 1}`} · {item.hp}/{item.maxHp} HP · {formatRunTime(item.elapsedMs)} · {new Date(item.savedAt).toLocaleString()}</small>
                   : <small>Empty</small>}</div>
                 <div className="save-actions">
                   {item && <button className="btn primary" onClick={() => loadRun(slot)}>Load</button>}
@@ -186,6 +187,13 @@ export function TitleScreen({
               </div>;
             })}
             {!run && <p className="dim">Start or load a run before writing a named save slot.</p>}
+          </div>}
+          {panel === 'collection' && <div className="home-index-grid" aria-label="Collection indexes">
+            <button className="home-action compact" onClick={() => open('delvers')}><span>Delver index</span><small>Runs, wins, depth, and lifetime stats</small></button>
+            <button className="home-action compact" onClick={() => open('enemies')}><span>Enemy index</span><small>Encounters, defeats, and custom faces</small></button>
+            <button className="home-action compact" onClick={() => open('items')}><span>Item index</span><small>Trinkets and gadgets discovered</small></button>
+            <button className="home-action compact" onClick={() => open('cards')}><span>Card index</span><small>Cards seen, obtained, and played</small></button>
+            <button className="home-action compact" onClick={() => open('achievements')}><span>Achievements</span><small>Carvings earned across every descent</small></button>
           </div>}
           {['delvers', 'enemies', 'items', 'cards'].includes(panel) && <CollectionIndex kind={panel} preferences={preferences} onPreferenceChange={onPreferenceChange} />}
           {panel === 'settings' && <div className="settings-list">
@@ -494,6 +502,32 @@ function AchievementPanel() {
   </div>;
 }
 
+function SpeedrunPanel() {
+  const board = loadSpeedruns();
+  const records = Object.values(board).flat();
+  const overall = records.slice().sort((a, b) => a.durationMs - b.durationMs)[0];
+  return <div className="speedrun-board">
+    <header className="speedrun-board-head">
+      <span>◷</span>
+      <div><b>THE CLOCK BELOW</b><small>Active play time to defeat NN-99. Locking or backgrounding the app pauses the clock.</small></div>
+      <strong>{overall ? formatRunTime(overall.durationMs, true) : '—'}</strong>
+    </header>
+    <div className="speedrun-grid">
+      {Object.entries(CLASSES).map(([key, cls]) => {
+        const rows = board[key] || [];
+        return <article className={`speedrun-card ${rows.length ? 'recorded' : 'empty'}`} key={key}>
+          <header><span className={`speedrun-sigil ${key}`}>{cls.name.slice(0, 1)}</span><div><b>{cls.name}</b><small>{rows.length ? `${rows.length} recorded clear${rows.length === 1 ? '' : 's'}` : 'No completed descent'}</small></div><strong>{rows[0] ? formatRunTime(rows[0].durationMs, true) : '—'}</strong></header>
+          {rows.length > 0 && <ol>{rows.slice(0, 3).map((row, index) => <li key={row.id}>
+            <i>{index + 1}</i><time>{formatRunTime(row.durationMs, true)}</time>
+            <span>{row.daily ? 'Daily' : row.challenge ? CHALLENGES[row.challenge]?.name || row.challenge : 'Standard'}</span>
+            <small>{new Date(row.endedAt).toLocaleDateString()}</small>
+          </li>)}</ol>}
+        </article>;
+      })}
+    </div>
+  </div>;
+}
+
 const GRAVES_PER_PLOT = 6;
 
 function GraveyardPanel() {
@@ -579,6 +613,7 @@ function GraveyardPanel() {
       <p>{selectedGrave.won ? 'Returned from below' : selectedGrave.cause} · {new Date(selectedGrave.endedAt).toLocaleDateString()}</p>
       <p><b>Depth:</b> {selectedGrave.stratum === 3 ? `The Vein · Depth ${selectedGrave.veinDepth || 0} · ${selectedGrave.veinSegments || 0} segments cleared` : `Stratum ${selectedGrave.stratum + 1}`} · {selectedGrave.floors} floors</p>
       <p><b>Record:</b> {selectedGrave.fullClears} Full Clears · {selectedGrave.safeReveals} safe tiles · {selectedGrave.gold}g</p>
+      {Number.isFinite(selectedGrave.durationMs) && <p><b>Time:</b> {formatRunTime(selectedGrave.durationMs, true)}</p>}
       {selectedGrave.challenge && <p><b>Challenge:</b> {CHALLENGES[selectedGrave.challenge]?.name || selectedGrave.challenge}</p>}
       {(selectedGrave.bosses || []).length > 0 && <p><b>Bosses:</b> {selectedGrave.bosses.map(key => ENEMIES[key]?.name || key).join(', ')}</p>}
       <div className="grave-build"><b>Final deck ({(selectedGrave.deck || []).length})</b><span>{(selectedGrave.deck || []).map((card, i) => <i key={`${card.key}-${i}`}>{CARDS[card.key]?.name || card.key}{card.up ? '+' : ''}</i>)}</span></div>
@@ -1468,6 +1503,7 @@ export function GameOverScreen({ won }) {
       <p className="scoreline">
         Floors: {run.floors} · {run.stratum === 3 ? `Vein Depth: ${run.veinDepth || 0}` : `Stratum: ${run.stratum + 1}`} · Full Clears: {run.fullClears} · Gold: {run.gold} · HP: {run.hp}
       </p>
+      <p className="scoreline">TIME: {formatRunTime(run.coreClearMs ?? runElapsedMs(), true)}</p>
       <p className="scoreline" style={{ fontSize: 18, color: 'var(--gold)' }}>SCORE: {score()}</p>
       <button className="btn primary" onClick={resetToTitle}>Return home ▸</button>
     </div>
