@@ -4,7 +4,7 @@ import {
   run, ui, cbt, board, curTarget, effCost, endTurn,
   clickHandCard, cancelTargeting, selectEnemy, useGadget,
   openPileModal, LAIR_COLORS,
-  ENEMY_MODIFIERS,
+  ENEMY_MODIFIERS, ENEMY_EFFECTS,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { enemyIcon } from './enemyIcons.jsx';
@@ -47,6 +47,9 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji, preferen
         <div className="ename">
           {e.def.name}
           {e.modifier && <span className={`enemy-modifier ${e.modifier}`} title={ENEMY_MODIFIERS[e.modifier].desc}>{ENEMY_MODIFIERS[e.modifier].mark} {ENEMY_MODIFIERS[e.modifier].name}</span>}
+          {Object.entries(e.effects || {}).filter(([, stacks]) => stacks > 0).map(([key, stacks]) => (
+            <span key={key} className={`enemy-effect ${key}`} title={ENEMY_EFFECTS[key]?.desc}>{ENEMY_EFFECTS[key]?.mark} {ENEMY_EFFECTS[key]?.name} {stacks}</span>
+          ))}
           {e.def.boss ? <> <span className="elite">BOSS</span></> : e.def.elite ? <> <span className="elite">ELITE</span></> : null}
           {buried ? <> <span className="dim">(buried — untargetable)</span></> : null}
         </div>
@@ -76,13 +79,40 @@ function EnemyToken({ e, idx, selected, onClick, emoji, preferences }) {
     aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} health. ${e.intent?.label || 'No intent'}`}>
     <span className="enemy-token-art">{e.data.buried ? <GameIcon name="buried" preferences={preferences} /> : emoji}</span>
     {e.modifier && <span className={`enemy-token-modifier ${e.modifier}`} title={`${ENEMY_MODIFIERS[e.modifier].name}: ${ENEMY_MODIFIERS[e.modifier].desc}`}>{ENEMY_MODIFIERS[e.modifier].mark}</span>}
+    {Object.entries(e.effects || {}).filter(([, stacks]) => stacks > 0).map(([key, stacks], effectIndex) => (
+      <span key={key} className={`enemy-token-effect ${key}`} style={{ left: 3 + effectIndex * 18 }} title={`${ENEMY_EFFECTS[key]?.name}: ${ENEMY_EFFECTS[key]?.desc}`}>{ENEMY_EFFECTS[key]?.mark}{stacks}</span>
+    ))}
     <span className="enemy-token-hp"><GameIcon name="health" preferences={preferences} /> {e.hp}</span>
     <span className={`enemy-token-intent ${e.intent?.cls || ''}`} title={e.intent?.label}>{intentIcon}</span>
     {curTarget() === e && !e.data.buried && <span className="enemy-token-target">⌖</span>}
   </button>;
 }
 
-export function CombatScreen({ preferences = {} }) {
+const COMBAT_COACH_STEPS = [
+  { selector:'.mobile-enemy-roster,.desktop-enemy-roster', title:'Read the threat', copy:'Tap an enemy icon to target it and open its full Health, intent, lair, modifier, and condition details.' },
+  { selector:'.board', title:'Work the board', copy:'Use Picks to reveal tiles and long-press to flag. Numbers count all eight neighboring spaces.' },
+  { selector:'.hand-toggle', title:'Open your hand', copy:'Cards use Energy and perform the advanced actions: Scan, Defuse, Entomb, Construct, and Chord.' },
+  { selector:'.end-turn', title:'Commit the turn', copy:'Check every enemy intent, then End Turn. Surviving enemies act before Energy, Picks, and your next hand refresh.' },
+];
+
+function CombatCoach({ step, onStep, onFinish, onRevealCards }) {
+  const entry = COMBAT_COACH_STEPS[step];
+  useEffect(() => {
+    const targets = [...document.querySelectorAll(entry.selector)].filter(node => node.offsetParent !== null);
+    targets.forEach(node => node.classList.add('combat-coach-focus'));
+    targets[0]?.scrollIntoView?.({ block:'nearest', inline:'nearest', behavior:'smooth' });
+    if (step === 2) onRevealCards();
+    return () => targets.forEach(node => node.classList.remove('combat-coach-focus'));
+  }, [entry.selector, step, onRevealCards]);
+  return <aside className="combat-coach" role="dialog" aria-label={`Combat coach ${step + 1} of ${COMBAT_COACH_STEPS.length}`}>
+    <small>Live battle guide · {step + 1}/{COMBAT_COACH_STEPS.length}</small><b>{entry.title}</b><p>{entry.copy}</p>
+    <div><button type="button" className="btn" disabled={step === 0} onClick={() => onStep(step - 1)}>←</button>
+      <button type="button" className="btn primary" onClick={() => step === COMBAT_COACH_STEPS.length - 1 ? onFinish() : onStep(step + 1)}>{step === COMBAT_COACH_STEPS.length - 1 ? 'Finish' : 'Next →'}</button>
+      <button type="button" className="btn" onClick={onFinish}>Don’t show again</button></div>
+  </aside>;
+}
+
+export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }) {
   const c = cbt();
   const b = board();
   const logRef = useRef(null);
@@ -99,6 +129,7 @@ export function CombatScreen({ preferences = {} }) {
   const [showLog, setShowLog] = useState(false);
   const [showHand, setShowHand] = useState(false);
   const [showItems, setShowItems] = useState(false);
+  const [coachStep, setCoachStep] = useState(0);
   if (seenRef.current.combat !== c) {
     seenRef.current = { combat: c, ids: new Set() };
     nodesRef.current = new Map();
@@ -292,6 +323,8 @@ export function CombatScreen({ preferences = {} }) {
           <CardView card={{ id: g.id, key: g.key, up: g.up }} />
         </div>
       ))}
+      {preferences.showCombatHints && <CombatCoach step={coachStep} onStep={setCoachStep}
+        onRevealCards={() => setShowHand(true)} onFinish={() => onPreferenceChange('showCombatHints', false)} />}
     </>
   );
 }

@@ -145,6 +145,18 @@ const DILEMMAS = [
   ['battle-sexes', '🎭', 'Forge or Archive', 'Two partners want to stay together but prefer different destinations.', 'Alternate or randomize fairly', 'Preserve coordination while sharing preference costs.', 'Go to your own favorite', 'Hope the other always yields.', 'Coordination has value even when players disagree over which equilibrium is best.'],
   ['network-effect', '📡', 'The Whispering Runes', 'A communication rune becomes more valuable as more delvers use the same kind.', 'Coordinate on a compatible standard', 'Capture the network benefit.', 'Choose an isolated superior rune', 'Optimize only standalone quality.', 'Network effects can make compatibility more valuable than individual product quality.'],
   ['principal-agent', '📋', 'The Absent Mine Owner', 'An owner pays a foreman whose effort is difficult to observe.', 'Reward measurable outcomes carefully', 'Align incentives while guarding against gaming.', 'Pay only a fixed wage', 'Assume effort cannot change.', 'Principal–agent problems arise when goals differ and actions are hidden.'],
+
+  /* ---- pure crypt story dilemmas (flavor decoupled from generic outcome profiles) ---- */
+  ['flooded-stair', '🌊', 'The Flooded Stair', 'Black water has swallowed the stair to the next gallery. A frayed rope bridge sags above it, and a longer dry detour winds off into the dark.', 'Cross the sagging bridge', 'Save hours across the gap.', 'Take the long dry detour', 'Spend the time for firm footing.', 'A quick span over open water weighed against the patience of the dry road.'],
+  ['begging-shade', '🕯️', 'The Beggar in the Wall', 'A gaunt shade pressed into the stone rasps for a share of your lamp oil, swearing it knows a cache three galleries down.', 'Share your lamp oil', 'Spend now on an uncertain promise.', 'Keep walking', 'Hold your oil and your doubts.', 'A gift given on trust that may return as guidance or vanish as smoke.'],
+  ['twin-idols', '🗿', 'The Twin Idols', 'Two idols flank the passage, each with an empty offering bowl. One is carved smiling, the other screaming, and both promise a boon to whoever fills their bowl first.', 'Fill the smiling idol’s bowl', 'Answer the kinder face.', 'Fill the screaming idol’s bowl', 'Answer the fiercer face.', 'Two sealed bargains wearing different faces over the same unknown.'],
+  ['bone-game', '🎴', 'The Bone Game', 'A ring of off-shift diggers waves you toward their game of painted bones. The pot is fat, the players are drunk, and the dealer will not meet your eye.', 'Ante into the game', 'Stake coin for the pot.', 'Nurse your drink and watch', 'Keep the purse you came with.', 'The pot tempts the purse; the sidelines keep what is already held.'],
+  ['toll-door', '🚪', 'The Toll Door', 'An iron door bars the way, and a slotted coin-box is bolted beside it. Scratched above the slot: PAY OR PRY. The hinges look old.', 'Feed the coin-box', 'Buy a clean, quiet passage.', 'Pry at the old hinges', 'Spend effort and risk the noise.', 'Coin opens it without a sound; the crowbar trades gold for uproar.'],
+  ['cavern-hound', '🐕', 'The Cavern Hound', 'A hound with a crushed leg growls low from a nest of bones, hackles up, too hurt to flee. Something glints beneath it.', 'Coax the hound aside', 'Work slowly and gently.', 'Drive it off with your lamp', 'Take the glint by force.', 'A slow hand that may earn a follower against a quick one that may earn a scar.'],
+  ['glowcap-feast', '🍄', 'The Glowcap Feast', 'A flush of pale glowcaps carpets a warm alcove. Some caps are plump and sweet; your field guide warns a few look almost identical to the rot-caps that kill.', 'Eat your fill of the caps', 'Gamble a full meal against the guide.', 'Pocket a few and move on', 'Take a careful ration only.', 'A hungry wager against the guide’s warning, or a cautious pocketful.'],
+  ['echoing-choir', '🎶', 'The Echoing Choir', 'Voices drift from a sealed chapel, singing a hymn no living crew remembers. The song promises comfort to any who join, and the door is unlatched.', 'Step in and sing along', 'Open yourself to the song.', 'Seal the chapel and leave', 'Close the door on it.', 'An open door into the unknown against the quiet of walking on.'],
+  ['marked-ledger', '📜', 'The Marked Ledger', 'The rat merchant slides a ledger across his counter. Sign for goods on credit now, he says, and the debt — with its teeth — will find you deeper down.', 'Sign the credit ledger', 'Take goods now on borrowed terms.', 'Pay only what coin you carry', 'Buy small and owe nothing.', 'Borrowed goods now set against a heavier reckoning later.'],
+  ['groaning-vault', '🪨', 'The Groaning Vault', 'The treasure vault’s ceiling weeps dust with every step, and a slab is already sliding. A chest sits at the far wall; the exit is at your back.', 'Sprint for the chest', 'Dash for the reward.', 'Back out while you can', 'Keep a whole skin.', 'A lunge for treasure against the certainty of an unhurt retreat.'],
 ];
 
 const CONCEPT_NAMES = {
@@ -248,6 +260,9 @@ export const EVENT_ACTION_REVISIONS = {
   'explore-exploit': ['Open an untested shaft', 'Return to the paying vein'],
   'overgrazed-moss': ['Post a harvest limit', 'Fill your sacks now'],
   bystander: ['Climb down to the caller', 'Remain with the crowd'],
+  binomial: ['Drive one bolt home yourself', 'Stake the purse on how many hold'],
+  geometric: ['Pay the locksmith his flat fee', 'Keep working the lock yourself'],
+  poisson: ['Cross now, during the lull', 'Wait and watch a little longer'],
 };
 
 export const EVENT_TEXT_REVISIONS = {
@@ -268,6 +283,43 @@ export const EVENT_TEXT_REVISIONS = {
   'status-quo': 'One route bears an old official marker. The surrounding passages show equally fresh tracks.',
   'information-cascade': 'Two earlier delvers went left. A faint scratch on your own map points right.',
   'network-effect': 'Most nearby crews carry the common communication rune. A solitary rune has a clearer tone but no matching receivers here.',
+  /* Probability & statistics scenes — reworded from word-problems into crypt moments. */
+  'mean-median': 'One delver’s monstrous haul has swollen the shared strongbox out of all proportion, and the whole crew is watching to see how tonight’s rations get poured.',
+  'gambler-fallacy': 'The coin-keeper’s coin has landed tails five throws running. He grins, slides the cup forward for one more, and chalks up fresh stakes.',
+  'expected-die': 'Tonight’s pay rides on a single throw of the bone die — but the quartermaster will buy that wager off you right now for a flat, unglamorous sum.',
+  'conditional-coin': 'Two coins lie hidden beneath the keeper’s palms. He swears at least one shows heads, then offers to buy back your bet that both do.',
+  'large-numbers': 'The old seam pays the same tired wage every trip. A fresh field might pay far better — but only after enough digs to learn its temper.',
+  simpson: 'Each infirmary swears its own tonic heals faster, yet the camp’s combined tallies whisper the opposite. The supply cart leaves at dawn.',
+  'p-value': 'A single rune trial flared strangely against the old ward. Tearing the ward out is costly, and one odd flare is a thin thread to hang that on.',
+  confidence: 'The surveyors will only promise the next seam lies somewhere within a wide band of the map. Pack light for its heart, or pack heavy for its whole spread.',
+  'sampling-bias': 'The only delvers who answered the danger-survey were the ones already furious enough to shout — and the repairs must begin tonight regardless.',
+  binomial: 'Three old bolts hold the gantry, each as likely as the next to give. Drive one home yourself, or stake the purse on the number left holding after the strain.',
+  geometric: 'The vault lock yields only to the right turn, and no one knows which. Every wrong attempt burns another measure of lamp oil.',
+  poisson: 'Bats spill from the far vault in ragged, unpredictable bursts. The air is still now — but every moment you wait to be sure invites another flurry.',
+  'central-limit': 'You can send a dozen cheap scouts whose guesses wander all over the map, or pay one grim master surveyor for a single steady verdict.',
+  'mixed-strategy': 'The rat merchant has watched your hands all night and now calls your every move before you make it. A rattling cup would hide your choice; your gut says otherwise.',
+  condorcet: 'The crew’s votes keep chasing their own tail — every route loses to some other in a circle that never settles. Dawn will not wait for a clean winner.',
+  arrow: 'No tally the crew proposes pleases everyone, and each fairer rule breaks some older promise. Departure is set for dawn either way.',
+  'expected-maximum': 'One bone die already rests in your palm, its number showing. For a fee, the keeper will let you throw a second and keep whichever falls higher.',
+  /* Game-theory & market scenes — same treatment. */
+  'sealed-urn': 'Two urns wait on the altar. One is glass, its black and white stones plain to count; the other is sealed clay that only rattles with secrets.',
+  'map-auction': 'A half-legible treasure map goes to sealed bids. Every delver squints at the same smudged marks and guesses wildly at what it’s worth.',
+  'expedition-vote': 'Three routes, and the crew’s favour runs in a maddening circle — each one beaten by another, none the clear winner. Whoever sets the order of votes quietly sets the outcome.',
+  'cursed-coin': 'The coin pays a trickle of silver on almost every flip — and once in a rare, black while, it snatches back everything and more.',
+  'mine-insurance': 'The underwriter offers to cover cave-in losses. Cover every splinter and the crew digs like fools; leave them a stake in the damage and they dig with care.',
+  lemons: 'You know exactly which of your used lanterns are sound and which are a breath from dying. The buyer, squinting at the crate, cannot tell one from another.',
+  'moral-hazard': 'The lender swallows every loss while you keep the lion’s share of any strike. With his gold and none of his risk, the pull is to light the biggest fuse you can.',
+  'adverse-selection': 'Your healing-pact is priced for an ordinary crew, yet only the sickest, most cursed delvers are lining up to sign it.',
+  centipede: 'The cache swells each time it’s passed down the line — but whoever’s holding it can simply walk off with the lot, and every delver knows it.',
+  'trust-game': 'Hand your coins to the hooded stranger and the vault triples them — then it rests entirely with them how much, if any, ever finds its way back.',
+  bandit: 'Three rusted levers jut from the wall, and only by pulling them do you learn which spits gold and which spits nothing but dust.',
+  'secretary-torch': 'Torchbearers present themselves one at a time in no set order, and the moment you wave one away, they vanish back into the dark for good.',
+  'overgrazed-moss': 'The glow-moss lighting this stretch grows back slowly and feeds every camp that follows. Tonight your sacks are empty and no one is watching.',
+  bystander: 'A cry echoes up the shaft. A dozen delvers heard it too — and every one of them is standing frozen, waiting for someone else to move.',
+  volunteer: 'The warning bell hangs over a cracked ledge. Someone must ring it or the whole company loses the passage, and the one who does may not come back.',
+  endowment: 'A trader eyes the little charm that’s ridden in your pack for weeks. Strange — you’d never have paid what you now feel it would cost you to let it go.',
+  'hawk-dove': 'Another delver reaches the cache the same moment you do. Bare your steel and they may back down — but if you both bare steel, neither of you walks away whole.',
+  'principal-agent': 'You can’t follow the foreman down every shaft to see whether he’s sweating or dozing. How you choose to pay him is the only lever you hold.',
 };
 export const EVENT_TITLE_REVISIONS = {
   shrine: 'The Two-Door Shrine',

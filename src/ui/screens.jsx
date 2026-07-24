@@ -9,6 +9,7 @@ import {
   toggleLightsCell, toggleNonogramCell, toggleSudokuNoteMode, answerSequence,
   currentEventView,
   listSaves, loadRun, saveRun, deleteSave, goHome,
+  ENEMY_MODIFIERS, ENEMY_EFFECTS,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
@@ -25,7 +26,7 @@ import { decorateMechanics, MECHANICS } from './mechanics.js';
 import { delverPortrait, ratMerchantPortrait } from './portraits.js';
 import { CollectionIndex } from './CollectionIndex.jsx';
 import { MARKS, MARK_NAMES, MAP_ICON_STYLES, resolveMapIcon, isMarkToken } from './mapIcons.jsx';
-import { ENEMY_ICON_STYLES, getEnemyIconStyles, resolveEnemyIcon } from './enemyIcons.jsx';
+import { ENEMY_ICON_STYLES, getEnemyIconStyles, resolveEnemyIcon, enemyIcon } from './enemyIcons.jsx';
 import { itemVector, campVector } from './themedIcons.jsx';
 import { ART_STYLE_LABELS, getArtStyleKeys, GameIcon, INTERFACE_ICON_CATEGORIES, interfaceIcon, interfaceIconForStyle } from './gameIcons.jsx';
 import { TEST_LAB_SECTIONS, runTestCase, testCasesForSection } from './testCatalog.js';
@@ -34,13 +35,15 @@ import { registerBackHandler } from './backNav.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
 import { gridNavigationIndex } from '../engine/puzzleValidation.js';
 import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, loadAchievements, loadGraveyard } from '../engine/legacy.js';
+import { InteractiveTutorial } from './InteractiveTutorial.jsx';
+import { MechanicTerms } from './MechanicTerms.jsx';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = {
-  play: 'Choose your Delver', how: 'How to play', saves: 'Saved descents', settings: 'Settings', daily: 'Daily challenge',
+  play: 'Choose your Delver', how: 'Tutorial and How to Play', saves: 'Saved descents', settings: 'Settings',
   delvers: 'Delver index', enemies: 'Enemy index', items: 'Item index', cards: 'Card index', test: 'Undermine test lab',
   music: 'The crypt jukebox',
-  graveyard: 'The Delver Graveyard', achievements: 'Carved achievements', challenges: 'Challenge descents',
+  graveyard: 'The Delver Graveyard', achievements: 'Carved achievements', challenges: 'Challenges and daily descent',
 };
 
 function DelverPicker({ daily = null, challenge = null }) {
@@ -96,7 +99,9 @@ export function TitleScreen({
   const [saveRevision, setSaveRevision] = useState(0);
   const saves = listSaves();
   const auto = saves.find(s => s.slot === 'auto');
+  const progress = loadProgression();
   const daily = localDateKey();
+  const dailyPlayed = Boolean(loadDailyRecords()[daily]?.attempts);
   const open = next => setPanel(next);
   // hardware back / Escape returns a sub-panel to the main menu instead of exiting
   useEffect(() => {
@@ -123,19 +128,22 @@ export function TitleScreen({
         <h1 className="logo tappable-logo" onClick={tapTitle}>CRYPT<span className="flag">SWEEPER</span></h1>
         {!testUnlocked && titleTaps >= 7 && <p className="test-knock mono">{10 - titleTaps} sealed knock{10 - titleTaps === 1 ? '' : 's'} remain…</p>}
         <p className="tagline">Every fight is a board. Every card is a guess you don't have to make.</p>
+        {progress.deepestVein > 0 && <p className="eyebrow">Deepest Vein record · {progress.deepestVein}</p>}
       </header>
 
       {panel === 'home' ? (
         <div className="home-menu" aria-label="Main menu">
-          {auto && <button className="home-action primary" onClick={() => loadRun('auto')}><span>Continue descent</span><small>Depth {auto.stratum + 1} · {auto.hp}/{auto.maxHp} HP · {auto.floors} floors</small></button>}
+          {auto && <button className="home-action primary" onClick={() => loadRun('auto')}><span>Continue descent</span><small>{auto.stratum === 3 ? `Vein Depth ${auto.veinDepth || 0}` : `Stratum ${auto.stratum + 1}`} · {auto.hp}/{auto.maxHp} HP · {auto.floors} floors</small></button>}
           <button className="home-action" onClick={() => open('play')}><span>New run</span><small>Choose a Delver and enter the Undermine</small></button>
-          <button className="home-action daily" onClick={() => open('daily')}><span>Daily challenge</span><small>{daily} · one shared seeded crypt</small></button>
+          <button className={`home-action daily challenge-home ${dailyPlayed ? '' : 'unplayed'}`} onClick={() => open('challenges')}>
+            <span>Challenges {!dailyPlayed && <i className="daily-unplayed-badge"><b /> Daily unplayed</i>}</span>
+            <small>{dailyPlayed ? 'Daily archive and seven special rule sets' : `${daily} · today’s shared crypt is waiting`}</small>
+          </button>
           <div className="home-menu-grid">
-            <button className="home-action compact" onClick={() => open('how')}><span>How to play</span><small>Rules, combat, and controls</small></button>
+            <button className="home-action compact" onClick={() => open('how')}><span>Tutorial &amp; How to Play</span><small>Interactive practice and searchable rules</small></button>
             <button className="home-action compact" onClick={() => open('saves')}><span>Saves</span><small>{saves.length} checkpoint{saves.length === 1 ? '' : 's'}</small></button>
             <button className="home-action compact" onClick={() => open('settings')}><span>Settings</span><small>Sound, motion, and display</small></button>
             <button className="home-action compact" onClick={() => open('music')}><span>Jukebox</span><small>Play the music you've unlocked</small></button>
-            <button className="home-action compact" onClick={() => open('challenges')}><span>Challenges</span><small>Descend under harsher rules</small></button>
             <button className="home-action compact" onClick={() => open('graveyard')}><span>Graveyard</span><small>Remember completed and fallen builds</small></button>
           </div>
           <div className="home-index-grid" aria-label="Collection indexes">
@@ -157,8 +165,7 @@ export function TitleScreen({
           {panel === 'play' && <DelverPicker />}
           {panel === 'music' && <JukeboxPanel musicOff={musicOff} musicLevel={musicLevel}
             onMusicOffChange={onMusicOffChange} onMusicLevelChange={onMusicLevelChange} />}
-          {panel === 'daily' && <DailyPanel today={daily} />}
-          {panel === 'challenges' && <ChallengePanel />}
+          {panel === 'challenges' && <ChallengePanel today={daily} />}
           {panel === 'graveyard' && <GraveyardPanel />}
           {panel === 'achievements' && <AchievementPanel />}
           {panel === 'test' && <TestLab onTestAll={onTestAll} onTestSection={onTestSection} />}
@@ -169,7 +176,7 @@ export function TitleScreen({
               const label = slot === 'auto' ? 'Autosave' : `Save slot ${i}`;
               return <div className="save-row" key={`${slot}-${saveRevision}`}>
                 <div><b>{label}</b>{item
-                  ? <small>{CLASSES[item.cls]?.name || item.cls} · Depth {item.stratum + 1} · {item.hp}/{item.maxHp} HP · {new Date(item.savedAt).toLocaleString()}</small>
+                  ? <small>{CLASSES[item.cls]?.name || item.cls} · {item.stratum === 3 ? `Vein Depth ${item.veinDepth || 0}` : `Stratum ${item.stratum + 1}`} · {item.hp}/{item.maxHp} HP · {new Date(item.savedAt).toLocaleString()}</small>
                   : <small>Empty</small>}</div>
                 <div className="save-actions">
                   {item && <button className="btn primary" onClick={() => loadRun(slot)}>Load</button>}
@@ -188,6 +195,8 @@ export function TitleScreen({
             <SettingSlider label="Music volume" value={musicLevel} onChange={onMusicLevelChange} />
             <SettingToggle label="Haptics" detail="Touch feedback for digging, flags, damage, mines, and victory" checked={hapticsOn} onChange={onHapticsChange} />
             <InfiniteJukeboxControls />
+            <SettingToggle label="Battle previews" detail="Show a full enemy briefing before each fight. Re-enables previews hidden with ‘don’t show again’." checked={preferences.showBattleBriefings} onChange={() => onPreferenceChange('showBattleBriefings', !preferences.showBattleBriefings)} />
+            <SettingToggle label="Combat coach" detail="Replay the four-step contextual guide inside the next battle" checked={preferences.showCombatHints} onChange={() => onPreferenceChange('showCombatHints', !preferences.showCombatHints)} />
             <SettingToggle label="Reduce motion" detail="Disables shakes, floating effects, and decorative animation" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
             <SettingToggle label="High contrast" detail="Brightens text, borders, and board information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
             <SettingToggle label="Large tiles" detail="Increases board tiles where the screen has room" checked={preferences.largeTiles} onChange={() => onPreferenceChange('largeTiles', !preferences.largeTiles)} />
@@ -453,14 +462,22 @@ export function InterfaceIconSettings({ preferences, onPreferenceChange }) {
   </div>;
 }
 
-function ChallengePanel() {
+function ChallengePanel({ today }) {
   const [selected, setSelected] = useState(null);
+  const dailyRecord = loadDailyRecords()[today];
+  if (selected === 'daily') return <div className="challenge-picker daily-challenge-picker">
+    <button className="btn" onClick={() => setSelected(null)}>← Change challenge</button>
+    <DailyPanel today={today} />
+  </div>;
   if (selected) return <div className="challenge-picker">
     <button className="btn" onClick={() => setSelected(null)}>← Change challenge</button>
     <div className="challenge-banner"><span>{CHALLENGES[selected].mark}</span><div><b>{CHALLENGES[selected].name}</b><small>{CHALLENGES[selected].desc}</small></div></div>
     <DelverPicker challenge={selected} />
   </div>;
   return <div className="challenge-grid">
+    <button type="button" className={`challenge-card daily-option ${dailyRecord?.attempts ? '' : 'unplayed'}`} onClick={() => setSelected('daily')}>
+      <span>◆</span><div><b>Daily descent</b><small>One shared seeded crypt each day, with a calendar of earlier challenges.</small>{!dailyRecord?.attempts && <em>Today has not been attempted</em>}</div><i>Choose ▸</i>
+    </button>
     {Object.entries(CHALLENGES).map(([key, challenge]) => <button type="button" className="challenge-card" key={key} onClick={() => setSelected(key)}>
       <span>{challenge.mark}</span><div><b>{challenge.name}</b><small>{challenge.desc}</small></div><i>Choose ▸</i>
     </button>)}
@@ -477,33 +494,97 @@ function AchievementPanel() {
   </div>;
 }
 
+const GRAVES_PER_PLOT = 6;
+
 function GraveyardPanel() {
   const [graves, setGraves] = useState(loadGraveyard);
   const [openId, setOpenId] = useState(null);
+  const [page, setPage] = useState(0);
+  const [view, setView] = useState('overview');
+  const touchStart = useRef(null);
+  const pageCount = Math.max(1, Math.ceil(graves.length / GRAVES_PER_PLOT));
+  const showOverview = pageCount > 2 && view === 'overview';
+  const plotGraves = graves.slice(page * GRAVES_PER_PLOT, (page + 1) * GRAVES_PER_PLOT);
+  const selectedGrave = graves.find(grave => grave.id === openId);
+
+  function showPlot(index) {
+    setPage(Math.max(0, Math.min(pageCount - 1, index)));
+    setOpenId(null);
+    setView('plots');
+  }
+  function moveGrave(direction) {
+    const current = graves.findIndex(grave => grave.id === openId);
+    const next = Math.max(0, Math.min(graves.length - 1, current + direction));
+    if (next === current || next < 0) return;
+    setPage(Math.floor(next / GRAVES_PER_PLOT));
+    setOpenId(graves[next].id);
+  }
+  function finishSwipe(clientX) {
+    if (touchStart.current == null) return;
+    const distance = clientX - touchStart.current;
+    touchStart.current = null;
+    if (Math.abs(distance) < 48) return;
+    const direction = distance < 0 ? 1 : -1;
+    if (openId) moveGrave(direction);
+    else showPlot(page + direction);
+  }
+
   if (!graves.length) return <div className="graveyard empty"><div className="grave-moon">☾</div><p>No names are carved here yet.</p><small>Completed and fallen descents will raise a stone in this ground.</small></div>;
-  return <div className="graveyard">
-    <div className="graveyard-sky"><span className="grave-moon">☾</span><p>{graves.length} remembered descent{graves.length === 1 ? '' : 's'}</p></div>
-    <div className="grave-row">
-      {graves.map((grave, index) => {
-        const cls = CLASSES[grave.cls];
-        const open = grave.id === openId;
-        return <article className={`grave ${grave.won ? 'survivor' : 'fallen'} grave-shape-${index % 3}`} key={grave.id}>
-          <button type="button" className="headstone" onClick={() => setOpenId(open ? null : grave.id)} aria-expanded={open}>
-            <span className="grave-mark">{grave.won ? '✦' : '†'}</span><b>{cls?.name || grave.cls}</b>
-            <small>{grave.won ? 'Returned from below' : grave.cause}</small><time>{new Date(grave.endedAt).toLocaleDateString()}</time>
-          </button>
-          {open && <div className="grave-inscription">
-            <p><b>Depth:</b> Stratum {grave.stratum + 1} · {grave.floors} floors</p>
-            <p><b>Record:</b> {grave.fullClears} Full Clears · {grave.safeReveals} safe tiles · {grave.gold}g</p>
-            {grave.challenge && <p><b>Challenge:</b> {CHALLENGES[grave.challenge]?.name || grave.challenge}</p>}
-            {(grave.bosses || []).length > 0 && <p><b>Bosses:</b> {grave.bosses.map(key => ENEMIES[key]?.name || key).join(', ')}</p>}
-            <div className="grave-build"><b>Final deck ({(grave.deck || []).length})</b><span>{(grave.deck || []).map((card, i) => <i key={`${card.key}-${i}`}>{CARDS[card.key]?.name || card.key}{card.up ? '+' : ''}</i>)}</span></div>
-            <p><b>Trinkets:</b> {(grave.trinkets || []).map(key => TRINKETS[key]?.name || key).join(', ') || 'None'}</p>
-          </div>}
-        </article>;
+  if (showOverview) return <div className="graveyard-overview">
+    <header><span className="grave-moon">☾</span><div><b>The Graveyard</b><small>{graves.length} remembered descents across {pageCount} plots</small></div></header>
+    <p className="graveyard-overview-help">Choose an area of the cemetery. Each marker represents one recorded descent.</p>
+    <div className="graveyard-map">
+      {Array.from({ length: pageCount }, (_, plotIndex) => {
+        const plot = graves.slice(plotIndex * GRAVES_PER_PLOT, (plotIndex + 1) * GRAVES_PER_PLOT);
+        const first = plot[0];
+        const last = plot[plot.length - 1];
+        return <button type="button" className="graveyard-map-plot" key={plotIndex} onClick={() => showPlot(plotIndex)}>
+          <span className="graveyard-map-ground">{Array.from({ length: GRAVES_PER_PLOT }, (__, marker) => <i className={plot[marker] ? (plot[marker].won ? 'survivor' : '') : 'vacant'} key={marker} />)}</span>
+          <b>Plot {plotIndex + 1}</b>
+          <small>{new Date(first.endedAt).toLocaleDateString()} {plot.length > 1 && <>– {new Date(last.endedAt).toLocaleDateString()}</>}</small>
+          <em>{first.cls && CLASSES[first.cls]?.name}{plot.length > 1 ? ` and ${plot.length - 1} more` : ''}</em>
+        </button>;
       })}
     </div>
     <button className="btn danger graveyard-clear" onClick={() => { clearGraveyard(); setGraves([]); }}>Clear graveyard</button>
+  </div>;
+
+  return <div className="graveyard graveyard-plot" onTouchStart={event => { touchStart.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={event => finishSwipe(event.changedTouches[0]?.clientX)}>
+    <div className="graveyard-sky"><span className="grave-moon">☾</span><div><p>Plot {page + 1} of {pageCount}</p><small>{page * GRAVES_PER_PLOT + 1}–{Math.min(graves.length, (page + 1) * GRAVES_PER_PLOT)} of {graves.length} descents</small></div></div>
+    <div className="grave-row">
+      {Array.from({ length: GRAVES_PER_PLOT }, (_, index) => {
+        const grave = plotGraves[index];
+        if (!grave) return <span className="grave vacant-grave" aria-hidden="true" key={`vacant-${index}`} />;
+        const cls = CLASSES[grave.cls];
+        return <article className={`grave ${grave.won ? 'survivor' : 'fallen'} grave-shape-${index % 3}`} key={grave.id}>
+          <button type="button" className="headstone" onClick={() => setOpenId(grave.id)} aria-label={`Read the grave of ${cls?.name || grave.cls}`}>
+            <span className="grave-mark">{grave.won ? '✦' : '†'}</span><b>{cls?.name || grave.cls}</b>
+            <small>{grave.won ? 'Returned from below' : grave.cause}</small><time>{new Date(grave.endedAt).toLocaleDateString()}</time>
+          </button>
+        </article>;
+      })}
+    </div>
+    <nav className="graveyard-pages" aria-label="Graveyard plots">
+      <button type="button" className="btn" disabled={page === 0} onClick={() => showPlot(page - 1)}>← Previous</button>
+      <span>{Array.from({ length: pageCount }, (_, index) => <button type="button" className={index === page ? 'active' : ''} aria-label={`Plot ${index + 1}`} aria-current={index === page ? 'page' : undefined} onClick={() => showPlot(index)} key={index} />)}</span>
+      <button type="button" className="btn" disabled={page === pageCount - 1} onClick={() => showPlot(page + 1)}>Next →</button>
+    </nav>
+    <div className="graveyard-actions">
+      {pageCount > 2 && <button type="button" className="btn" onClick={() => { setOpenId(null); setView('overview'); }}>Cemetery overview</button>}
+      <button className="btn danger graveyard-clear" onClick={() => { clearGraveyard(); setGraves([]); }}>Clear graveyard</button>
+    </div>
+    {selectedGrave && <section className="grave-inscription" role="dialog" aria-modal="true" aria-label={`${CLASSES[selectedGrave.cls]?.name || selectedGrave.cls} grave details`}>
+      <button type="button" className="grave-detail-close" onClick={() => setOpenId(null)} aria-label="Close grave details">×</button>
+      <span className="grave-mark">{selectedGrave.won ? '✦' : '†'}</span><h3>{CLASSES[selectedGrave.cls]?.name || selectedGrave.cls}</h3>
+      <p>{selectedGrave.won ? 'Returned from below' : selectedGrave.cause} · {new Date(selectedGrave.endedAt).toLocaleDateString()}</p>
+      <p><b>Depth:</b> {selectedGrave.stratum === 3 ? `The Vein · Depth ${selectedGrave.veinDepth || 0} · ${selectedGrave.veinSegments || 0} segments cleared` : `Stratum ${selectedGrave.stratum + 1}`} · {selectedGrave.floors} floors</p>
+      <p><b>Record:</b> {selectedGrave.fullClears} Full Clears · {selectedGrave.safeReveals} safe tiles · {selectedGrave.gold}g</p>
+      {selectedGrave.challenge && <p><b>Challenge:</b> {CHALLENGES[selectedGrave.challenge]?.name || selectedGrave.challenge}</p>}
+      {(selectedGrave.bosses || []).length > 0 && <p><b>Bosses:</b> {selectedGrave.bosses.map(key => ENEMIES[key]?.name || key).join(', ')}</p>}
+      <div className="grave-build"><b>Final deck ({(selectedGrave.deck || []).length})</b><span>{(selectedGrave.deck || []).map((card, i) => <i key={`${card.key}-${i}`}>{CARDS[card.key]?.name || card.key}{card.up ? '+' : ''}</i>)}</span></div>
+      <p><b>Trinkets:</b> {(selectedGrave.trinkets || []).map(key => TRINKETS[key]?.name || key).join(', ') || 'None'}</p>
+      <nav className="grave-detail-nav"><button type="button" className="btn" disabled={graves[0]?.id === openId} onClick={() => moveGrave(-1)}>← Newer</button><small>Swipe to read nearby stones</small><button type="button" className="btn" disabled={graves[graves.length - 1]?.id === openId} onClick={() => moveGrave(1)}>Older →</button></nav>
+    </section>}
   </div>;
 }
 
@@ -527,18 +608,20 @@ function SettingSlider({ label, value, onChange }) {
 function InfiniteJukeboxControls({ scope = 'game' }) {
   const [values, setValues] = useState(() => getInfiniteMusicParams(scope));
   const change = (key, value) => setValues(setInfiniteMusicParam(scope, key, value));
-  return <div className="infinite-controls">
-    <div className="infinite-controls-head"><b>{scope === 'jukebox' ? 'Jukebox infinite mix' : 'Game infinite mix'}</b><small>{scope === 'jukebox'
+  return <details className="infinite-controls">
+    <summary className="infinite-controls-head"><span><b>{scope === 'jukebox' ? 'Jukebox infinite mix' : 'Game infinite mix'}</b><small>{scope === 'jukebox'
       ? 'Separate tuning used only for infinite previews in this player'
-      : 'Used by the adaptive score on the home screen and throughout the delve'}</small></div>
-    <SettingSlider label="Branch chance" value={values.branch} onChange={value => change('branch', value)} />
-    <SettingSlider label="Section length" value={values.segment} onChange={value => change('segment', value)} />
-    <SettingSlider label="Minimum jump distance" value={values.distance} onChange={value => change('distance', value)} />
-    <SettingSlider label="Ambient mix" value={values.ambient} onChange={value => change('ambient', value)} />
-    <SettingSlider label="Musical activity" value={values.activity} onChange={value => change('activity', value)} />
-    <SettingSlider label="Cave details" value={values.cave} onChange={value => change('cave', value)} />
-    <SettingSlider label="Combat pulse" value={values.pulse} onChange={value => change('pulse', value)} />
-  </div>;
+      : 'Used by the adaptive score on the home screen and throughout the delve'}</small></span><i aria-hidden="true">⌄</i></summary>
+    <div className="infinite-controls-body">
+      <SettingSlider label="Branch chance" value={values.branch} onChange={value => change('branch', value)} />
+      <SettingSlider label="Section length" value={values.segment} onChange={value => change('segment', value)} />
+      <SettingSlider label="Minimum jump distance" value={values.distance} onChange={value => change('distance', value)} />
+      <SettingSlider label="Ambient mix" value={values.ambient} onChange={value => change('ambient', value)} />
+      <SettingSlider label="Musical activity" value={values.activity} onChange={value => change('activity', value)} />
+      <SettingSlider label="Cave details" value={values.cave} onChange={value => change('cave', value)} />
+      <SettingSlider label="Combat pulse" value={values.pulse} onChange={value => change('pulse', value)} />
+    </div>
+  </details>;
 }
 
 /* Home-screen jukebox: play any score mood heard so far. Locked rows show how
@@ -647,6 +730,8 @@ export function InGameMenu({
           </div></div>
           <SettingToggle label="Loop music" detail="Repeat the current soundtrack indefinitely" checked={musicLoops} onChange={() => setLoops(setMusicLooping(!musicLoops))} />
           <InfiniteJukeboxControls />
+          <SettingToggle label="Battle previews" detail="Show the enemy lineup and combat stats before each fight" checked={preferences.showBattleBriefings} onChange={() => onPreferenceChange('showBattleBriefings', !preferences.showBattleBriefings)} />
+          <SettingToggle label="Combat coach" detail="Highlight enemies, the board, cards, and End Turn in the live battle" checked={preferences.showCombatHints} onChange={() => onPreferenceChange('showCombatHints', !preferences.showCombatHints)} />
           <SettingToggle label="Reduce motion" detail="Disable animation and screen shake" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
           <SettingToggle label="High contrast" detail="Brighter board and interface information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
           <SettingToggle label="Large text" detail="Increase interface text" checked={preferences.largeText} onChange={() => onPreferenceChange('largeText', !preferences.largeText)} />
@@ -658,7 +743,8 @@ export function InGameMenu({
   </div>;
 }
 
-function HowSection({ icon, title, children, open = false }) {
+function HowSection({ icon, title, children, open = false, visible = true }) {
+  if (!visible) return null;
   return <details className="how-section" open={open}>
     <summary><span>{icon}</span>{title}</summary>
     <div className="how-section-body">{children}</div>
@@ -668,28 +754,61 @@ function HowSection({ icon, title, children, open = false }) {
 function HowToPlay() {
   const prefs = loadPreferences();
   const guideMap = mapIcons(prefs);
-  return <div className="rulebook">
+  const [query, setQuery] = useState('');
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const search = query.trim().toLocaleLowerCase();
+  const matches = (...values) => !search || values.join(' ').toLocaleLowerCase().includes(search);
+  const sortedMechanics = Object.entries(MECHANICS).sort((a,b) => a[1].name.localeCompare(b[1].name));
+  const filteredMechanics = sortedMechanics.filter(([key, entry]) => matches(key, entry.name, entry.summary, ...(entry.related || [])));
+  const sortedEnemies = Object.entries(ENEMIES).sort((a,b) => a[1].name.localeCompare(b[1].name));
+  const filteredEnemies = sortedEnemies.filter(([key, enemy]) => matches(key, enemy.name, enemy.desc, enemy.boss ? 'boss' : '', enemy.elite ? 'elite' : '', STRATA[enemy.home]?.name || ''));
+  const filteredModifiers = Object.values(ENEMY_MODIFIERS).sort((a,b) => a.name.localeCompare(b.name)).filter(modifier => matches(modifier.name, modifier.desc));
+  const filteredEffects = Object.values(ENEMY_EFFECTS).sort((a,b) => a.name.localeCompare(b.name)).filter(effect => matches(effect.name, effect.desc));
+  const sortedDelvers = Object.entries(CLASSES).sort((a,b) => a[1].name.localeCompare(b[1].name));
+  const filteredDelvers = sortedDelvers.filter(([key,cls]) => matches(key, cls.name, cls.role, cls.passive,
+    TRINKETS[cls.trinket]?.name || '', TRINKETS[cls.trinket]?.desc || '', ...cls.deck.map(cardKey => CARDS[cardKey]?.name || cardKey)));
+  const sectionVisible = {
+    run: matches('run map strata route nodes daily challenge autosave unlock collection progression dig elite event shop treasure camp boss'),
+    board: matches('board reveal number mine picks flag verified scan defuse chord detonate entomb construct shapes excavate annex seed bury crater lair'),
+    combat: matches('combat turns targeting enemies intents energy health block lair buried gated boss attack random all cards'),
+    damage: matches('damage defenses clearing health block plating mine damage instinct full clear defeat healing'),
+    cards: matches('cards piles upgrades attack skill power energy discard draw exhaust rewards curse claustrophobia vertigo exhaustion night terrors paranoia'),
+    economy: matches('gold rewards items trinkets gadgets camps shops removal rest smith survey train honest puzzles sudoku crossword sequence lights out nonogram'),
+    delvers: filteredDelvers.length > 0 || matches('delvers classes passives starter health picks trinket deck'),
+    controls: matches('touch keyboard controls tap hold long press enemy tracker back right click end turn escape'),
+  };
+  const anythingVisible = Object.values(sectionVisible).some(Boolean) || filteredMechanics.length > 0 || filteredEnemies.length > 0 || filteredModifiers.length > 0 || filteredEffects.length > 0;
+  if (tutorialOpen) return <InteractiveTutorial preferences={prefs} onClose={() => setTutorialOpen(false)} />;
+  return <MechanicTerms><div className="rulebook">
     <div className="rulebook-intro">
       <div className="daily-rune"><GameIcon name="picks" preferences={prefs} /></div>
       <div><h2>Dig. Read. Survive.</h2><p>Cryptsweeper combines Minesweeper deduction with a turn-based deckbuilder. Open safe ground, use cards to control uncertainty, and defeat every enemy before the crypt buries you.</p></div>
     </div>
 
-    <HowSection icon={<GameIcon name="event" preferences={prefs} />} title="The run and map" open>
+    <div className="how-actions">
+      <button type="button" className="home-action primary tutorial-launch" onClick={() => setTutorialOpen(true)}><span>Start interactive tutorial</span><small>Guided descent plus 48 narrated drills covering every mechanic, condition, resource, modifier, and Delver</small></button>
+      <label className="index-search how-search"><span className="sr-only">Search How to Play</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search rules, enemies, cards, controls…" aria-label="Search How to Play" />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear How to Play search">×</button>}</label>
+    </div>
+    {!anythingVisible && <div className="index-empty"><b>No matching rules</b><small>Try an enemy name, mechanic, room, card type, or control.</small></div>}
+
+    <HowSection icon={<GameIcon name="event" preferences={prefs} />} title="The run and map" open={!search} visible={sectionVisible.run}>
       <ul>
-        <li>A run crosses <b>three strata</b>. Each stratum has a branching map and ends with a boss. Boards grow larger, carry more mines, and deal more mine damage at greater depths.</li>
+        <li>A run crosses three finite strata, then opens the endless <b>The Vein</b>. Each finite stratum has a branching map and a guardian. Vein maps reform whenever you defeat the bottom guardian, and your goal becomes reaching the greatest Vein Depth possible.</li>
+        <li>The Vein reuses enemies from every layer in mixed encounters. Its bosses can appear as roaming rooms along a route as well as guarding the bottom. Each cleared segment raises enemy Health, modifier frequency, mine density, and mine damage.</li>
         <li>Choose one connected node at a time: {NODE_TYPE_LABELS.map(([type, label], i) => <span key={type}>{i ? ', ' : ''}<b>{resolveMapIcon(guideMap[type])} {label.toLowerCase()}</b></span>)}. Fights, recovery, trade, risks, and bosses each use their matching node.</li>
         <li>The game autosaves after actions. <b>Home</b> safely leaves the run resumable; named save slots can preserve additional checkpoints.</li>
         <li>The <b>Daily Challenge</b> uses a date-based seed. The map, fights, boards, events, and rewards repeat for that date and Delver.</li>
+        <li>Special <b>Challenges</b> change the rules for an entire run. Achievements unlock Delvers and record milestones; the Graveyard preserves completed and fallen builds, bosses, records, and causes of death.</li>
         <li>Winning, reaching deeper strata, and lifetime achievements unlock additional Delvers. Collection indexes record per-Delver performance plus enemies, items, and cards as you discover them.</li>
       </ul>
     </HowSection>
 
-    <HowSection icon="▦" title="Reading and changing the board" open>
+    <HowSection icon="▦" title="Reading and changing the board" open={!search} visible={sectionVisible.board}>
       <ul>
         <li>Tap a hidden tile to <b data-mechanic="reveal">Reveal</b> it. A number counts mines in its eight neighboring spaces. A revealed zero cascades through connected safe tiles.</li>
         <li>Manual digs spend one <b data-mechanic="picks">Pick</b>; a whole cascade still costs one. Picks refill to your Max Picks each turn. Card actions normally do not spend Picks.</li>
         <li>Long-press a hidden tile on touch—or right-click with a mouse—to place a free <b data-mechanic="flag">Flag</b>. A normal flag is only your guess; a verified flag is guaranteed correct.</li>
-        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. <b data-mechanic="chord">Chord</b> opens every unflagged neighbor of a number once enough adjacent flags are present.</li>
+        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent flag count matches. The flags must be on the correct mines; wrong flags expose and detonate the unmarked mines. Basic Chord cards cost 0 Energy.</li>
         <li><b data-mechanic="detonate">Detonate</b> deliberately triggers and removes a mine. Controlled card detonations attack enemies safely unless the card says you take damage.</li>
         <li><b data-mechanic="entomb">Entomb</b> permanently seals a tile and counts it as resolved. Constructs occupy revealed tiles and perform their listed effect each turn.</li>
         <li>Boards may be rectangles, crosses, diamonds, rings, or caverns. Excavate and Annex effects add new ground; Seed and Bury effects can add mines; some bosses destroy whole regions.</li>
@@ -701,7 +820,7 @@ function HowToPlay() {
       </div>
     </HowSection>
 
-    <HowSection icon={<GameIcon name="attack" preferences={prefs} />} title="Combat turns, targeting, and enemies">
+    <HowSection icon={<GameIcon name="attack" preferences={prefs} />} title="Combat turns, targeting, and enemies" open={Boolean(search)} visible={sectionVisible.combat}>
       <ul>
         <li>A normal turn begins with <b>3 Energy</b>, a five-card hand, refilled Picks, and visible enemy intents. End Turn discards the remaining hand, activates constructs, then lets every living enemy act.</li>
         <li>The header tracks Health, Gold, Block, Plating, hidden mines, safe tiles, Picks, turn, Energy, draw pile, and discard pile. Tap a tracker to read its explanation.</li>
@@ -710,20 +829,22 @@ function HowToPlay() {
         <li>Enemy intents are telegraphed. Besides attacking, enemies can gain Block, lay or move mines, fog information, prime tiles, excavate ground, devour regions, or alter the board's numbers.</li>
         <li>Each enemy owns a colored <b data-mechanic="lair">Lair</b>. Revealing a safe lair tile deals its number to the owner, detonating a lair mine deals 10, and Entombing a lair tile deals 3. Killing the owner crumbles its lair safely open.</li>
         <li>Some enemies are buried or gated and cannot be damaged until their stated condition is met. Bosses have unique rules and may change phases.</li>
+        <li>Enemies may enter with <b>Armoured, Burrowing, Unstable, or Cursed</b> modifiers. Your cards can apply <b data-mechanic="exposed">Exposed</b>, <b data-mechanic="jammed">Jammed</b>, and <b data-mechanic="sundered">Sundered</b> conditions—even to bosses.</li>
       </ul>
     </HowSection>
 
-    <HowSection icon={<GameIcon name="health" preferences={prefs} />} title="Damage, defenses, and clearing">
+    <HowSection icon={<GameIcon name="health" preferences={prefs} />} title="Damage, defenses, and clearing" open={Boolean(search)} visible={sectionVisible.damage}>
       <ul>
         <li>Enemy attacks remove <b data-mechanic="block">Block</b> before Health. Block normally resets at your next turn; the Warden retains a quarter.</li>
-        <li><b data-mechanic="plating">Plating</b> persists between turns and absorbs uncontrolled mine damage. Mine damage bypasses Block. Its value rises in deeper strata.</li>
+        <li><b data-mechanic="plating">Plating</b> persists between turns. It absorbs enemy attacks after Block, and directly absorbs uncontrolled mine damage and hostile blasts that bypass Block. Card costs and voluntary Health loss bypass both defenses.</li>
         <li><b data-mechanic="instinct">Instinct</b> prevents the first accidentally revealed mine in a combat by verified-flagging it instead. Some Delvers or items modify this safety net.</li>
         <li>A <b data-mechanic="full clear">Full Clear</b> resolves every safe tile. The board collapses for <b>50 damage to all enemies</b>, grants an upgraded card reward, and re-seals if anything survives.</li>
         <li>A Full Clear is powerful but does not itself win combat: every enemy must be killed. Reaching zero Health ends the run.</li>
+        <li>Recovery cards restore persistent Health up to your maximum. Critical Health adds a red warning and pulse; the Brittle Bones challenge halves all recovery, including cards and camp healing.</li>
       </ul>
     </HowSection>
 
-    <HowSection icon={<GameIcon name="cards" preferences={prefs} />} title="Cards, piles, and upgrades">
+    <HowSection icon={<GameIcon name="cards" preferences={prefs} />} title="Cards, piles, and upgrades" open={Boolean(search)} visible={sectionVisible.cards}>
       <ul>
         <li>Press <b>Show Cards</b> to open your hand. A card's gem is its Energy cost; dim cards are unaffordable or currently unplayable.</li>
         <li><b>Attack</b> cards deal damage, <b>Skill</b> cards provide utility or defense, and <b data-mechanic="power">Power</b> cards create a combat-long effect.</li>
@@ -733,7 +854,7 @@ function HowToPlay() {
       </ul>
     </HowSection>
 
-    <HowSection icon={<GameIcon name="bag" preferences={prefs} />} title="Gold, rewards, items, camps, and shops">
+    <HowSection icon={<GameIcon name="bag" preferences={prefs} />} title="Gold, rewards, items, camps, and shops" open={Boolean(search)} visible={sectionVisible.economy}>
       <ul>
         <li>Combat rewards include Gold and a card choice. Elites can award trinkets, ordinary fights can find gadgets, and bosses offer boss relics before the next stratum.</li>
         <li><b>Trinkets</b> are passive and last for the run. <b>Gadgets</b> are consumable tools; you can carry at most three gadget copies. Tap the bag to inspect all items and use gadgets.</li>
@@ -743,16 +864,23 @@ function HowToPlay() {
       </ul>
     </HowSection>
 
-    <HowSection icon={<GameIcon name="picks" preferences={prefs} />} title="Delvers and passives">
+    <HowSection icon={<GameIcon name="picks" preferences={prefs} />} title="Delvers and passives" open={Boolean(search)} visible={sectionVisible.delvers}>
+      <p className="dim">Every Delver is documented alphabetically with their base resources, exact passive, starter trinket, and complete ten-card starting deck.</p>
       <div className="delver-rules">
-        {Object.entries(CLASSES).map(([key, cls]) => <article key={key}>
-          <b>{cls.name}</b><small>{cls.role}</small>
-          <p dangerouslySetInnerHTML={{ __html: decorateMechanics(cls.passive) }} />
-        </article>)}
+        {filteredDelvers.map(([key, cls]) => {
+          const deck = Object.entries(cls.deck.reduce((cards,cardKey) => ({ ...cards, [cardKey]:(cards[cardKey] || 0) + 1 }), {}));
+          const trinket = TRINKETS[cls.trinket];
+          return <article key={key}>
+            <div className="delver-rule-head"><img src={delverPortrait(key)} alt={`${cls.name} portrait`} /><div><b data-mechanic={key}>{cls.name}</b><small>{cls.role}</small><span><GameIcon name="health" preferences={prefs} /> {cls.hp} Health · <GameIcon name="picks" preferences={prefs} /> {cls.picks} starting Picks</span></div></div>
+            <div className="delver-rule-passive"><small>Passive</small><p dangerouslySetInnerHTML={{ __html: decorateMechanics(cls.passive) }} /></div>
+            <div className="delver-rule-trinket"><span>{itemVector(cls.trinket, prefs)}</span><p><small>Starter trinket</small><b>{trinket.name}</b>{trinket.desc}</p></div>
+            <div className="delver-starter-deck"><small>Starting deck · 10 cards</small>{deck.map(([cardKey,count]) => { const card = CARDS[cardKey]; return <span key={cardKey}><b>{count > 1 ? `${count}× ` : ''}{card.name}</b><i>{card.type} · {card.cost?.[0] ?? '—'} Energy</i><em>{card.text(0)}</em></span>; })}</div>
+          </article>;
+        })}
       </div>
     </HowSection>
 
-    <HowSection icon={<GameIcon name="target" preferences={prefs} />} title="Touch and keyboard controls">
+    <HowSection icon={<GameIcon name="target" preferences={prefs} />} title="Touch and keyboard controls" open={Boolean(search)} visible={sectionVisible.controls}>
       <div className="controls-grid">
         <p><kbd>Tap</kbd><span>Reveal, select, or activate</span></p><p><kbd>Hold</kbd><span>Flag a hidden tile</span></p>
         <p><kbd>Enemy</kbd><span>Target and inspect</span></p><p><kbd>Tracker</kbd><span>Explain a stat</span></p>
@@ -761,15 +889,26 @@ function HowToPlay() {
       </div>
     </HowSection>
 
-    <HowSection icon="?" title="Complete mechanic glossary">
+    <HowSection icon={<GameIcon name="target" preferences={prefs} />} title="Enemy and boss reference" open={Boolean(search)} visible={filteredEnemies.length > 0 || filteredModifiers.length > 0 || filteredEffects.length > 0}>
+      <p className="dim">Every enemy is listed alphabetically. Read its intent pattern before choosing a target; bosses add unique rules and phase changes.</p>
+      <div className="enemy-reference-grid">
+        {filteredEnemies.map(([key, enemy]) => <article key={key}>
+          <span>{enemyIcon(key, enemy, prefs)}</span><div><b>{enemy.name}</b><small>{enemy.boss ? 'Boss' : enemy.elite ? 'Elite' : STRATA[enemy.home]?.name || 'Enemy'} · {enemy.hp} base HP</small><p dangerouslySetInnerHTML={{ __html: decorateMechanics(enemy.desc) }} /></div>
+        </article>)}
+      </div>
+      {filteredModifiers.length > 0 && <><h3 className="how-subhead">Enemy modifiers</h3><div className="glossary-grid">{filteredModifiers.map(modifier => <article key={modifier.name}><button type="button" data-mechanic={modifier.name.toLowerCase()}>{modifier.mark} {modifier.name}</button><p>{modifier.desc}</p></article>)}</div></>}
+      {filteredEffects.length > 0 && <><h3 className="how-subhead">Player-inflicted conditions</h3><div className="glossary-grid">{filteredEffects.map(effect => <article key={effect.name}><button type="button" data-mechanic={effect.name.toLowerCase()}>{effect.mark} {effect.name}</button><p>{effect.desc}</p></article>)}</div></>}
+    </HowSection>
+
+    <HowSection icon="?" title="Complete mechanic glossary" open={Boolean(search)} visible={filteredMechanics.length > 0}>
       <p className="dim">Every named mechanic used by cards and the HUD is listed here. Tap a term for related rules.</p>
       <div className="glossary-grid">
-        {Object.entries(MECHANICS).map(([key, entry]) => <article key={key}>
+        {filteredMechanics.map(([key, entry]) => <article key={key}>
           <button type="button" data-mechanic={key}>{entry.name}</button><p>{entry.summary}</p>
         </article>)}
       </div>
     </HowSection>
-  </div>;
+  </div></MechanicTerms>;
 }
 
 /* ---------------- map ---------------- */
@@ -869,7 +1008,11 @@ export function MapScreen() {
   return (
     <>
       <TopBar />
-      <p className="eyebrow" style={{ textAlign: 'center' }}>Tunnel map — choose your descent · hold any node to preview its paths</p>
+      <p className="eyebrow" style={{ textAlign: 'center' }}>
+        {run.stratum === 3
+          ? `The Vein · Segment ${m.veinSegment || (run.veinSegments || 0) + 1} · Depth ${run.veinDepth || 0} · descend without end`
+          : 'Tunnel map — choose your descent · hold any node to preview its paths'}
+      </p>
       {!covered && (
         <>
           <div className="mapwrap" style={{ height: `calc(var(--map-row) * ${MAP_ROWS})`, '--map-rows': MAP_ROWS }}
@@ -1303,11 +1446,11 @@ export function GameOverScreen({ won }) {
       <h1 style={{ color: won ? 'var(--gold)' : 'var(--flag)' }}>{won ? 'THE SEAM IS SILENT' : 'BURIED'}</h1>
       <p className="tagline">
         {won
-          ? 'NN-99 collapses into scrap. Somewhere deeper, the First Mine is still counting. (The Vein — with all three Detonator Keys — awaits a future update.)'
+          ? 'NN-99 collapses into scrap. The endless Vein opens below.'
           : 'The Undermine keeps what it kills.'}
       </p>
       <p className="scoreline">
-        Floors: {run.floors} · Stratum: {run.stratum + 1} · Full Clears: {run.fullClears} · Gold: {run.gold} · HP: {run.hp}
+        Floors: {run.floors} · {run.stratum === 3 ? `Vein Depth: ${run.veinDepth || 0}` : `Stratum: ${run.stratum + 1}`} · Full Clears: {run.fullClears} · Gold: {run.gold} · HP: {run.hp}
       </p>
       <p className="scoreline" style={{ fontSize: 18, color: 'var(--gold)' }}>SCORE: {score()}</p>
       <button className="btn primary" onClick={resetToTitle}>Return home ▸</button>

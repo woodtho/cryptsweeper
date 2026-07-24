@@ -5,7 +5,7 @@ import {
   cbt, board, shuffle, randPick, randInt,
   revealTile, hitEnemy, hitRandom, hitAll, curTarget, atk,
   gainBlock, gainPlating, gainEnergy, gainInsight, gainPicks, gainMaxPicks,
-  loseMaxPicks, spendPicks, drawCards, loseHP,
+  loseMaxPicks, spendPicks, drawCards, loseHP, healHP, canHeal, applyEnemyEffect,
   detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
   chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
   highestRevealedNumber, neighborsOf, numAt, toast, log, fleeCombat,
@@ -19,6 +19,7 @@ export const STRATA = [
   { name: 'Stratum 1 — The Topsoil Crypts', size: 8,  mines: 10, mineDmg: 8  },
   { name: 'Stratum 2 — The Fog Galleries',  size: 9,  mines: 14, mineDmg: 12 },
   { name: 'Stratum 3 — The Machine Seam',   size: 10, mines: 20, mineDmg: 16 },
+  { name: 'Stratum 4 — The Vein',           size: 10, mines: 22, mineDmg: 18, endless: true },
 ];
 
 /* Persistent curses are unplayable deck cards with combat-setup hooks in the
@@ -283,13 +284,13 @@ export const CARDS = {
     play: (u, tg) => { tg.forEach(i => scanTile(i)); if (u && tg.length) scanTile(randPick(hiddenIdx().filter(i => !board().cells[i].scan)) ?? tg[0]); },
   },
   chordcard: {
-    name: 'Chord', type: 'Skill', rarity: 'uncommon', cls: 'surveyor', cost: [1, 0],
+    name: 'Chord', type: 'Skill', rarity: 'uncommon', cls: 'surveyor', cost: [0, 0],
     targets: ['number'],
-    text: () => `${kwR('Chord')} the chosen revealed number if its value matches its adjacent flags. Reveal its other neighbors. If no mine detonates, draw 2 cards and gain 1 Energy.`,
+    text: u => `${kwR('Chord')} the chosen revealed number if its value matches correctly placed adjacent flags. Reveal its other neighbors. If successful, draw ${u ? 2 : 1} card${u ? 's' : ''} and gain 1 Insight.`,
     play: (u, tg) => {
       const r = chordAt(tg[0]);
-      if (!r.ok) { toast('Flag count must match the number', true); return; }
-      if (r.detonations === 0) { drawCards(2); gainEnergy(1); }
+      if (!r.ok) { toast(r.reason || 'Flag count must match the number', true); return; }
+      if (r.detonations === 0) { drawCards(u ? 2 : 1); gainInsight(1); }
     },
   },
   sixthsense: {
@@ -544,10 +545,24 @@ for (const [cls, names] of Object.entries(EXPANSION_NAMES)) {
 }
 
 Object.assign(CARDS, {
+  resonanttap: { name:'Resonant Tap',type:'Skill',rarity:'common',cls:'neutral',cost:[0,0],targets:['number'],exhaust:true,text:u=>`${kwR('Chord')} the chosen revealed number. If successful, draw 1 card.${u?' Gain 1 Insight.':''} Exhaust.`,play:(u,t)=>{const r=chordAt(t[0]);if(!r.ok){toast(r.reason||'The flags do not prove this Chord.',true);return;}drawCards(1);if(u)gainInsight(1);} },
+  stonechorus: { name:'Stone Chorus',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[0,0],targets:['number'],exhaust:true,text:u=>`${kwR('Chord')} the chosen revealed number. If successful, gain ${u?8:5} Block. Exhaust.`,play:(u,t)=>{const r=chordAt(t[0]);if(!r.ok){toast(r.reason||'The flags do not prove this Chord.',true);return;}gainBlock(u?8:5);} },
   steadyhand: { name:'Steady Hand',type:'Skill',rarity:'common',cls:'neutral',cost:[1,0],targets:[],text:u=>`Gain ${u?7:4} Block and ${u?3:2} picks.`,play:u=>{gainBlock(u?7:4);gainPicks(u?3:2);} },
   lanternloan: { name:'Lantern Loan',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],text:u=>`${kwS('Scan')} ${u?3:2} random hidden tiles. Gain 1 pick.${u?' Gain 1 max pick for the rest of this combat.':''}`,play:u=>{shuffle(hiddenIdx()).slice(0,u?3:2).forEach(scanTile);gainPicks(1);if(u)gainMaxPicks(1);} },
   hardlesson: { name:'Hard Lesson',type:'Attack',rarity:'uncommon',cls:'neutral',cost:[0,0],hits:'target',targets:[],can:()=>cbt().picks>0,canMsg:'No picks left to spend.',text:u=>`Spend up to 3 picks. Deal ${u?8:6} damage to the targeted enemy for each pick spent.`,play:u=>hitEnemy(curTarget(),atk(spendPicks(3)*(u?8:6))) },
   emergencyexit: { name:'Emergency Exit',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],text:u=>`Lose 1 max pick for the rest of this combat. Gain ${u?16:12} Plating and draw 2 cards.`,play:u=>{loseMaxPicks(1);gainPlating(u?16:12);drawCards(2);} },
+  bandage: { name:'Bandage',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?6:4} HP. Exhaust.`,play:u=>healHP(u?6:4) },
+  mendingsalts: { name:'Mending Salts',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[2,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?10:7} HP. Exhaust.`,play:u=>healHP(u?10:7) },
+  lastlight: { name:'Final Ember',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,2],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Lose 1 max pick for the rest of this combat. Recover ${u?15:11} HP. Exhaust.`,play:u=>{loseMaxPicks(1);healHP(u?15:11);} },
+  stonepoultice: { name:'Stone Poultice',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?5:3} HP. Gain ${u?5:3} Block. Exhaust.`,play:u=>{healHP(u?5:3);gainBlock(u?5:3);} },
+  triagekit: { name:'Triage Kit',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover 2 HP plus 2 for each other card Exhausted this combat, up to ${u?12:8} HP. Exhaust.`,play:u=>healHP(Math.min(u?12:8,2+cbt().exhaust.length*2)) },
+  gravemoss: { name:'Grave Moss',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Spend up to ${u?3:2} picks. Recover 3 HP for each pick spent, then recover 2 HP. Exhaust.`,play:u=>healHP(spendPicks(u?3:2)*3+2) },
+  secondwind: { name:'Second Wind',type:'Skill',rarity:'rare',cls:'neutral',cost:[0,0],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?10:7} HP. Exhaust.`,play:u=>healHP(u?10:7) },
+  bedrockshelter: { name:'Bedrock Shelter',type:'Skill',rarity:'uncommon',cls:'terraformer',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover 3 HP plus 2 for each Construct, up to ${u?13:9} HP. Exhaust.`,play:u=>healHP(Math.min(u?13:9,3+board().cells.filter(cell=>cell.construct).length*2)) },
+  faultline: { name:'Fault Line',type:'Attack',rarity:'common',cls:'neutral',cost:[1,1],targets:[],hits:'target',text:u=>`Deal ${u?7:5} damage. Apply ${u?2:1} Exposed to the targeted enemy. Exposed makes the next hit deal 25% more damage. Works on bosses.`,play:u=>{const e=curTarget();hitEnemy(e,atk(u?7:5));applyEnemyEffect(e,'exposed',u?2:1);} },
+  signaljam: { name:'Signal Jam',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,1],targets:[],hits:'target',text:u=>`Apply ${u?2:1} Jammed to the targeted enemy. Its next direct attack deals 40% less damage. Works on bosses.${u?' Draw 1 card.':''}`,play:u=>{applyEnemyEffect(curTarget(),'jammed',u?2:1);if(u)drawCards(1);} },
+  sunderingchalk: { name:'Sundering Chalk',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,0],targets:[],hits:'target',text:u=>`Apply ${u?2:1} Sundered to the targeted enemy. Remove its Block and halve Block gained during its next action. Works on bosses.`,play:u=>applyEnemyEffect(curTarget(),'sundered',u?2:1) },
+  gravebind: { name:'Gravebind',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],hits:'target',exhaust:true,text:u=>`Apply ${u?2:1} Exposed and ${u?2:1} Jammed to the targeted enemy. Works on bosses. Exhaust.`,play:u=>{const e=curTarget();applyEnemyEffect(e,'exposed',u?2:1);applyEnemyEffect(e,'jammed',u?2:1);} },
 });
 
 Object.assign(CARDS, buildCardExpansion500({
@@ -792,8 +807,8 @@ export const ENEMIES = {
   },
   nn99: {
     name: 'NN-99', emoji: '🛰️', hp: 220, home: 2, boss: true, gated: true,
-    desc: 'Only takes damage on turns when you reveal at least 5 tiles or use Chord. It attacks and deploys mines while shifting through larger phase boards.',
-    gateNote: 'Only takes damage on turns you revealed 5+ tiles or chorded',
+    desc: 'Its signal shield halves damage at the start of each turn. Each safe reveal weakens it; after 3 safe reveals or a Chord, attacks deal full damage. It deploys mines while shifting through larger phase boards.',
+    gateNote: 'Signal shield: 50% damage initially; reveal 3 safe tiles or Chord for full damage',
     setup: e => { e.data.phase = 1; },
     next: e => {
       const s = e.step % 3;
@@ -816,6 +831,15 @@ export const FIGHTS = [
     elite: [['miscounter']], boss: [['fogfather']] },
   { dig: [['clockwork'], ['gearhusk'], ['clockwork', 'wisp', 'wisp'], ['gearhusk', 'clockwork'], ['shade', 'clockwork']],
     elite: [['detonata']], boss: [['nn99']] },
+  {
+    dig: [
+      ['grubber', 'clockwork'], ['minelayer', 'shade'], ['warden', 'wisp'],
+      ['tunneler', 'gearhusk'], ['clockwork', 'wisp', 'wisp'], ['shade', 'tunneler'],
+      ['grubber', 'minelayer', 'wisp'], ['gearhusk', 'clockwork'],
+    ],
+    elite: [['ossuary'], ['miscounter'], ['detonata']],
+    boss: [['collapser'], ['fogfather'], ['nn99']],
+  },
 ];
 
 /* NN-99 phase boards: [size, mines] once HP crosses 150 / 75 */

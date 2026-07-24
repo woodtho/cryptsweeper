@@ -102,6 +102,21 @@ function getScene(id, context = {}) {
       ['player', 'So much for being unexpected.'],
     ],
   };
+  if (id === 'descent-3') return {
+    kind: 'descent', title: 'The Vein', art: cutsceneArt('finale'), iconName: 'picks', markLabel: 'STRATUM IV · ∞', finalLabel: 'Enter the Vein',
+    lines: [
+      ['narrator', 'NN-99 falls, but the shaft beneath it has no floor. Ore-bright passages split, heal, and split again.'],
+      ['player', 'The old descent is over. From here, depth is the only score that matters.'],
+      ['narrator', 'Every enemy waits below. The wardens no longer keep to the bottom.'],
+    ],
+  };
+  if (id === 'vein-deeper') return {
+    kind: 'descent', title: 'The Vein Reforms', art: cutsceneArt('finale'), iconName: 'picks', markLabel: `SEGMENT ${context.segment || 2}`, finalLabel: 'Go deeper',
+    lines: [
+      ['narrator', 'The defeated passage seals above you. New tunnels grow downward through the ore like roots seeking dark water.'],
+      ['player', 'No bottom. Good. One less direction to worry about.'],
+    ],
+  };
   if (id === 'finale') return {
     kind: 'finale', title: 'The Seam Is Silent', art: cutsceneArt('finale'), iconName: 'victory', markLabel: 'FOR NOW', finalLabel: 'See the reckoning',
     lines: [

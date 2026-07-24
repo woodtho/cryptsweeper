@@ -58,8 +58,10 @@ export function recordDelverProgress(run, screen) {
     recorded[runField] = current;
   }
   const deepest = Math.max(1, (Number(run.stratum) || 0) + 1);
+  const veinDepth = Math.max(0, Number(run.veinDepth) || 0);
   const mostGold = Math.max(0, Number(run.gold) || 0);
   if (deepest > (stat.deepestStratum || 0)) { stat.deepestStratum = deepest; changed = true; }
+  if (veinDepth > (stat.deepestVein || 0)) { stat.deepestVein = veinDepth; changed = true; }
   if (mostGold > (stat.mostGold || 0)) { stat.mostGold = mostGold; changed = true; }
 
   const terminal = screen === 'victory' || screen === 'gameover';

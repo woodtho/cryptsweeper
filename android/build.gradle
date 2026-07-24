@@ -24,6 +24,14 @@ allprojects {
     }
 }
 
+// Keep every module's generated output under android/build. In particular,
+// Capacitor's included project otherwise writes into node_modules, where
+// OneDrive can lock incremental resource directories during local installs.
+def sharedBuildRoot = layout.buildDirectory.dir('subprojects')
+subprojects {
+    layout.buildDirectory = sharedBuildRoot.map { root -> root.dir(project.name) }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

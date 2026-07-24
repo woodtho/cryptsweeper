@@ -400,6 +400,7 @@ export const TRACKS = [
   { id: 'boss', name: 'The Wardens Below', detail: 'Collapser and Fogfather', mood: 'boss', stratum: 0, recording: 'boss', unlock: p => p.bossFights >= 1, hint: 'Face a boss' },
   { id: 'delve2', name: 'Delve — The Fog Galleries', detail: 'Stratum 2', mood: 'delve', stratum: 1, recording: 'fog', unlock: p => p.deepestStratum >= 1, hint: 'Reach Stratum 2' },
   { id: 'delve3', name: 'Delve — The Machine Seam', detail: 'Stratum 3', mood: 'delve', stratum: 2, recording: 'machineSeam', unlock: p => p.deepestStratum >= 2, hint: 'Reach Stratum 3' },
+  { id: 'vein', name: 'Delve — The Endless Vein', detail: 'Stratum 4 · endless', mood: 'delve', stratum: 3, recording: 'machineSeam', unlock: p => p.deepestVein >= 1, hint: 'Enter the Vein' },
   { id: 'nn99', name: 'The Machine Requiem', detail: 'NN-99', mood: 'boss', stratum: 2, recording: 'machineRequiem', unlock: p => p.deepestStratum >= 2, hint: 'Reach Stratum 3' },
   { id: 'defeat', name: 'Falling Again', detail: 'Defeat', mood: 'defeat', stratum: 0, recording: 'defeat', unlock: p => p.losses >= 1, hint: 'Fall in the Undermine' },
   { id: 'victory', name: "Survivor's Dawn", detail: 'Victory', mood: 'victory', stratum: 0, recording: 'victory', unlock: p => p.wins >= 1, hint: 'Win a run' },

@@ -1,5 +1,5 @@
 {
-  "reviewedEvents": 100,
+  "reviewedEvents": 110,
   "tutorialLikeEvents": [
     "shrine",
     "corpse",
@@ -4243,6 +4243,336 @@
       "recommendedRevisedResultText": "One atmospheric action sentence, followed only by the exact HP, Gold, max-HP, card, upgrade, or gadget consequence that was actually applied.",
       "mechanicalChangesRequired": "Use the shared behavioral resolver. Hide outcome values before commitment; on profiles with investigation, reveal them only after its displayed Gold/HP cost is paid. Preserve state-scaled, distinct effects.",
       "priority": "essential — implemented"
+    },
+    {
+      "id": "flooded-stair",
+      "eventName": "The Flooded Stair",
+      "existingEventText": "Black water has swallowed the stair to the next gallery. A frayed rope bridge sags above it, and a longer dry detour winds off into the dark.",
+      "existingChoices": [
+        {
+          "label": "Cross the sagging bridge",
+          "description": ""
+        },
+        {
+          "label": "Take the long dry detour",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "Black water has swallowed the stair to the next gallery. A frayed rope bridge sags above it, and a longer dry detour winds off into the dark.",
+      "recommendedRevisedChoiceLabels": [
+        "Cross the sagging bridge",
+        "Take the long dry detour"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "begging-shade",
+      "eventName": "The Beggar in the Wall",
+      "existingEventText": "A gaunt shade pressed into the stone rasps for a share of your lamp oil, swearing it knows a cache three galleries down.",
+      "existingChoices": [
+        {
+          "label": "Share your lamp oil",
+          "description": ""
+        },
+        {
+          "label": "Keep walking",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "A gaunt shade pressed into the stone rasps for a share of your lamp oil, swearing it knows a cache three galleries down.",
+      "recommendedRevisedChoiceLabels": [
+        "Share your lamp oil",
+        "Keep walking"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "twin-idols",
+      "eventName": "The Twin Idols",
+      "existingEventText": "Two idols flank the passage, each with an empty offering bowl. One is carved smiling, the other screaming, and both promise a boon to whoever fills their bowl first.",
+      "existingChoices": [
+        {
+          "label": "Fill the smiling idol’s bowl",
+          "description": ""
+        },
+        {
+          "label": "Fill the screaming idol’s bowl",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "Two idols flank the passage, each with an empty offering bowl. One is carved smiling, the other screaming, and both promise a boon to whoever fills their bowl first.",
+      "recommendedRevisedChoiceLabels": [
+        "Fill the smiling idol’s bowl",
+        "Fill the screaming idol’s bowl"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "bone-game",
+      "eventName": "The Bone Game",
+      "existingEventText": "A ring of off-shift diggers waves you toward their game of painted bones. The pot is fat, the players are drunk, and the dealer will not meet your eye.",
+      "existingChoices": [
+        {
+          "label": "Ante into the game",
+          "description": ""
+        },
+        {
+          "label": "Nurse your drink and watch",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "A ring of off-shift diggers waves you toward their game of painted bones. The pot is fat, the players are drunk, and the dealer will not meet your eye.",
+      "recommendedRevisedChoiceLabels": [
+        "Ante into the game",
+        "Nurse your drink and watch"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "toll-door",
+      "eventName": "The Toll Door",
+      "existingEventText": "An iron door bars the way, and a slotted coin-box is bolted beside it. Scratched above the slot: PAY OR PRY. The hinges look old.",
+      "existingChoices": [
+        {
+          "label": "Feed the coin-box",
+          "description": ""
+        },
+        {
+          "label": "Pry at the old hinges",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "An iron door bars the way, and a slotted coin-box is bolted beside it. Scratched above the slot: PAY OR PRY. The hinges look old.",
+      "recommendedRevisedChoiceLabels": [
+        "Feed the coin-box",
+        "Pry at the old hinges"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "cavern-hound",
+      "eventName": "The Cavern Hound",
+      "existingEventText": "A hound with a crushed leg growls low from a nest of bones, hackles up, too hurt to flee. Something glints beneath it.",
+      "existingChoices": [
+        {
+          "label": "Coax the hound aside",
+          "description": ""
+        },
+        {
+          "label": "Drive it off with your lamp",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "A hound with a crushed leg growls low from a nest of bones, hackles up, too hurt to flee. Something glints beneath it.",
+      "recommendedRevisedChoiceLabels": [
+        "Coax the hound aside",
+        "Drive it off with your lamp"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "glowcap-feast",
+      "eventName": "The Glowcap Feast",
+      "existingEventText": "A flush of pale glowcaps carpets a warm alcove. Some caps are plump and sweet; your field guide warns a few look almost identical to the rot-caps that kill.",
+      "existingChoices": [
+        {
+          "label": "Eat your fill of the caps",
+          "description": ""
+        },
+        {
+          "label": "Pocket a few and move on",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "A flush of pale glowcaps carpets a warm alcove. Some caps are plump and sweet; your field guide warns a few look almost identical to the rot-caps that kill.",
+      "recommendedRevisedChoiceLabels": [
+        "Eat your fill of the caps",
+        "Pocket a few and move on"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "echoing-choir",
+      "eventName": "The Echoing Choir",
+      "existingEventText": "Voices drift from a sealed chapel, singing a hymn no living crew remembers. The song promises comfort to any who join, and the door is unlatched.",
+      "existingChoices": [
+        {
+          "label": "Step in and sing along",
+          "description": ""
+        },
+        {
+          "label": "Seal the chapel and leave",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "Voices drift from a sealed chapel, singing a hymn no living crew remembers. The song promises comfort to any who join, and the door is unlatched.",
+      "recommendedRevisedChoiceLabels": [
+        "Step in and sing along",
+        "Seal the chapel and leave"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "marked-ledger",
+      "eventName": "The Marked Ledger",
+      "existingEventText": "The rat merchant slides a ledger across his counter. Sign for goods on credit now, he says, and the debt will find you deeper down.",
+      "existingChoices": [
+        {
+          "label": "Sign the credit ledger",
+          "description": ""
+        },
+        {
+          "label": "Pay only what coin you carry",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "The rat merchant slides a ledger across his counter. Sign for goods on credit now, he says, and the debt will find you deeper down.",
+      "recommendedRevisedChoiceLabels": [
+        "Sign the credit ledger",
+        "Pay only what coin you carry"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "groaning-vault",
+      "eventName": "The Groaning Vault",
+      "existingEventText": "The treasure vault’s ceiling weeps dust with every step, and a slab is already sliding. A chest sits at the far wall; the exit is at your back.",
+      "existingChoices": [
+        {
+          "label": "Sprint for the chest",
+          "description": ""
+        },
+        {
+          "label": "Back out while you can",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Two generic behavioral profile branches exchange different immediate resources (Gold, HP, max HP, a gadget, an upgrade, or a curse) inside this run.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "Outcomes are hidden before commitment and scale with depth; neither branch dominates across every run state.",
+      "recommendedRevisedEventText": "The treasure vault’s ceiling weeps dust with every step, and a slab is already sliding. A chest sits at the far wall; the exit is at your back.",
+      "recommendedRevisedChoiceLabels": [
+        "Sprint for the chest",
+        "Back out while you can"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then only the exact HP, Gold, max-HP, card, upgrade, or gadget consequence actually applied.",
+      "mechanicalChangesRequired": "None. Uses the shared behavioral resolver with hidden, state-scaled, distinct outcomes.",
+      "priority": "new — story dilemma"
+    },
+    {
+      "id": "unmakingfont",
+      "eventName": "The Unmaking Font",
+      "existingEventText": "A font of pale, hissing brine offers to dissolve one card from your pack forever. Two cards drift up through the murk, waiting for you to choose which to unmake.",
+      "existingChoices": [
+        {
+          "label": "Dissolve the first card",
+          "description": ""
+        },
+        {
+          "label": "Dissolve the second card",
+          "description": ""
+        }
+      ],
+      "existingOutcomes": "Both branches secretly ADD a copy of the chosen deck card instead of removing it — a deliberate trap framed as card removal.",
+      "containsTutorialOrExplanatoryLanguage": false,
+      "choicesRevealQualityTooClearly": false,
+      "resultInterpretsDecision": false,
+      "mechanicallyMeaningful": true,
+      "consistentlyDominant": false,
+      "fairDespiteHiddenInformation": "The deception is the point: the removal framing is hidden information, revealed only in the result. Which card doubles is the player's own choice from their deck.",
+      "recommendedRevisedEventText": "A font of pale, hissing brine offers to dissolve one card from your pack forever. Two cards drift up through the murk, waiting for you to choose which to unmake.",
+      "recommendedRevisedChoiceLabels": [
+        "Dissolve <card A>",
+        "Dissolve <card B>"
+      ],
+      "recommendedRevisedResultText": "One atmospheric sentence, then the exact card added (Add a copy of X).",
+      "mechanicalChangesRequired": "Custom resolver (falsePurge): dynamic choices from run.deck; on commit, push a copy of the chosen card and report it as Added.",
+      "priority": "new — trick event"
     }
   ]
 }

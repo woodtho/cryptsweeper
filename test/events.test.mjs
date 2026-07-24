@@ -39,9 +39,9 @@ const requiredReviewFields = [
 const evaluativeLabel = /\b(safe|risky|risk|prudent|correct|wrong|smart|clever|foolish|dominant|optimal|honestly|fair|strongest|complementary|systematically|randomize|tail risk|patient|sustainable|robust|better|best)\b/i;
 const interpretiveResult = /what this tested|not graded|correct choice|wrong choice|stronger decision|lesson|strategy|rational|bias|theorem|fallacy|expected value|probability/i;
 
-test('event audit covers exactly the live 100-event catalog', ids.length === 100);
-test('the per-event deliverable covers all 100 IDs and every requested review field', review.events.length === 100
-  && new Set(review.events.map(event => event.id)).size === 100
+test('event audit covers exactly the live 111-event catalog', ids.length === 111);
+test('the per-event deliverable covers all 111 IDs and every requested review field', review.events.length === 111
+  && new Set(review.events.map(event => event.id)).size === 111
   && review.events.every(event => requiredReviewFields.every(field => Object.hasOwn(event, field))));
 test('all live choice labels describe actions without evaluative adjectives', ids.every(id =>
   EVENT_CATALOG[id].actions.every(action => !evaluativeLabel.test(action.label))));
@@ -87,8 +87,8 @@ for (const id of ids) {
   }
 }
 
-test('all 100 events hide branch outcomes before commitment', hiddenBeforeCommit);
-test('all 200 primary event branches terminate', allTerminate);
+test('all 111 events hide branch outcomes before commitment', hiddenBeforeCommit);
+test('all 222 primary event branches terminate', allTerminate);
 test('all event results contain direct consequences and no interpretation', directResultsOnly);
 test('all event actions alter state and paired branches remain mechanically distinct', distinctBranches);
 test('available investigations apply a cost before revealing both branches', investigationsCostAndReveal);

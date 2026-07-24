@@ -21,7 +21,7 @@ export const TEST_LAB_SECTIONS = [
   ] },
   { label: 'Combat and rewards', testAllLabel: 'Test all combat & rewards', entries: [
     entry('Normal fight', 'combat', 'dig'), entry('Elite fight', 'combat', 'elite'),
-    ...[0, 1, 2].map(i => entry(`Boss · ${STRATA[i].name}`, 'boss', i, 'danger')),
+    ...STRATA.map((stratum, i) => entry(`Boss · ${stratum.name}`, 'boss', i, 'danger')),
     ...['dig', 'elite', 'boss'].map(kind => entry(`${kind[0].toUpperCase() + kind.slice(1)} reward`, 'reward', kind)),
     entry('Game over screen', 'gameover'), entry('Victory screen', 'victory'),
   ] },

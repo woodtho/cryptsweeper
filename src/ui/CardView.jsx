@@ -43,8 +43,8 @@ export function CardView({ card, onClick, inCombat = false, selected = false, di
         {def.rarity} · {def.type}
         {def.hits ? <span className={`hitmode hm-${def.hits}`}> · {HIT_LABELS[def.hits]}</span> : null}
       </div>
-      {selection ? <div className="targetline">{selection}</div> : null}
       <div className="rules" dangerouslySetInnerHTML={{ __html: decorateMechanics(def.text(card.up)) }} />
+      {selection ? <div className="targetline">{selection}</div> : null}
     </div>
   );
 }

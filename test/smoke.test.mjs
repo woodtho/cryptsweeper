@@ -9,17 +9,20 @@ import {
   SHAPES, annexTiles, addMineAt, clickTile, basePicksFor,
   saveRun, listSaves, loadRun, deleteSave, goHome,
   scanTile, addConstruct,
-  campTrainPicks, closeCutscene, closeModal,
+  campTrainPicks, closeCutscene, closeBattlePreview, closeModal,
   EVENT_CATALOG, eventChoice, currentEventView, startSpecificEvent, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
   toggleLightsCell, toggleNonogramCell, answerSequence,
-  clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS,
+  clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS, ENEMY_EFFECTS,
+  applyEnemyEffect, enemyAttack,
 } from '../src/engine/engine.js';
-import { CARDS, CLASSES, TRINKETS, STRATA, PERSISTENT_CURSES } from '../src/engine/data.js';
+import { CARDS, CLASSES, TRINKETS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import { observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep } from '../src/bot/gameBot.js';
-import { decorateMechanics } from '../src/ui/mechanics.js';
+import { decorateMechanics, mechanicTextParts, MECHANICS } from '../src/ui/mechanics.js';
 import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, evaluateAchievements, loadAchievements, loadGraveyard, recordRunHistory } from '../src/engine/legacy.js';
+import { loadPreferences, savePreferences } from '../src/engine/preferences.js';
+import { readFileSync } from 'node:fs';
 
 let failures = 0;
 const storage = new Map();
@@ -91,7 +94,8 @@ if (mine2 != null) {
 {
   const b2 = board();
   const numTile = b2.cells.findIndex((cell, i) => cell.revealed && !cell.void && numAt(i) > 0
-    && neighborsOf(i, b2.size).some(j => isHiddenUsable(j) && b2.cells[j].mine && !b2.cells[j].flag));
+    && neighborsOf(i, b2.size).some(j => isHiddenUsable(j) && b2.cells[j].mine && !b2.cells[j].flag)
+    && neighborsOf(i, b2.size).some(j => isHiddenUsable(j) && !b2.cells[j].mine && !b2.cells[j].flag));
   if (numTile >= 0) {
     neighborsOf(numTile, b2.size).forEach(j => { if (b2.cells[j].mine && isHiddenUsable(j)) b2.cells[j].flag = 1; });
     const n = numAt(numTile);
@@ -104,6 +108,17 @@ if (mine2 != null) {
   } else console.log('skip  chord (no candidate)');
 }
 
+/* Plating is a persistent second defense against ordinary enemy attacks. */
+{
+  const enemy = cbt().enemies[0];
+  const hpBefore = R().hp;
+  cbt().block = 2;
+  cbt().plating = 3;
+  enemyAttack(enemy, 7);
+  T('enemy attacks spend Block, then Plating, before Health',
+    cbt().block === 0 && cbt().plating === 0 && R().hp === hpBefore - 2);
+}
+
 /* 6 — end turn / new turn */
 {
   const t0 = cbt().turn;
@@ -112,6 +127,33 @@ if (mine2 != null) {
     T('turn advanced', cbt().turn === t0 + 1);
     T('energy refilled', cbt().energy === cbt().maxEnergy);
   } else console.log('skip  turn tests (combat ended early: ' + ui.screen + ')');
+}
+
+/* 6.25 — Chord is card-only; a matching count on the wrong tiles explodes when invoked */
+{
+  const b2 = board();
+  const center = b2.cells.findIndex((cell, i) => !cell.void
+    && neighborsOf(i, b2.size).filter(j => !b2.cells[j].void).length >= 2);
+  const adjacent = neighborsOf(center, b2.size).filter(j => !b2.cells[j].void);
+  const [mine, falseFlag] = adjacent;
+  b2.cells[center].revealed = true;
+  b2.cells[center].mine = false;
+  b2.cells[center].flag = 0;
+  for (const j of adjacent) {
+    Object.assign(b2.cells[j], { revealed: false, entombed: false, crater: false, mine: false, flag: 0, scan: null });
+  }
+  b2.cells[mine].mine = true;
+  b2.cells[falseFlag].flag = 1;
+  R().hp = Math.max(R().hp, 100);
+  cbt().instinctUsed = 99;
+  cbt().powers.sixthsense = false;
+  cbt().chordedThisTurn = false;
+  const detonations0 = cbt().minesDetonated;
+  clickTile(center);
+  T('tapping a revealed number does not Chord', b2.cells[mine].mine === true && !b2.cells[mine].crater);
+  const failedChord = chordAt(center);
+  T('a same-count false flag detonates the unflagged mine', cbt().minesDetonated === detonations0 + 1);
+  T('an inaccurate card Chord does not satisfy chord mechanics', failedChord.attempted && !failedChord.ok && cbt().chordedThisTurn === false);
 }
 
 /* 6.5 — lairs: solving damages enemies; killing solves the board */
@@ -208,7 +250,7 @@ T('puzzle solvable by full sweep', R().puzzle.solved === true);
   }
   T('every generated puzzle is provable without guessing', honest);
 }
-T('event catalog contains exactly 100 discoverable encounters', Object.keys(EVENT_CATALOG).length === 100);
+T('event catalog contains exactly 111 discoverable encounters', Object.keys(EVENT_CATALOG).length === 111);
 T('all events have titles, descriptions, and at least two choices', Object.values(EVENT_CATALOG).every(event => event.title && event.text && event.choices?.length >= 2));
 T('every encounter uses the behavioral decision model', Object.values(EVENT_CATALOG).every(event => event.behavioral && event.concept && event.explanation && event.actions?.length === 2));
 const roteKeys = new Set(['correct', 'wrong-a', 'wrong-b', 'prudent', 'risk', 'leave']);
@@ -334,10 +376,13 @@ T('stratum-3 boss is NN-99', nn.key === 'nn99');
 const nnHp = nn.hp;
 cbt().revealedThisTurn = 0; cbt().chordedThisTurn = false;
 hitEnemy(nn, 10);
-T('NN-99 gate blocks damage', nn.hp === nnHp);
-cbt().revealedThisTurn = 6;
+T('NN-99 signal shield allows half damage before any safe reveals', nn.hp === nnHp - 5);
+cbt().revealedThisTurn = 2;
 hitEnemy(nn, 10);
-T('NN-99 takes damage after 5+ reveals', nn.hp === nnHp - 10);
+T('NN-99 signal shield weakens progressively as safe tiles are revealed', nn.hp === nnHp - 13);
+cbt().revealedThisTurn = 3;
+hitEnemy(nn, 10);
+T('NN-99 takes full damage after 3 safe reveals', nn.hp === nnHp - 23);
 nn.hp = 149; checkNNPhase(nn);
 T('NN-99 phase 2 regenerates a denser board (12+2 grid)', board().size === 14);
 
@@ -500,8 +545,35 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     startCombat('dig');
     return cbt().picks === expectedBasePicks[cls] && cbt().maxPicks === expectedBasePicks[cls];
   }));
-  T('catalog contains exactly 704 uniquely named cards', Object.keys(CARDS).length === 704
-    && new Set(Object.values(CARDS).map(card => card.name)).size === 704);
+T('catalog contains exactly 717 uniquely named cards', Object.keys(CARDS).length === 717
+    && new Set(Object.values(CARDS).map(card => card.name)).size === 717);
+T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
+  ['chordcard','resonanttap','stonechorus'].every(key => CARDS[key].cost[0] === 0 && CARDS[key].cost[1] === 0
+    && CARDS[key].targets.includes('number')));
+  T('eight healing cards provide varied, exhaust-limited recovery',
+    ['bandage','mendingsalts','lastlight','stonepoultice','triagekit','gravemoss','secondwind']
+      .every(key => CARDS[key]?.cls === 'neutral' && CARDS[key].exhaust && CARDS[key].can)
+      && CARDS.bedrockshelter?.cls === 'terraformer' && CARDS.bedrockshelter.exhaust && CARDS.bedrockshelter.can);
+  newRun('sapper', { daily:'healing-card' }); R().hp -= 20; startCombat('dig');
+  const beforeBandage = R().hp; CARDS.bandage.play(0);
+  T('Bandage restores persistent run HP without exceeding maximum HP', R().hp === beforeBandage + 4 && R().hp <= R().maxHp);
+  newRun('sapper', { challenge:'brittle', daily:'brittle-healing-card' }); R().hp -= 20; startCombat('dig');
+  const beforeSalts = R().hp; CARDS.mendingsalts.play(0);
+  T('Brittle Bones also halves recovery from healing cards', R().hp === beforeSalts + 4);
+  newRun('sapper', { daily:'enemy-condition-card' }); startCombat('boss');
+  const conditionBoss = cbt().enemies[0];
+  T('all enemy conditions explicitly support boss targets', conditionBoss.def.boss
+    && Object.keys(ENEMY_EFFECTS).every(key => applyEnemyEffect(conditionBoss, key)));
+  conditionBoss.block = 10; applyEnemyEffect(conditionBoss, 'sundered');
+  T('Sundered immediately removes enemy Block', conditionBoss.block === 0);
+  conditionBoss.effects.exposed = 1; conditionBoss.block = 0;
+  const bossHpBeforeExposure = conditionBoss.hp; hitEnemy(conditionBoss, 8, { bypassGate:true, noNitro:true });
+  T('Exposed increases the next boss hit by 25% and consumes a stack', bossHpBeforeExposure - conditionBoss.hp === 10 && conditionBoss.effects.exposed === 0);
+  conditionBoss.effects.jammed = 1; R().hp = R().maxHp;
+  const hpBeforeJam = R().hp; enemyAttack(conditionBoss, 10);
+  T('Jammed reduces a boss direct attack by 40% and consumes a stack', hpBeforeJam - R().hp === 6 && conditionBoss.effects.jammed === 0);
+  T('four neutral condition cards all target enemies and advertise boss support',
+    ['faultline','signaljam','sunderingchalk','gravebind'].every(key => CARDS[key].hits === 'target' && CARDS[key].text(0).includes('boss')));
   T('every Delver has at least 64 class cards', classKeys.every(cls =>
     Object.values(CARDS).filter(card => card.cls === cls).length >= 64));
 
@@ -590,6 +662,75 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   const curseMarked = decorateMechanics('Claustrophobia (sometimes misspelled claustophobia) adds mines.');
   T('Claustrophobia and its common misspelling open the curse mechanic definition',
     (curseMarked.match(/data-mechanic="claustrophobia"/g) || []).length === 2);
+  const tutorialSource = readFileSync(new URL('../src/ui/InteractiveTutorial.jsx', import.meta.url), 'utf8');
+  const mechanicsLabSource = readFileSync(new URL('../src/ui/MechanicsLab.jsx', import.meta.url), 'utf8');
+  const battleStorySource = readFileSync(new URL('../src/ui/BattleMechanicStory.jsx', import.meta.url), 'utf8');
+  const mechanicTermsSource = readFileSync(new URL('../src/ui/MechanicTerms.jsx', import.meta.url), 'utf8');
+  const rulebookSource = readFileSync(new URL('../src/ui/screens.jsx', import.meta.url), 'utf8');
+  const collectionSource = readFileSync(new URL('../src/ui/CollectionIndex.jsx', import.meta.url), 'utf8');
+  const combatScreenSource = readFileSync(new URL('../src/ui/CombatScreen.jsx', import.meta.url), 'utf8');
+  const preferenceSource = readFileSync(new URL('../src/engine/preferences.js', import.meta.url), 'utf8');
+  T('interactive tutorial contains eleven action-driven lessons without changing engine state',
+    (tutorialSource.match(/^  \{ title:/gm) || []).length === 11
+      && tutorialSource.includes('Practice crypt · no run progress affected')
+      && !tutorialSource.includes("from '../engine/engine.js'"));
+  T('guided lessons use real cards, restore snapshots, and require the complete card-only Chord sequence',
+    tutorialSource.includes("import { CardView }")
+      && tutorialSource.includes('setSnapshots')
+      && tutorialSource.includes('cryptsweeper.tutorial.guided.v2')
+      && tutorialSource.includes('function ChordPractice')
+      && tutorialSource.includes('Target revealed 1 with Resonant Tap')
+      && tutorialSource.includes('8 Block + 2 Plating absorb Attack 10'));
+  T('Mechanics Lab covers every glossary mechanic plus every enemy modifier in five interactive sessions',
+    Object.keys(MECHANICS).length === 49
+      && Object.keys(MECHANICS).every(key => mechanicsLabSource.includes(`'${key}'`))
+      && Object.keys(ENEMY_MODIFIERS).length === 4
+      && mechanicsLabSource.includes('Object.entries(ENEMY_MODIFIERS)')
+      && (mechanicsLabSource.match(/\{ key:'/g) || []).length === 5);
+  T('Mechanics Lab requires answers, reports mistakes, and tracks per-mechanic completion',
+    mechanicsLabSource.includes('mechanic-drill-choices')
+      && mechanicsLabSource.includes('Check the altered detail')
+      && mechanicsLabSource.includes('function alteredRule')
+      && mechanicsLabSource.includes('setCompleted')
+      && mechanicsLabSource.includes('cryptsweeper.tutorial.mechanics.v1')
+      && mechanicsLabSource.includes('disabled={!correct || storyStep < 2}'));
+  T('Mechanics Lab drills render the discussed mechanic icon or exact condition mark',
+    mechanicsLabSource.includes('const MECHANIC_ICONS')
+      && mechanicsLabSource.includes('Object.entries(ENEMY_EFFECTS)')
+      && mechanicsLabSource.includes('name={entry.icon}')
+      && mechanicsLabSource.includes('{entry.mark}'));
+  T('correct Lab answers unlock a three-scene battle story with moving focus before progression',
+    mechanicsLabSource.includes('correct && <BattleMechanicStory')
+      && battleStorySource.includes("['preview','enemy','log']")
+      && battleStorySource.includes("['card','board','log']")
+      && battleStorySource.includes('scrollIntoView')
+      && battleStorySource.includes('story-focus')
+      && battleStorySource.includes('Perform the highlighted'));
+  T('the optional combat coach teaches directly on the live battle UI and can be replayed from settings',
+    preferenceSource.includes('showCombatHints: true')
+      && combatScreenSource.includes('COMBAT_COACH_STEPS')
+      && combatScreenSource.includes('combat-coach-focus')
+      && rulebookSource.includes('Combat coach'));
+  T('tutorial and rulebook prose automatically highlights and defines every recognized mechanic term',
+    mechanicTextParts('Spend Energy, gain Block, and apply Exposed.').filter(part => part.key).length === 3
+      && mechanicTermsSource.includes('data-mechanic={part.key}')
+      && tutorialSource.includes('<MechanicTerms>')
+      && rulebookSource.includes('<MechanicTerms>'));
+  T('How to Play has search, alphabetical mechanics, and a complete enemy reference',
+    rulebookSource.includes('Search How to Play')
+      && rulebookSource.includes('a[1].name.localeCompare')
+      && rulebookSource.includes('Object.entries(ENEMIES).sort')
+      && rulebookSource.includes('Enemy and boss reference'));
+  T('all ten Delvers have glossary definitions and complete rulebook starting-build documentation',
+    Object.keys(CLASSES).every(key => MECHANICS[key]?.summary)
+      && rulebookSource.includes('Starter trinket')
+      && rulebookSource.includes('Starting deck · 10 cards')
+      && rulebookSource.includes('card.text(0)'));
+  T('all collection indexes use shared search controls and alphabetical name ordering',
+    collectionSource.includes('function IndexSearch')
+      && collectionSource.includes('a[1].name.localeCompare(b[1].name)')
+      && ['delvers','enemies','cards','items'].every(kind => collectionSource.includes(`kind="${kind}"`)));
+  T('every enemy has tutorial-reference text', Object.values(ENEMIES).every(enemy => enemy.name && enemy.desc));
 }
 
 /* ================= persistent curse family ================= */
@@ -645,6 +786,20 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   R().reward = { kind: 'boss', cards: [], cardTaken: true };
   finishReward();
   T('Stratum 2 boss reward advances directly to Stratum 3', R().stratum === 2 && ui.screen === 'map');
+
+  R().reward = { kind: 'boss', cards: [], cardTaken: true };
+  finishReward();
+  const roamingVeinBosses = R().map.nodes.slice(0, -1)
+    .reduce((count, row) => count + Object.values(row).filter(type => type === 'boss').length, 0);
+  T('NN-99 opens the endless fourth stratum without ending the run',
+    R().stratum === 3 && R().coreWon && ui.screen === 'map' && R().map.nodes[11][2] === 'boss');
+  T('Vein maps place bosses away from the bottom', roamingVeinBosses >= 1);
+
+  R().veinDepth = 12; R().pos = { r:11, c:2 };
+  R().reward = { kind:'boss', cards:[], cardTaken:true, veinExit:true };
+  finishReward();
+  T('bottom Vein guardians generate another segment and preserve total depth',
+    R().stratum === 3 && R().veinSegments === 1 && R().veinDepth === 12 && R().pos === null && ui.screen === 'map');
 }
 
 /* ================= feedback, legacy, modifiers, chains, and challenges ================= */
@@ -659,6 +814,14 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   newRun('sapper', { challenge:'afflicted', daily:'challenge-afflicted' }); startCombat('dig');
   T('Afflicted Host gives every non-boss enemy a recognized modifier',
     cbt().enemies.length > 0 && cbt().enemies.every(enemy => ENEMY_MODIFIERS[enemy.modifier]));
+  T('combat start queues a dismissible enemy briefing with the live lineup',
+    Boolean(ui.battlePreview) && cbt().enemies.every(enemy => enemy.hp > 0 && enemy.intent));
+  closeBattlePreview();
+  T('enemy briefing can be dismissed before playing', ui.battlePreview === null);
+  savePreferences({ ...loadPreferences(), showBattleBriefings:false });
+  newRun('sapper', { daily:'briefing-disabled' }); startCombat('dig');
+  T('disabled battle briefings stay hidden for later combats', ui.battlePreview === null);
+  savePreferences({ ...loadPreferences(), showBattleBriefings:true });
 
   const modifierProof = { armoured:false, burrowing:false, unstable:false, cursed:false };
   for (let i = 0; i < 120 && !Object.values(modifierProof).every(Boolean); i++) {
@@ -677,9 +840,10 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     }
     if (enemy.modifier === 'unstable') {
       enemy.block = 0;
+      cbt().plating = 2;
       const before = R().hp;
       hitEnemy(enemy, enemy.hp, { bypassGate:true, noNitro:true });
-      modifierProof.unstable = R().hp === before - (3 + R().stratum * 2);
+      modifierProof.unstable = cbt().plating === 0 && R().hp === before - Math.max(0, 3 + R().stratum * 2 - 2);
     }
   }
   T('Armoured, Burrowing, Unstable, and Cursed modifiers each apply their distinct behavior',
@@ -694,7 +858,20 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   const expectedBrittle = Math.min(R().maxHp, 1 + Math.ceil(Math.floor(R().maxHp * .3) / 2));
   campHeal();
   T('Brittle Bones halves camp healing', R().hp === expectedBrittle);
-  T('challenge catalog exposes five selectable rule sets', Object.keys(CHALLENGES).length === 5);
+  T('challenge catalog exposes seven selectable rule sets including two Vein modes',
+    Object.keys(CHALLENGES).length === 7 && CHALLENGES.veinbound && CHALLENGES.wardenroad);
+
+  newRun('sapper', { challenge:'veinbound', daily:'challenge-veinbound' });
+  T('Veinbound begins in the fourth stratum with its expedition loadout',
+    R().stratum === 3 && R().gold === 150 && R().pickBonus === 2 && R().trinkets.includes('lamp')
+      && R().deck.filter(card => card.up).length === 3);
+
+  newRun('sapper', { challenge:'wardenroad', daily:'challenge-wardenroad' });
+  const wardenBosses = R().map.nodes.slice(0, -1)
+    .reduce((count, row) => count + Object.values(row).filter(type => type === 'boss').length, 0);
+  startCombat('dig');
+  T('Warden Current adds roaming bosses and combat support',
+    wardenBosses >= 3 && cbt().plating >= 6 && cbt().maxEnergy >= 5);
 
   newRun('sapper', { daily:'invalid-card-feedback' }); startCombat('dig');
   cbt().hand.unshift({ id:999999, key:'claustrophobia', up:0 });

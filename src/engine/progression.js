@@ -16,7 +16,7 @@ export const UNLOCKS = {
 const defaults = () => ({
   deepestStratum: 0, maxGold: 0, cardsUpgraded: 0, safeReveals: 0,
   maxPlating: 0, fullClears: 0, wins: 0,
-  campVisits: 0, shopVisits: 0, bossFights: 0, losses: 0,
+  campVisits: 0, shopVisits: 0, bossFights: 0, losses: 0, deepestVein: 0,
 });
 
 export function loadProgression() {
@@ -33,6 +33,7 @@ export function recordProgress(run, screen) {
   const p = loadProgression();
   run.progressRecorded ??= { cardsUpgraded: 0, safeReveals: 0, fullClears: 0 };
   p.deepestStratum = Math.max(p.deepestStratum, run.stratum || 0);
+  p.deepestVein = Math.max(p.deepestVein || 0, run.veinDepth || 0);
   p.maxGold = Math.max(p.maxGold, run.gold || 0);
   p.cardsUpgraded += Math.max(0, (run.upgrades || 0) - run.progressRecorded.cardsUpgraded);
   p.safeReveals += Math.max(0, (run.safeReveals || 0) - run.progressRecorded.safeReveals);

@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { useGame } from './useGame.js';
 import {
-  run, ui, cbt, endTurn, cancelTargeting, closeModal, closeCutscene, goHome,
+  run, ui, cbt, endTurn, cancelTargeting, closeModal, closeCutscene, closeBattlePreview, goHome,
 } from '../engine/engine.js';
 import { getSfxVolume, isMuted, setSfxVolume, toggleMuted } from '../engine/sfx.js';
 import { isHapticsEnabled, setHapticsEnabled } from '../engine/haptics.js';
@@ -18,6 +18,7 @@ import { ModalHost } from './ModalHost.jsx';
 import { Toasts } from './Toasts.jsx';
 import { MechanicTooltip } from './MechanicTooltip.jsx';
 import { Cutscene } from './Cutscene.jsx';
+import { BattlePreview } from './BattlePreview.jsx';
 import { TEST_ALL_CASES, runTestCase } from './testCatalog.js';
 import { runBackHandlers } from './backNav.js';
 
@@ -39,6 +40,7 @@ function handleBack(allowLeave) {
     return true;
   }
   if (ui.cutscene) { closeCutscene(); return true; }
+  if (ui.battlePreview) { closeBattlePreview(); return true; }
   if (ui.targeting || ui.gadgetTargeting) { cancelTargeting(); return true; }
   if (allowLeave && run && ui.screen !== 'title') { goHome(); return true; }
   return false;
@@ -125,7 +127,7 @@ export function App() {
   useEffect(() => {
     const onKey = ev => {
       if (ev.key === 'Escape') { if (handleBack(false)) ev.preventDefault(); return; }
-      if (ui.cutscene) return;
+      if (ui.cutscene || ui.battlePreview) return;
       if (!run) return;
       const k = ev.key.toLowerCase();
       if (k === 'e' && ui.screen === 'combat' && run.combat && !cbt().over) endTurn();
@@ -182,7 +184,8 @@ export function App() {
     />
   );
   else if (ui.screen === 'map') screen = <MapScreen />;
-  else if (ui.screen === 'combat') screen = <CombatScreen preferences={preferences} />;
+  else if (ui.screen === 'combat') screen = <CombatScreen preferences={preferences}
+    onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))} />;
   else if (ui.screen === 'reward') screen = <RewardScreen />;
   else if (ui.screen === 'camp') screen = <CampScreen />;
   else if (ui.screen === 'shop') screen = <ShopScreen />;
@@ -199,6 +202,10 @@ export function App() {
         <ModalHost />
       </div>
       {ui.cutscene && <Cutscene key={ui.cutscene.id} />}
+      {ui.battlePreview && !ui.cutscene && <BattlePreview preferences={preferences} onNeverShow={() => {
+        setPreferences(prev => savePreferences({ ...prev, showBattleBriefings: false }));
+        closeBattlePreview();
+      }} />}
       {gameMenuOpen && run && <InGameMenu
         muted={muted} musicOff={musicOff} sfxLevel={sfxLevel} musicLevel={musicLevel} preferences={preferences}
         onMutedChange={() => setMuted(toggleMuted())}

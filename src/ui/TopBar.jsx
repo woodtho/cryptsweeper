@@ -26,7 +26,9 @@ export function TopBar({ children }) {
           ))}
         </span>
         <span className="stat gold" data-mechanic="gold" tabIndex="0"><GameIcon name="gold" preferences={prefs} /> <b>{run.gold}</b>g</span>
-        <span className="stat dim hud-secondary">{STRATA[run.stratum].name}</span>
+        <span className="stat dim hud-secondary">
+          {STRATA[run.stratum].name}{run.stratum === 3 ? ` · Depth ${run.veinDepth || 0}` : ''}
+        </span>
         {run.challenge && <span className="stat challenge-hud" title={CHALLENGES[run.challenge]?.desc}>{CHALLENGES[run.challenge]?.mark} {CHALLENGES[run.challenge]?.name}</span>}
         <span className={`classsig hud-secondary ${run.cls}`} title={CLASSES[run.cls].passive.replace(/<[^>]+>/g, '')}>
           {CLASSES[run.cls].name.replace('THE ', '')}

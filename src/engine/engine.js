@@ -12,6 +12,7 @@ import {
 } from './collection.js';
 import { recordDailyAttempt, recordDailyResult } from './daily.js';
 import { evaluateAchievements, recordRunHistory } from './legacy.js';
+import { loadPreferences } from './preferences.js';
 import {
   EXTRA_EVENT_CATALOG, CORE_BEHAVIORAL_EVENTS,
   createBehavioralEventState, behavioralEventView, resolveBehavioralEvent,
@@ -28,10 +29,11 @@ export function subscribe(cb) { listeners.add(cb); return () => listeners.delete
 export function getVersion() { return version; }
 function notify() {
   version++;
-  const freshAchievements = evaluateAchievements(run, ui.screen);
-  if (freshAchievements.length) ui.achievement = { ...freshAchievements[0], id: Date.now() };
+  /* Record lifetime stats first so achievements can test the just-updated totals. */
   recordProgress(run, ui.screen);
   recordDelverProgress(run, ui.screen);
+  const freshAchievements = evaluateAchievements(run, ui.screen);
+  if (freshAchievements.length) ui.achievement = { ...freshAchievements[0], id: Date.now() };
   /* never stamp 'title' into the autosave — Continue must resume gameplay */
   if (run && ui.screen !== 'title') persistRun('auto');
   for (const cb of listeners) cb();
@@ -62,7 +64,7 @@ export let run = null;
 export const ui = {
   screen: 'title', targeting: null, gadgetTargeting: null, flagMode: false,
   modal: null, cutscene: null, toasts: [], shakeSeq: 0, dmg: [],
-  invalidCard: null, deckChange: null, achievement: null,
+  invalidCard: null, deckChange: null, achievement: null, battlePreview: null,
 };
 
 const SAVE_VERSION = 1;
@@ -83,7 +85,7 @@ function saveSummary(slot, payload) {
   const r = payload.run;
   return {
     slot, savedAt: payload.savedAt, cls: r.cls, hp: r.hp, maxHp: r.maxHp,
-    stratum: r.stratum, floors: r.floors, daily: r.daily || null,
+    stratum: r.stratum, floors: r.floors, veinDepth: r.veinDepth || 0, daily: r.daily || null,
   };
 }
 
@@ -126,6 +128,10 @@ export function loadRun(slot) {
     run.eventHistory ??= [];
     run.eventThreads ??= {};
     run.bossesDefeated ??= [];
+    run.veinDepth ??= 0;
+    run.veinSegments ??= 0;
+    run.veinBossesDefeated ??= 0;
+    run.coreWon ??= false;
     run.challenge ??= null;
     run.lastDamageSource ??= null;
     run.runId ??= `${payload.savedAt || Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -143,7 +149,7 @@ export function loadRun(slot) {
     }
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) {
-        enemy.def = ENEMIES[enemy.key]; enemy.modifier ??= null; enemy.data ??= {};
+        enemy.def = ENEMIES[enemy.key]; enemy.modifier ??= null; enemy.data ??= {}; enemy.effects ??= {};
       }
       if (run.combat.picks == null) run.combat.picks = basePicksFor(run.cls);
       if (run.combat.maxPicks == null) run.combat.maxPicks = basePicksFor(run.cls) + run.pickBonus + (run.trinkets.includes('pitons') ? 1 : 0);
@@ -171,7 +177,7 @@ export function loadRun(slot) {
     const resumedEventResult = ui.screen === 'event' && run.eventState?.stage === 'resolved' && run.eventState.result
       ? { kind: 'info', ...run.eventState.result, btn: 'Continue', next: 'map' }
       : null;
-    ui.targeting = null; ui.gadgetTargeting = null; ui.modal = resumedEventResult; ui.flagMode = false;
+    ui.targeting = null; ui.gadgetTargeting = null; ui.modal = resumedEventResult; ui.flagMode = false; ui.battlePreview = null;
     ui.cutscene = payload.cutscene || null;
     notify();
     return true;
@@ -185,7 +191,7 @@ export function deleteSave(slot) {
 export function goHome() {
   persistRun('auto'); // capture the resumable screen before leaving it
   ui.screen = 'title';
-  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false;
+  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false; ui.battlePreview = null;
   notify();
 }
 
@@ -225,6 +231,7 @@ export function newRun(clsKey, options = {}) {
     surveyNext: false, seenEvents: [], combat: null, upgrades: 0, pickBonus: 0, winRecorded: false,
     reward: null, shop: null, event: null, eventState: null, eventHistory: [], eventThreads: {}, puzzle: null, seenCutscenes: [],
     bossesDefeated: [], lastDamageSource: null, challenge: options.challenge || null,
+    veinDepth: 0, veinSegments: 0, veinBossesDefeated: 0, coreWon: false,
     runId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, historyRecorded: false,
     daily: options.daily || null, testMode: Boolean(options.testMode),
     rngState: options.daily ? dailySeed(options.daily) : null,
@@ -234,12 +241,19 @@ export function newRun(clsKey, options = {}) {
     run.gold += 100;
   } else if (run.challenge === 'lean') {
     run.deck = run.deck.slice(0, 8); run.gold = 20;
+  } else if (run.challenge === 'veinbound' || run.challenge === 'wardenroad') {
+    run.stratum = 3;
+    run.gold = run.challenge === 'veinbound' ? 150 : 100;
+    run.pickBonus = 2;
+    run.trinkets.push('lamp');
+    run.deck.slice(0, 3).forEach(card => { card.up = 1; });
   }
   genMapForStratum();
   seedRunCollection(run);
   if (run.daily) recordDailyAttempt(run.daily);
+  ui.battlePreview = null;
   ui.screen = 'map';
-  queueCutscene('opening', {}, true);
+  queueCutscene(run.stratum === 3 ? 'descent-3' : 'opening', {}, true);
   notify();
 }
 
@@ -247,7 +261,7 @@ export function resetToTitle() {
   try { localStorage.removeItem(slotKey('auto')); } catch { /* storage unavailable */ }
   run = null;
   ui.screen = 'title';
-  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false;
+  ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false; ui.battlePreview = null;
   notify();
 }
 
@@ -263,6 +277,12 @@ function queueCutscene(id, context = {}, once = false) {
 export function closeCutscene() {
   if (!ui.cutscene) return;
   ui.cutscene = null;
+  notify();
+}
+
+export function closeBattlePreview() {
+  if (!ui.battlePreview) return;
+  ui.battlePreview = null;
   notify();
 }
 
@@ -309,6 +329,9 @@ export function openPileModal(which) {
 
 /* ================= map ================= */
 export const MAP_ROWS = 12, MAP_W = 5;
+export function veinThreatTier() {
+  return run?.stratum === 3 ? Math.max(0, Number(run.veinSegments) || 0) : 0;
+}
 function genMapForStratum() {
   const nodes = Array.from({ length: MAP_ROWS }, () => ({}));
   const edges = {};
@@ -342,7 +365,15 @@ function genMapForStratum() {
   let hasShop = false;
   for (let r = 1; r < MAP_ROWS - 2; r++) for (const c of Object.keys(nodes[r])) if (nodes[r][c] === 'shop') hasShop = true;
   if (!hasShop) { const cols = Object.keys(nodes[6]); if (cols.length) nodes[6][randPick(cols)] = 'shop'; }
-  run.map = { nodes, edges };
+  if (run.stratum === 3) {
+    const roamingBosses = run.challenge === 'wardenroad' ? 3 : 1 + Math.min(2, Math.floor(veinThreatTier() / 3));
+    const candidates = [];
+    for (let r = 3; r < MAP_ROWS - 2; r++) for (const c of Object.keys(nodes[r])) {
+      if (!['camp', 'shop', 'treasure'].includes(nodes[r][c])) candidates.push([r, c]);
+    }
+    for (const [r, c] of shuffle(candidates).slice(0, roamingBosses)) nodes[r][c] = 'boss';
+  }
+  run.map = { nodes, edges, veinSegment: run.stratum === 3 ? (run.veinSegments || 0) + 1 : null };
   run.pos = null;
   run.visited = {};
 }
@@ -380,6 +411,7 @@ export function enterNode(r, c) {
   run.pos = { r, c };
   run.visited[`${r},${c}`] = true;
   run.floors++;
+  if (run.stratum === 3) run.veinDepth = (run.veinDepth || 0) + 1;
   sfx('turn');
   const type = run.map.nodes[r][c];
   if (type === 'dig' || type === 'elite' || type === 'boss') startCombat(type);
@@ -733,7 +765,7 @@ function detonatePlayer(i, opts = {}) {
   sfx('boom');
   haptic('mine');
   ui.shakeSeq++;
-  let dmg = STRATA[run.stratum].mineDmg;
+  let dmg = STRATA[run.stratum].mineDmg + (run.stratum === 3 ? Math.min(10, veinThreatTier()) : 0);
   if (opts.half) dmg = Math.ceil(dmg / 2);
   if (hasT('luckycompass') && !c.compassUsed) {
     c.compassUsed = true; dmg = 0; toast('Lucky Compass: detonation deals 0!');
@@ -743,13 +775,11 @@ function detonatePlayer(i, opts = {}) {
   if (hasT('canary') && !c.canaryUsed && dmg > 10) {
     c.canaryUsed = true; dmg = 10; toast("Miner's Canary caps it at 10!");
   }
-  const soak = Math.min(c.plating, dmg);
-  c.plating -= soak;
-  const rest = dmg - soak;
+  const { soak, rest } = absorbPlating(dmg);
   if (rest > 0) {
     run.lastDamageSource = `A mine in ${STRATA[run.stratum].name}`;
     run.hp -= rest; pushDmg({ kind: 'player', amount: rest });
-    log(`💥 Mine detonates: ${rest} damage (pierces Block)`);
+    log(`💥 Mine detonates: ${rest} damage${soak ? ` (${soak} absorbed by Plating)` : ' (pierces Block)'}`);
     triggerPainPassive();
   }
   else { pushDmg({ kind: 'player', amount: 0, note: 'ABSORBED' }); log('💥 Mine detonates — Plating absorbs it.'); }
@@ -840,19 +870,39 @@ export function entombTile(i) {
 
 export function chordAt(i) {
   const c = cbt(), b = board();
+  const center = b?.cells[i];
+  if (!c || !b || !center?.revealed || center.void || center.entombed) {
+    return { ok: false, attempted: false, detonations: 0, reason: 'Choose a revealed number.' };
+  }
   const n = numAt(i);
-  const flagged = neighborsOf(i, b.size).filter(j => b.cells[j].flag && isHiddenUsable(j));
-  if (n === 0 || flagged.length !== n) return { ok: false, detonations: 0 };
-  c.chordedThisTurn = true;
+  const adjacent = neighborsOf(i, b.size);
+  const flagged = adjacent.filter(j => b.cells[j].flag && isHiddenUsable(j));
+  if (n === 0) return { ok: false, attempted: false, detonations: 0, reason: 'Only numbered tiles can be chorded.' };
+  if (flagged.length !== n) {
+    return { ok: false, attempted: false, detonations: 0, reason: `This ${n} needs exactly ${n} adjacent flag${n === 1 ? '' : 's'}.` };
+  }
+  if (!adjacent.some(j => isHiddenUsable(j) && !b.cells[j].flag)) {
+    return { ok: false, attempted: false, detonations: 0, reason: 'This number has no unopened neighbors left to Chord.' };
+  }
+  const correct = flagged.every(j => b.cells[j].mine);
   const before = c.minesDetonated;
-  for (const j of neighborsOf(i, b.size)) {
+  for (const j of adjacent) {
     if (board() !== b) break; // board collapsed & re-sealed mid-chord
-    if (isHiddenUsable(j) && !b.cells[j].flag) revealTile(j, 'chord');
+    // A misflagged chord is an intentional risky reveal, so Instinct and Sixth
+    // Sense do not silently turn it into a successful deduction.
+    if (isHiddenUsable(j) && !b.cells[j].flag) revealTile(j, correct ? 'chord' : 'failed-chord');
     if (c.over) break;
   }
-  sfx('chord');
-  log('🎼 Chord!');
-  return { ok: true, detonations: c.minesDetonated - before };
+  const detonations = c.minesDetonated - before;
+  if (correct && detonations === 0) {
+    c.chordedThisTurn = true;
+    sfx('chord');
+    log('🎼 Chord!');
+    return { ok: true, attempted: true, detonations: 0 };
+  }
+  log('💥 False chord — the flags did not mark the correct mines.');
+  toast('Wrong flags! The unmarked mines detonated.', true);
+  return { ok: false, attempted: true, detonations, reason: 'The flag count matched, but the flags were on the wrong tiles.' };
 }
 
 export function swapCells(i, j) {
@@ -1135,6 +1185,13 @@ export function atk(n) {
 }
 export function gainBlock(n) { if (!run?.combat) return; cbt().block += n; sfx('block'); log(`🛡 +${n} Block`); }
 export function gainPlating(n) { if (!run?.combat) return; cbt().plating += n; sfx('plating'); log(`⛨ +${n} Plating`); }
+function absorbPlating(n) {
+  const c = cbt();
+  if (!c || n <= 0) return { soak: 0, rest: Math.max(0, n) };
+  const soak = Math.min(c.plating, n);
+  c.plating -= soak;
+  return { soak, rest: n - soak };
+}
 export function gainEnergy(n) { if (run?.combat) cbt().energy += n; }
 export function gainInsight(n) { if (run?.combat) cbt().insight += n; }
 export function gainPicks(n) {
@@ -1162,14 +1219,34 @@ export function spendPicks(n = Infinity) {
   cbt().picks -= spent;
   return spent;
 }
-export function loseHP(n, source = 'A lingering wound') {
+export function loseHP(n, source = 'A lingering wound', opts = {}) {
+  const { soak, rest } = opts.usePlating ? absorbPlating(n) : { soak: 0, rest: n };
   run.lastDamageSource = source;
-  run.hp -= n;
-  sfx('hurt'); haptic('damage');
-  pushDmg({ kind: 'player', amount: n });
-  log(`🩸 You lose ${n} HP`);
-  triggerPainPassive();
+  run.hp -= rest;
+  if (rest > 0) {
+    sfx('hurt'); haptic('damage');
+    pushDmg({ kind: 'player', amount: rest });
+    log(`🩸 You lose ${rest} HP${soak ? ` (${soak} absorbed by Plating)` : ''}`);
+    triggerPainPassive();
+  } else {
+    sfx('block');
+    pushDmg({ kind: 'player', amount: 0, note: 'PLATED' });
+    log(`⛨ Plating absorbs ${soak} damage.`);
+  }
   checkPlayerDeath();
+}
+export function canHeal() { return Boolean(run && run.hp < run.maxHp); }
+export function healHP(n) {
+  if (!run || n <= 0) return 0;
+  const before = run.hp;
+  run.hp = Math.min(run.maxHp, run.hp + effectiveHealing(n));
+  const healed = run.hp - before;
+  if (healed > 0) {
+    sfx('heal');
+    pushDmg({ kind: 'player', amount: -healed, note: `+${healed}` });
+    log(`✚ You recover ${healed} HP`);
+  }
+  return healed;
 }
 export function drawCards(n) {
   if (!run?.combat) return;
@@ -1196,9 +1273,17 @@ export function drawCards(n) {
 export function enemyAttack(e, n) {
   if (!run?.combat) return;
   const c = cbt();
-  const soak = Math.min(c.block, n);
-  c.block -= soak;
-  const rest = n - soak;
+  if (e.effects?.jammed > 0) {
+    const original = n;
+    n = Math.max(0, Math.floor(n * 0.6));
+    e.effects.jammed--;
+    log(`⌁ Jammed weakens ${e.def.name}'s attack from ${original} to ${n}.`);
+  }
+  const blockSoak = Math.min(c.block, n);
+  c.block -= blockSoak;
+  const plated = absorbPlating(n - blockSoak);
+  const platingSoak = plated.soak;
+  const rest = plated.rest;
   if (rest > 0) {
     run.lastDamageSource = e.def.name;
     run.hp -= rest;
@@ -1206,12 +1291,13 @@ export function enemyAttack(e, n) {
     haptic('damage');
     ui.shakeSeq++;
     pushDmg({ kind: 'player', amount: rest });
-    log(`⚔ ${e.def.name} hits you for ${rest}${soak ? ` (${soak} blocked)` : ''}`);
+    const defenses = [blockSoak ? `${blockSoak} Block` : '', platingSoak ? `${platingSoak} Plating` : ''].filter(Boolean).join(', ');
+    log(`⚔ ${e.def.name} hits you for ${rest}${defenses ? ` (${defenses} absorbed)` : ''}`);
     triggerPainPassive();
   } else {
     sfx('block');
-    pushDmg({ kind: 'player', amount: 0, note: 'BLOCKED' });
-    log(`⚔ ${e.def.name} attacks — fully blocked.`);
+    pushDmg({ kind: 'player', amount: 0, note: platingSoak ? 'PLATED' : 'BLOCKED' });
+    log(`⚔ ${e.def.name} attacks — fully absorbed by ${blockSoak && platingSoak ? 'Block and Plating' : platingSoak ? 'Plating' : 'Block'}.`);
   }
   checkPlayerDeath();
 }
@@ -1237,22 +1323,39 @@ function checkPlayerDeath() {
 
 /* ================= enemies ================= */
 export const ENEMY_MODIFIERS = {
-  armoured: { name: 'Armoured', mark: '⛨', desc: 'Begins combat protected by Block.' },
-  burrowing: { name: 'Burrowing', mark: '⌄', desc: 'Untargetable until three safe tiles are revealed.' },
-  unstable: { name: 'Unstable', mark: '※', desc: 'Detonates for damage when defeated.' },
-  cursed: { name: 'Cursed', mark: '◈', desc: 'Adds a Dud to your combat discard pile.' },
+  armoured: { name: 'Armoured', mark: '⛨', desc: 'Starts with 8 Block, plus 4 for each deeper stratum. Its opening Block expires when it takes its first action.' },
+  burrowing: { name: 'Burrowing', mark: '⌄', desc: 'Starts underground: untargetable and unable to act. Reveal three safe tiles in one turn to force it above ground.' },
+  unstable: { name: 'Unstable', mark: '※', desc: 'Explodes when defeated for 3 damage, plus 2 per deeper stratum. It bypasses Block, but Plating can absorb it.' },
+  cursed: { name: 'Cursed', mark: '◈', desc: 'Adds an unplayable Dud to the combat discard pile. The Dud can enter later hands and exhausts at end of turn.' },
 };
+
+export const ENEMY_EFFECTS = {
+  exposed: { name: 'Exposed', mark: '◇', desc: 'The next hit deals 25% more damage. One stack is consumed per hit. Works on bosses.' },
+  jammed: { name: 'Jammed', mark: '⌁', desc: 'The next direct attack deals 40% less damage. One stack is consumed per attack. Works on bosses.' },
+  sundered: { name: 'Sundered', mark: '╱', desc: 'Removes current Block and halves Block gained during the next enemy action. Works on bosses.' },
+};
+
+export function applyEnemyEffect(e, key, stacks = 1) {
+  if (!run?.combat || !e || e.hp <= 0 || !ENEMY_EFFECTS[key]) return false;
+  e.effects ??= {};
+  e.effects[key] = Math.min(3, (e.effects[key] || 0) + Math.max(1, stacks));
+  if (key === 'sundered') e.block = 0;
+  const effect = ENEMY_EFFECTS[key];
+  log(`${effect.mark} ${e.def.name} is ${effect.name.toLowerCase()} (${e.effects[key]}).`);
+  toast(`${e.def.name}: ${effect.name}`);
+  return true;
+}
 
 function spawnEnemy(key, kind = 'dig') {
   const def = ENEMIES[key];
-  const scale = Math.max(0, run.stratum - def.home);
+  const scale = Math.max(0, run.stratum - def.home) + veinThreatTier();
   const e = {
     key, def, scale,
     maxHp: Math.round(def.hp * (1 + 0.45 * scale)),
-    hp: 0, block: 0, step: 0, data: {}, intent: null, modifier: null,
+    hp: 0, block: 0, step: 0, data: {}, effects: {}, intent: null, modifier: null,
   };
   if (!def.boss) {
-    const chance = run.challenge === 'afflicted' ? 1 : kind === 'elite' ? 0.65 : 0.25 + run.stratum * 0.1;
+    const chance = run.challenge === 'afflicted' ? 1 : kind === 'elite' ? 0.65 : Math.min(0.85, 0.25 + run.stratum * 0.1 + veinThreatTier() * 0.04);
     if (random() < chance) e.modifier = randPick(Object.keys(ENEMY_MODIFIERS));
   }
   e.hp = e.maxHp;
@@ -1260,7 +1363,7 @@ function spawnEnemy(key, kind = 'dig') {
 }
 
 function setupEnemyModifier(e) {
-  if (e.modifier === 'armoured') e.block += 8 + run.stratum * 4;
+  if (e.modifier === 'armoured') e.block += 8 + (run.stratum + veinThreatTier()) * 4;
   if (e.modifier === 'burrowing') { e.data.buried = true; e.data.modifierBuried = true; }
   if (e.modifier === 'cursed') {
     cbt().discard.push(mkCard('dud'));
@@ -1279,10 +1382,19 @@ export function hitEnemy(e, n, opts = {}) {
   const c = cbt();
   if (!c || !e || e.hp <= 0 || c.over) return;
   if (!opts.noNitro && c.nitroBoost) { n += c.nitroBoost; c.nitroBoost = 0; toast('Nitro! +10'); }
-  if (e.def.gated && !opts.bypassGate && !(c.revealedThisTurn >= 5 || c.chordedThisTurn)) {
-    pushDmg({ kind: 'enemy', idx: c.enemies.indexOf(e), amount: 0, note: 'IMMUNE' });
-    toast('NN-99 shrugs it off — reveal 5+ tiles or chord first!', true);
-    return;
+  if (e.def.gated && !opts.bypassGate && !c.chordedThisTurn && c.revealedThisTurn < 3) {
+    const original = n;
+    const shield = [0.5, 0.67, 0.84][Math.max(0, c.revealedThisTurn)] ?? 1;
+    n = Math.max(original > 0 ? 1 : 0, Math.floor(original * shield));
+    if (e.data.gateHintTurn !== c.turn) {
+      e.data.gateHintTurn = c.turn;
+      toast(`NN-99's signal shield reduces damage (${n}/${original}). Reveal ${3 - c.revealedThisTurn} more safe tile${3 - c.revealedThisTurn === 1 ? '' : 's'} or play a Chord card for full damage.`, true);
+    }
+  }
+  if (!opts.noEffects && n > 0 && e.effects?.exposed > 0) {
+    n = Math.ceil(n * 1.25);
+    e.effects.exposed--;
+    log(`◇ Exposed increases the hit against ${e.def.name}.`);
   }
   const soak = Math.min(e.block, n);
   e.block -= soak;
@@ -1304,9 +1416,9 @@ function onEnemyDeath(e) {
   log(`☠ ${e.def.name} destroyed.`);
   if (e.def.onDeath) e.def.onDeath(e);
   if (e.modifier === 'unstable' && run?.combat && !cbt().over) {
-    const blast = 3 + run.stratum * 2;
+    const blast = 3 + (run.stratum + veinThreatTier()) * 2;
     toast(`${e.def.name} ruptures for ${blast} damage!`, true);
-    loseHP(blast, `The unstable ${e.def.name}`);
+    loseHP(blast, `The unstable ${e.def.name}`, { usePlating: true });
   }
   lairCrumble(e);
 }
@@ -1353,13 +1465,14 @@ export function startCombat(kind) {
   const st = STRATA[run.stratum];
   const table = FIGHTS[run.stratum][kind === 'boss' ? 'boss' : kind === 'elite' ? 'elite' : 'dig'];
   const enemyKeys = randPick(table);
-  const b = genBoard(st.size, st.mines + minePenalty());
+  const veinMines = run.stratum === 3 ? Math.min(8, veinThreatTier() * 2) : 0;
+  const b = genBoard(st.size, st.mines + veinMines + minePenalty());
   run.combat = {
-    kind, board: b, boardSpec: { size: st.size, mines: st.mines + minePenalty() },
+    kind, board: b, boardSpec: { size: st.size, mines: st.mines + veinMines + minePenalty() },
     enemies: [], hand: [], discard: [], exhaust: [], powersPlayed: [],
     draw: shuffle(run.deck.map(c => ({ ...c }))),
-    energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0),
-    block: 0, plating: 0, insight: 0, turn: 0,
+    energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0) + (run.challenge === 'wardenroad' ? 1 : 0),
+    block: 0, plating: run.challenge === 'wardenroad' ? 6 : 0, insight: 0, turn: 0,
     maxPicks: Math.max(PERSISTENT_CURSES.vertigo.minimum, basePicksFor(run.cls) + (run.pickBonus || 0) + (hasT('pitons') ? 1 : 0)
       + persistentCurseTotal('maxPicks') + (run.challenge === 'noflags' ? 1 : 0)),
     revealedThisTurn: 0, sumThisTurn: 0, chordedThisTurn: false, minesDetonated: 0,
@@ -1413,7 +1526,7 @@ export function startCombat(kind) {
     shuffle(hiddenIdx()).slice(0, 3).forEach(i => scanTile(i));
     log('🔷 Hex Key scans 3 tiles.');
   }
-  if (hasT('wardplate')) c.plating = 2;
+  if (hasT('wardplate')) c.plating = Math.max(c.plating, 2);
   const falseFlags = persistentCurseTotal('falseFlags');
   if (falseFlags > 0) {
     const safe = shuffle(hiddenIdx().filter(i => !b.cells[i].mine && !b.cells[i].flag));
@@ -1424,7 +1537,13 @@ export function startCombat(kind) {
   c.setup = false;
   ui.screen = 'combat';
   ui.targeting = null; ui.gadgetTargeting = null; ui.flagMode = false;
-  if (kind === 'boss') queueCutscene(`boss-intro-${run.stratum}`, {}, true);
+  ui.battlePreview = loadPreferences().showBattleBriefings
+    ? { id: `${run.runId || 'run'}-${run.floors}-${kind}`, kind }
+    : null;
+  if (kind === 'boss') {
+    const home = c.enemies.find(enemy => enemy.def.boss)?.def.home ?? run.stratum;
+    queueCutscene(`boss-intro-${home}`, {}, true);
+  }
   startTurn();
 }
 
@@ -1515,7 +1634,13 @@ export function endTurn() {
     if (e.hp <= 0 || c.over) continue;
     if (e.data.modifierBuried) { log(`⌄ ${e.def.name} circles beneath the board.`); continue; }
     e.block = 0;
+    const sundered = e.effects?.sundered > 0;
     e.def.act(e, e.intent);
+    if (sundered) {
+      e.block = Math.floor(e.block / 2);
+      e.effects.sundered--;
+      log(`╱ Sundered limits ${e.def.name}'s Block to ${e.block}.`);
+    }
     if (c.over) break;
     e.step++;
     e.intent = e.def.next(e);
@@ -1699,6 +1824,9 @@ function combatVictory() {
   if (kind === 'boss') {
     run.bossesDefeated ??= [];
     for (const enemy of c.enemies) if (!run.bossesDefeated.includes(enemy.key)) run.bossesDefeated.push(enemy.key);
+    if (run.stratum === 3 && (run.pos?.r ?? MAP_ROWS - 1) < MAP_ROWS - 1) {
+      run.veinBossesDefeated = (run.veinBossesDefeated || 0) + 1;
+    }
   }
   if (c.fullCleared) gold += 15;
   run.gold += gold;
@@ -1710,6 +1838,7 @@ function combatVictory() {
     gadget: (kind !== 'boss' && random() < (kind === 'elite' ? 0.5 : 0.3)) ? randPick(Object.keys(GADGETS)) : null,
     trinket: kind === 'elite' ? unownedTrinket() : null,
     bossTrinkets: kind === 'boss' ? ['lamp', 'dowsingrod'].filter(k => !run.trinkets.includes(k)) : null,
+    veinExit: run.stratum === 3 && run.pos?.r === MAP_ROWS - 1,
   };
   for (const card of run.reward.cards) recordCardSeen(card.key);
   if (run.reward.trinket) recordItemSeen(`trinket:${run.reward.trinket}`);
@@ -1717,7 +1846,10 @@ function combatVictory() {
   for (const key of run.reward.bossTrinkets || []) recordItemSeen(`trinket:${key}`);
   run.combat = null;
   ui.screen = 'reward';
-  if (kind === 'boss') queueCutscene(`boss-aftermath-${run.stratum}`, {}, true);
+  if (kind === 'boss') {
+    const home = c.enemies.find(enemy => enemy.def.boss)?.def.home ?? run.stratum;
+    queueCutscene(`boss-aftermath-${home}`, {}, true);
+  }
   notify();
 }
 
@@ -1784,13 +1916,44 @@ function advanceStratum() {
   ui.screen = 'map';
 }
 
+function markCoreVictory() {
+  if (run.coreWon) return;
+  run.coreWon = true;
+  sfx('victory');
+  haptic('victory');
+  recordProgress(run, 'victory');
+  recordDelverProgress(run, 'victory');
+  const fresh = evaluateAchievements(run, 'victory');
+  if (fresh.length) ui.achievement = { ...fresh[0], id: Date.now() };
+  recordDailyRunEnd(true);
+}
+
+function descendVein() {
+  run.veinSegments = (run.veinSegments || 0) + 1;
+  const heal = effectiveHealing(Math.max(1, Math.floor(run.maxHp * 0.15)));
+  run.hp = Math.min(run.maxHp, run.hp + heal);
+  genMapForStratum();
+  queueCutscene('vein-deeper', { segment: run.veinSegments + 1 }, false);
+  toast(`The Vein reforms. Segment ${run.veinSegments + 1} · Depth ${run.veinDepth + 1} · +${heal} HP`);
+  ui.screen = 'map';
+}
+
 export function finishReward() {
   const r = run.reward;
   run.reward = null;
   if (r.kind === 'boss') {
-    if (run.stratum >= 2) {
-      sfx('victory'); haptic('victory'); ui.screen = 'victory'; queueCutscene('finale', {}, true);
-      recordRunHistory(run, true); recordDailyRunEnd(true); notify(); return;
+    if (run.stratum === 3) {
+      if (r.veinExit) descendVein();
+      else ui.screen = 'map';
+      notify();
+      return;
+    }
+    if (run.stratum === 2) {
+      markCoreVictory();
+      advanceStratum();
+      queueCutscene('descent-3', {}, true);
+      notify();
+      return;
     }
     advanceStratum();
     notify();
@@ -2002,7 +2165,33 @@ export const EVENT_CATALOG = {
   },
   ...CORE_BEHAVIORAL_EVENTS,
   ...EXTRA_EVENT_CATALOG,
+  /* Special-cased in currentEventView/eventChoice: presents two of the player's own
+     cards to "unmake", then adds a copy of the chosen card instead of removing it. */
+  unmakingfont: {
+    emoji: '⚗️', title: 'The Unmaking Font', behavioral: true, falsePurge: true,
+    concept: 'A gift disguised as a loss',
+    explanation: 'The font swears it dissolves a card forever, yet the crypt never lets a delver give anything away — what you lower into the brine rises again, doubled.',
+    text: 'A font of pale, hissing brine offers to dissolve one card from your pack forever. Two cards drift up through the murk, waiting for you to choose which to unmake.',
+    actions: [
+      { key: 'a', label: 'Dissolve the first card', desc: '' },
+      { key: 'b', label: 'Dissolve the second card', desc: '' },
+    ],
+    choices: [
+      { key: 'a', label: 'Dissolve the first card', desc: '' },
+      { key: 'b', label: 'Dissolve the second card', desc: '' },
+    ],
+  },
 };
+
+/* The two distinct deck cards the Unmaking Font offers, in deck order. */
+function falsePurgeChoices() {
+  const deck = run?.deck || [];
+  const distinct = [];
+  for (const card of deck) if (!distinct.some(c => c.key === card.key)) distinct.push(card);
+  if (distinct.length === 0) return [];
+  if (distinct.length === 1) return [distinct[0], distinct[0]];
+  return distinct.slice(0, 2);
+}
 
 function prepareEventState(key) {
   const event = EVENT_CATALOG[key];
@@ -2026,6 +2215,18 @@ export function currentEventView() {
         { key: 'stand', label: 'Stand by the choice', desc: 'Accept its delayed reward and its lingering burden.' },
         { key: 'amend', label: 'Make amends', desc: 'Pay gold to turn the old consequence toward recovery.' },
       ],
+    };
+  }
+  if (event.falsePurge) {
+    const picks = falsePurgeChoices();
+    return {
+      stageLabel: 'Choose a card to unmake',
+      text: event.text,
+      choices: picks.map((card, index) => ({
+        key: index === 0 ? 'a' : 'b',
+        label: `Dissolve ${CARDS[card.key].name}${card.up ? '+' : ''}`,
+        desc: '',
+      })),
     };
   }
   if (!event.behavioral) return { text: event.text, choices: event.choices, stageLabel: 'Decision' };
@@ -2122,6 +2323,24 @@ function applyEventEffect(effect = {}) {
 
 export function eventChoice(which) {
   const behavioral = EVENT_CATALOG[run.event];
+  if (behavioral?.falsePurge) {
+    const picks = falsePurgeChoices();
+    const card = which === 'b' ? picks[1] : picks[0];
+    if (!card) return;
+    const key = card.key, up = card.up || 0;
+    const name = `${CARDS[key].name}${up ? '+' : ''}`;
+    run.deck.push(mkCard(key, up));
+    recordCardOwned(key);
+    deckChanged('add', `${name} rises from the font, doubled`);
+    run.eventState ??= {};
+    run.eventState.stage = 'resolved';
+    run.eventHistory ??= [];
+    run.eventHistory.push({ id: run.event, choice: which, stratum: run.stratum, floor: run.floors });
+    const html = `<p>You lower ${name} into the brine — and the font gives it back twofold.</p><p><b>Add a copy of ${name} to your deck.</b></p>`;
+    run.eventState.result = { title: `${behavioral.emoji} ${behavioral.title}`, html };
+    eventResult(`${behavioral.emoji} ${behavioral.title}`, html);
+    return;
+  }
   if (run.eventState?.chainReturn) {
     const thread = run.eventThreads[run.eventState.threadKey];
     thread.stage = 2; thread.returnChoice = which;
@@ -2497,7 +2716,7 @@ export const TEST_CUTSCENES = [
   ['boss-intro-0', 'Boss 1 intro'], ['boss-aftermath-0', 'Boss 1 aftermath'],
   ['descent-1', 'Descent to stratum 2'], ['boss-intro-1', 'Boss 2 intro'], ['boss-aftermath-1', 'Boss 2 aftermath'],
   ['descent-2', 'Descent to stratum 3'], ['boss-intro-2', 'Final boss intro'], ['boss-aftermath-2', 'Final boss aftermath'],
-  ['finale', 'Finale'],
+  ['descent-3', 'Descent to the Vein'], ['vein-deeper', 'The Vein reforms'], ['finale', 'Finale'],
 ];
 
 function ensureTestRun(cls = 'sapper') {
@@ -2552,7 +2771,8 @@ export function testRefill() {
 
 /* ================= score ================= */
 export function score() {
-  return run.floors * 10 + run.stratum * 50 + run.fullClears * 25 + Math.floor(run.gold / 2) + run.hp;
+  return run.floors * 10 + run.stratum * 50 + (run.veinDepth || 0) * 15
+    + run.fullClears * 25 + Math.floor(run.gold / 2) + run.hp;
 }
 
 function recordDailyRunEnd(won) {

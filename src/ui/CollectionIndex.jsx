@@ -8,6 +8,7 @@ import { itemVector } from './themedIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
 import { delverPortrait } from './portraits.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
+import { ENEMY_MODIFIERS, ENEMY_EFFECTS } from '../engine/engine.js';
 
 function Totals({ found, total, noun, suffix = 'discovered' }) {
   return <div className="index-total"><b>{found}</b> / {total} {noun} {suffix}</div>;
@@ -17,15 +18,29 @@ function UnknownEntry({ label }) {
   return <article className="index-entry unknown"><div className="index-icon">?</div><div><b>Unknown {label}</b><small>Encounter it during a descent to reveal this entry.</small></div></article>;
 }
 
+function IndexSearch({ kind, value, onChange }) {
+  return <label className="index-search"><span className="sr-only">Search {kind} index</span><input type="search" value={value} onChange={event => onChange(event.target.value)} placeholder={`Search ${kind}…`} aria-label={`Search ${kind} index`} />{value && <button type="button" onClick={() => onChange('')} aria-label={`Clear ${kind} search`}>×</button>}</label>;
+}
+
+function IndexEmpty({ kind }) {
+  return <div className="index-empty"><b>No matching {kind}</b><small>Try another name, type, class, or mechanic.</small></div>;
+}
+
 export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
   const collection = useMemo(loadCollection, [kind]);
   const [fullArt, setFullArt] = useState(null);
+  const [query, setQuery] = useState('');
+  const search = query.trim().toLocaleLowerCase();
+  const named = entries => entries.slice().sort((a,b) => a[1].name.localeCompare(b[1].name));
+  const includes = (...values) => !search || values.join(' ').toLocaleLowerCase().includes(search);
   if (kind === 'delvers') {
-    const entries = Object.entries(CLASSES);
+    const allEntries = named(Object.entries(CLASSES));
+    const entries = allEntries.filter(([,def]) => includes(def.name, def.role, def.blurb, def.passive));
     const progress = loadProgression();
-    const played = entries.filter(([key]) => (collection.delvers[key]?.attempts || 0) > 0).length;
+    const played = allEntries.filter(([key]) => (collection.delvers[key]?.attempts || 0) > 0).length;
     return <div className="index-page delver-index">
-      <Totals found={played} total={entries.length} noun="delvers" suffix="played" />
+      <Totals found={played} total={allEntries.length} noun="delvers" suffix="played" />
+      <IndexSearch kind="delvers" value={query} onChange={setQuery} />
       <p className="dim index-help">Stats update throughout each real run. Test Lab runs are excluded.</p>
       <div className="delver-index-grid">
         {entries.map(([key, def]) => {
@@ -50,6 +65,7 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
                 <span><small>Wins</small><b>{wins}</b></span>
                 <span><small>Win rate</small><b>{winRate}%</b></span>
                 <span><small>Deepest</small><b>{deepest ? STRATA[deepest - 1]?.name || `Stratum ${deepest}` : '—'}</b></span>
+                <span><small>Best Vein depth</small><b>{stat.deepestVein || '—'}</b></span>
                 <span><small>Floors</small><b>{stat.floors || 0}</b></span>
                 <span><small>Full clears</small><b>{stat.fullClears || 0}</b></span>
                 <span><small>Safe reveals</small><b>{stat.safeReveals || 0}</b></span>
@@ -62,15 +78,32 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
           </article>;
         })}
       </div>
+      {!entries.length && <IndexEmpty kind="delvers" />}
       {fullArt && <FullArtViewer src={fullArt.src} alt={`${fullArt.title} full portrait`} title={fullArt.title} onClose={() => setFullArt(null)} />}
     </div>;
   }
   if (kind === 'enemies') {
-    const entries = Object.entries(ENEMIES);
-    const found = entries.filter(([key]) => collection.enemies[key]?.discovered).length;
+    const allEntries = named(Object.entries(ENEMIES));
+    const entries = allEntries.filter(([key,def]) => !search || (collection.enemies[key]?.discovered && includes(def.name, def.desc, def.boss ? 'boss' : '', def.elite ? 'elite' : '', STRATA[def.home]?.name || '')));
+    const modifiers = Object.entries(ENEMY_MODIFIERS).sort((a,b) => a[1].name.localeCompare(b[1].name)).filter(([,def]) => includes(def.name, def.desc));
+    const effects = Object.entries(ENEMY_EFFECTS).sort((a,b) => a[1].name.localeCompare(b[1].name)).filter(([,def]) => includes(def.name, def.desc));
+    const found = allEntries.filter(([key]) => collection.enemies[key]?.discovered).length;
     return <div className="index-page">
-      <Totals found={found} total={entries.length} noun="enemies" />
+      <Totals found={found} total={allEntries.length} noun="enemies" />
+      <IndexSearch kind="enemies" value={query} onChange={setQuery} />
       <p className="dim index-help">Enemy artwork follows the selected or imported icon set.</p>
+      {modifiers.length > 0 && <section className="enemy-modifier-guide" aria-labelledby="enemy-modifier-guide-title">
+        <header><b id="enemy-modifier-guide-title">Enemy modifiers</b><small>Non-boss enemies may enter a fight with one of these marks. Elite enemies are more likely to be modified.</small></header>
+        <div>{modifiers.map(([key, modifier]) => <article className={key} key={key}>
+          <span>{modifier.mark}</span><p><b data-mechanic={key}>{modifier.name}</b><small>{modifier.desc}</small></p>
+        </article>)}</div>
+      </section>}
+      {effects.length > 0 && <section className="enemy-modifier-guide enemy-effect-guide" aria-labelledby="enemy-effect-guide-title">
+        <header><b id="enemy-effect-guide-title">Player-inflicted conditions</b><small>Cards can place these temporary effects on any enemy, including bosses. The number beside a mark is its remaining stack count.</small></header>
+        <div>{effects.map(([key, effect]) => <article className={key} key={key}>
+          <span>{effect.mark}</span><p><b>{effect.name}</b><small>{effect.desc}</small></p>
+        </article>)}</div>
+      </section>}
       <div className="index-grid">
         {entries.map(([key, def]) => {
           const stat = collection.enemies[key];
@@ -88,15 +121,18 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
           </article>;
         })}
       </div>
+      {!entries.length && !modifiers.length && !effects.length && <IndexEmpty kind="enemies" />}
       {fullArt && <FullArtViewer alt={`${fullArt.title} enlarged icon`} title={fullArt.title} onClose={() => setFullArt(null)}>{fullArt.content}</FullArtViewer>}
     </div>;
   }
 
   if (kind === 'cards') {
-    const entries = Object.entries(CARDS).filter(([, def]) => def.rarity !== 'curse' || collection.cards);
-    const found = entries.filter(([key]) => collection.cards[key]?.discovered).length;
+    const allEntries = named(Object.entries(CARDS).filter(([, def]) => def.rarity !== 'curse' || collection.cards));
+    const entries = allEntries.filter(([key,def]) => !search || (collection.cards[key]?.discovered && includes(def.name, def.rarity, def.type, def.cls, def.text(0))));
+    const found = allEntries.filter(([key]) => collection.cards[key]?.discovered).length;
     return <div className="index-page">
-      <Totals found={found} total={entries.length} noun="cards" />
+      <Totals found={found} total={allEntries.length} noun="cards" />
+      <IndexSearch kind="cards" value={query} onChange={setQuery} />
       <div className="index-grid cards-index">
         {entries.map(([key, def]) => {
           const stat = collection.cards[key];
@@ -110,16 +146,19 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
           </article>;
         })}
       </div>
+      {!entries.length && <IndexEmpty kind="cards" />}
     </div>;
   }
 
-  const entries = [
+  const allEntries = named([
     ...Object.entries(TRINKETS).map(([key, def]) => [`trinket:${key}`, def, 'Trinket']),
     ...Object.entries(GADGETS).map(([key, def]) => [`gadget:${key}`, def, 'Gadget']),
-  ];
-  const found = entries.filter(([key]) => collection.items[key]?.discovered).length;
+  ]);
+  const entries = allEntries.filter(([key,def,type]) => !search || (collection.items[key]?.discovered && includes(def.name, def.desc, def.tier || '', type)));
+  const found = allEntries.filter(([key]) => collection.items[key]?.discovered).length;
   return <div className="index-page">
-    <Totals found={found} total={entries.length} noun="items" />
+    <Totals found={found} total={allEntries.length} noun="items" />
+    <IndexSearch kind="items" value={query} onChange={setQuery} />
     <div className="index-grid">
       {entries.map(([key, def, type]) => {
         const stat = collection.items[key];
@@ -132,6 +171,7 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
         </article>;
       })}
     </div>
+    {!entries.length && <IndexEmpty kind="items" />}
     {fullArt && <FullArtViewer alt={`${fullArt.title} enlarged icon`} title={fullArt.title} onClose={() => setFullArt(null)}>{fullArt.content}</FullArtViewer>}
   </div>;
 }
