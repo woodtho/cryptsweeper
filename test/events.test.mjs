@@ -1,9 +1,8 @@
-import fs from 'node:fs';
 import {
   run, ui, newRun, closeCutscene, startSpecificEvent, currentEventView, eventChoice,
   EVENT_CATALOG, HONEST_PUZZLE_EVENT_CHANCE,
 } from '../src/engine/engine.js';
-import { behavioralEventFollowup } from '../src/engine/events.js';
+import { fictionEventFollowup } from '../src/engine/events.js';
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -18,92 +17,67 @@ function test(name, condition) {
   else { failures++; console.error(`FAIL  ${name}`); }
 }
 function prepare(id, suffix = '') {
-  newRun('sapper', { daily:`event-audit-${id}${suffix}`, testMode:true });
-  closeCutscene(); startSpecificEvent(id); run.hp = Math.floor(run.maxHp / 2);
-}
-function snapshot() {
-  return JSON.stringify({
-    hp:run.hp, maxHp:run.maxHp, gold:run.gold, deck:run.deck.map(card => [card.key, card.up]),
-    gadgets:run.gadgets, upgrades:run.upgrades,
-  });
+  newRun('sapper', { daily:`fiction-event-${id}${suffix}`, testMode:true });
+  closeCutscene();
+  startSpecificEvent(id);
+  run.hp = Math.floor(run.maxHp / 2);
+  run.gold = 999;
 }
 
 const ids = Object.keys(EVENT_CATALOG);
-const review = JSON.parse(fs.readFileSync(new URL('../docs/design/event-review-100.json', import.meta.url), 'utf8'));
-const requiredReviewFields = [
-  'eventName', 'existingEventText', 'existingChoices', 'existingOutcomes',
-  'containsTutorialOrExplanatoryLanguage', 'choicesRevealQualityTooClearly', 'resultInterpretsDecision',
-  'mechanicallyMeaningful', 'consistentlyDominant', 'fairDespiteHiddenInformation',
-  'recommendedRevisedEventText', 'recommendedRevisedChoiceLabels', 'recommendedRevisedResultText',
-  'mechanicalChangesRequired', 'priority',
-];
-const evaluativeLabel = /\b(safe|risky|risk|prudent|correct|wrong|smart|clever|foolish|dominant|optimal|honestly|fair|strongest|complementary|systematically|randomize|tail risk|patient|sustainable|robust|better|best)\b/i;
-const interpretiveResult = /what this tested|not graded|correct choice|wrong choice|stronger decision|lesson|strategy|rational|bias|theorem|fallacy|expected value|probability/i;
+const academicFields = ['behavioral', 'concept', 'explanation', 'profile'];
+const academicLanguage = /\b(theorem|bias|expected value|probability lesson|optimal strategy|what this tested|correct answer)\b/i;
 
-test('event audit covers exactly the live 111-event catalog', ids.length === 111);
-test('Honest puzzles have a recurring event-room frequency', HONEST_PUZZLE_EVENT_CHANCE >= 0.30
-  && HONEST_PUZZLE_EVENT_CHANCE <= 0.40);
-const followups = ids.map((id, index) => behavioralEventFollowup(EVENT_CATALOG[id], {
-  choice: 'a', choiceLabel: EVENT_CATALOG[id].actions[0].label, floor: index,
-}));
-test('follow-up events use a varied bank of narrative callback scenes',
-  new Set(followups.map(followup => followup.title)).size === 8);
-test('every follow-up names the originating event and remembered action', ids.every((id, index) =>
-  followups[index].text.includes(EVENT_CATALOG[id].title)
-  && followups[index].text.includes(EVENT_CATALOG[id].actions[0].label)
-  && followups[index].choices.every(choice => choice.label && choice.desc)));
-test('the per-event deliverable covers all 111 IDs and every requested review field', review.events.length === 111
-  && new Set(review.events.map(event => event.id)).size === 111
-  && review.events.every(event => requiredReviewFields.every(field => Object.hasOwn(event, field))));
-test('all live choice labels describe actions without evaluative adjectives', ids.every(id =>
-  EVENT_CATALOG[id].actions.every(action => !evaluativeLabel.test(action.label))));
-test('all live events use the shared behavioral resolver schema', ids.every(id => {
+test('the live deck contains 20 event cards', ids.length === 20);
+test('Honest puzzles remain a recurring event-room outcome', HONEST_PUZZLE_EVENT_CHANCE >= .30
+  && HONEST_PUZZLE_EVENT_CHANCE <= .40);
+test('event IDs and titles are unique', new Set(ids).size === ids.length
+  && new Set(Object.values(EVENT_CATALOG).map(event => event.title)).size === ids.length);
+test('every event is authored fiction with exactly two named actions', ids.every(id => {
   const event = EVENT_CATALOG[id];
-  return event.behavioral && event.actions.length === 2 && event.actions.every(action => action.key && action.label && !action.desc);
+  return event.fiction && event.text && event.actions?.length === 2
+    && event.actions.every(item => item.key && item.label);
 }));
+test('the academic profile and explanation schema is gone', ids.every(id =>
+  academicFields.every(field => !Object.hasOwn(EVENT_CATALOG[id], field))));
+test('event prose does not interpret choices as classroom answers', ids.every(id => {
+  const event = EVENT_CATALOG[id];
+  return !academicLanguage.test(`${event.title} ${event.text} ${event.actions.map(item => item.label).join(' ')}`);
+}));
+test('retired academic encounters are absent',
+  ['mean-median', 'p-value', 'regression-mean', 'nash', 'birthday', 'secretary']
+    .every(id => !EVENT_CATALOG[id]));
 
-let hiddenBeforeCommit = true;
-let directResultsOnly = true;
-let distinctBranches = true;
-let allTerminate = true;
-let investigationsCostAndReveal = true;
-
+let allResolve = true;
+let allViewsMatch = true;
+let allResultsAreFictional = true;
 for (const id of ids) {
-  const outcomes = [];
-  for (const choice of ['a', 'b']) {
-    prepare(id);
+  const event = EVENT_CATALOG[id];
+  for (const selected of event.actions) {
+    prepare(id, `-${selected.key}`);
     const view = currentEventView();
-    hiddenBeforeCommit &&= view.choices.filter(option => option.key !== 'observe').every(option => option.desc === '');
-    const before = snapshot();
-    eventChoice(choice);
-    outcomes.push(snapshot());
-    const html = run.eventState?.result?.html || '';
-    allTerminate &&= run.eventState?.stage === 'resolved' && ui.modal?.kind === 'info' && Boolean(html);
-    directResultsOnly &&= !interpretiveResult.test(html)
-      && /Gain|Lose|Recover|Upgrade|Add/.test(html);
-    // Ensure the branch actually changed run state rather than acting as a disguised Continue button.
-    distinctBranches &&= snapshot() !== before;
-  }
-  distinctBranches &&= outcomes[0] !== outcomes[1];
-
-  prepare(id, '-observe');
-  const beforeView = currentEventView();
-  const observe = beforeView.choices.find(choice => choice.key === 'observe');
-  if (observe) {
-    const before = { hp:run.hp, gold:run.gold };
-    eventChoice('observe');
-    const afterView = currentEventView();
-    investigationsCostAndReveal &&= (run.hp < before.hp || run.gold < before.gold)
-      && afterView.choices.length === 2
-      && afterView.choices.every(choice => choice.desc && /gold|damage|HP|card|gadget|upgrade/i.test(choice.desc));
+    allViewsMatch &&= view.choices.length === 2
+      && view.choices.some(choice => choice.key === selected.key
+        && (event.falsePurge || choice.label === selected.label));
+    eventChoice(selected.key);
+    allResolve &&= run.eventState?.stage === 'resolved' && ui.modal?.kind === 'info'
+      && run.eventHistory.at(-1)?.id === id;
+    allResultsAreFictional &&= Boolean(ui.modal?.html)
+      && !academicLanguage.test(ui.modal?.html || '');
   }
 }
+test('both authored branches of all 20 events terminate safely', allResolve);
+test('event views expose the actions authored for their scene', allViewsMatch);
+test('all result prose stays inside the fiction', allResultsAreFictional);
 
-test('all 111 events hide branch outcomes before commitment', hiddenBeforeCommit);
-test('all 222 primary event branches terminate', allTerminate);
-test('all event results contain direct consequences and no interpretation', directResultsOnly);
-test('all event actions alter state and paired branches remain mechanically distinct', distinctBranches);
-test('available investigations apply a cost before revealing both branches', investigationsCostAndReveal);
+const returning = ids.filter(id => EVENT_CATALOG[id].followup);
+test('only selected stories create delayed callbacks', returning.length >= 8 && returning.length <= 12);
+test('every callback is specific to its originating story and has two consequences', returning.every(id => {
+  const event = EVENT_CATALOG[id];
+  const followup = fictionEventFollowup(event, { choice:event.actions[0].key, choiceLabel:event.actions[0].label });
+  return followup?.text && followup.choices.length === 2
+    && event.followup.actions.every(item => item.result && item.effect && item.label);
+}));
 
 if (failures) {
   console.error(`\n${failures} EVENT VALIDATION FAILURE${failures === 1 ? '' : 'S'}`);

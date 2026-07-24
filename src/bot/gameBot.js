@@ -6,6 +6,7 @@ import {
   campHeal, campSurvey, campUpgrade, campTrainPicks, doUpgrade, gotoMap, eventChoice, puzzleClick,
   puzzleToggleFlag, togglePuzzleScan, toggleFlag, selectEnemy, useGadget,
   buyShopCard, buyShopTrinket, buyShopGadget, buyRemoval, doRemove, score,
+  currentEventView,
 } from '../engine/engine.js';
 
 const TERMINAL = new Set(['gameover', 'victory']);
@@ -36,6 +37,7 @@ export function observe(options = {}) {
     run: run ? {
       class: run.cls, hp: run.hp, maxHp: run.maxHp, gold: run.gold,
       stratum: run.stratum + 1, floors: run.floors, fullClears: run.fullClears,
+      coreWon: Boolean(run.coreWon),
       deckSize: run.deck.length, score: score(),
       deck: run.deck.map((card, index) => ({ index, key: card.key, name: CARDS[card.key].name, upgraded: Boolean(card.up) })),
       trinkets: run.trinkets.map(key => ({ key, name: TRINKETS[key].name, text: TRINKETS[key].desc })),
@@ -129,12 +131,12 @@ export function legalActions() {
     if (run.gold >= run.removalCost) actions.push({ type: 'buy-removal', price: run.removalCost });
     return actions;
   }
-  if (ui.screen === 'event') return run.event === 'shrine'
-    ? ['left', 'right', 'walk'].map(choice => ({ type: 'event-choice', choice }))
-    : ['take', 'bury'].map(choice => ({ type: 'event-choice', choice }));
+  if (ui.screen === 'event') return (currentEventView()?.choices || [])
+    .filter(choice => !choice.disabled)
+    .map(choice => ({ type: 'event-choice', choice: choice.key }));
   if (ui.screen === 'puzzle') {
     const actions = [{ type: 'leave-puzzle' }, { type: 'toggle-puzzle-scan' }];
-    run.puzzle.board.cells.forEach((cell, tile) => { if (!cell.revealed) actions.push({ type: 'puzzle-click', tile }, { type: 'puzzle-flag', tile }); });
+    run.puzzle.board?.cells.forEach((cell, tile) => { if (!cell.revealed) actions.push({ type: 'puzzle-click', tile }, { type: 'puzzle-flag', tile }); });
     return actions;
   }
   return [];
@@ -206,8 +208,21 @@ function targetTile(policy) {
 function cardScore(card) {
   const def = CARDS[card.key];
   const text = cardText(def, card.up);
+  const classBias = {
+    sapper: /Detonate|Defuse|mine/i,
+    surveyor: /Scan|Insight|Chord/i,
+    terraformer: /Entomb|Construct|Plating/i,
+    lamplighter: /Reveal|Energy/i,
+    gambler: /flag|random|draw/i,
+    chirurgeon: /Recover|Block|Plating/i,
+    archivist: /draw|Exhaust|discard/i,
+    warden: /Block|Plating|Construct/i,
+    hexwright: /number|Scan|Chord/i,
+    revenant: /damage|HP|Exhaust/i,
+  };
   return (/damage|Attack/i.test(text) ? 30 : 0) + (/Block|Plating/i.test(text) ? 16 : 0)
-    + (/Reveal|Scan|Defuse/i.test(text) ? 10 : 0) - (effCost(card) || 0);
+    + (/Reveal|Scan|Defuse|Chord/i.test(text) ? 10 : 0)
+    + (classBias[run.cls]?.test(text) ? 12 : 0) - (effCost(card) || 0);
 }
 
 function choosePlayableCard() {
@@ -277,10 +292,16 @@ export function step(command = {}) {
   }
   if (ui.screen === 'shop') { gotoMap(); return { action: 'shop:leave', state: observe() }; }
   if (ui.screen === 'event') {
-    eventChoice(run.event === 'shrine' ? 'walk' : 'bury');
+    const choice = currentEventView()?.choices?.find(item => !item.disabled);
+    if (!choice) return { action: 'stalled:event', state: observe() };
+    eventChoice(choice.key);
     return { action: 'event', state: observe() };
   }
   if (ui.screen === 'puzzle') {
+    if (!run.puzzle?.board) {
+      gotoMap();
+      return { action: 'puzzle:leave-nonmines', state: observe() };
+    }
     const tile = run.puzzle.board.cells.findIndex(c => !c.mine && !c.revealed);
     if (tile >= 0) puzzleClick(tile); else gotoMap();
     return { action: tile >= 0 ? `puzzle:${tile}` : 'puzzle:leave', state: observe() };
@@ -295,7 +316,8 @@ export function runContinuous(command = {}) {
   for (let i = 0; i < maxSteps; i++) {
     result = step(command);
     actions[result.action] = (actions[result.action] || 0) + 1;
-    if (result.state.terminal || result.action.startsWith('stalled:')) {
+    if (result.state.terminal || (command.stopAtCoreVictory && result.state.run?.coreWon)
+      || result.action.startsWith('stalled:')) {
       return { steps: i + 1, actions, state: result.state };
     }
   }

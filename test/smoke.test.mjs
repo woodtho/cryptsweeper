@@ -14,16 +14,22 @@ import {
   toggleLightsCell, toggleNonogramCell, answerSequence,
   clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS, ENEMY_EFFECTS,
   applyEnemyEffect, enemyAttack, fogTiles, effCost, BOSS_RELIC_KEYS, VEIN_BOONS,
+  loseHP,
   runElapsedMs, formatRunTime, setRunTimerActive,
+  rewardPoolFor,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
-import { observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep } from '../src/bot/gameBot.js';
+import {
+  observe as botObserve, legalActions as botLegalActions, act as botAct, step as botStep,
+  runContinuous as botRunContinuous,
+} from '../src/bot/gameBot.js';
 import { decorateMechanics, mechanicTextParts, MECHANICS } from '../src/ui/mechanics.js';
 import {
   ACHIEVEMENTS, CHALLENGES, clearGraveyard, evaluateAchievements, loadAchievements,
   loadGraveyard, recordRunHistory, clearSpeedruns, loadSpeedruns, recordSpeedrun,
+  loadSpeedrunCategories, speedrunEligibility,
 } from '../src/engine/legacy.js';
 import { loadPreferences, savePreferences } from '../src/engine/preferences.js';
 import { readFileSync } from 'node:fs';
@@ -264,12 +270,11 @@ T('puzzle solvable by full sweep', R().puzzle.solved === true);
   }
   T('every generated puzzle is provable without guessing', honest);
 }
-T('event catalog contains exactly 111 discoverable encounters', Object.keys(EVENT_CATALOG).length === 111);
-T('all events have titles, descriptions, and at least two choices', Object.values(EVENT_CATALOG).every(event => event.title && event.text && event.choices?.length >= 2));
-T('every encounter uses the behavioral decision model', Object.values(EVENT_CATALOG).every(event => event.behavioral && event.concept && event.explanation && event.actions?.length === 2));
-const roteKeys = new Set(['correct', 'wrong-a', 'wrong-b', 'prudent', 'risk', 'leave']);
-T('no encounter exposes answer-key or formula-template choices', Object.values(EVENT_CATALOG).every(event => event.choices.every(choice => !roteKeys.has(choice.key) && !['correct', 'wrong', 'prudent', 'risk', 'leave'].includes(choice.outcome))));
-T('no encounter asks the player to commit to an answer', Object.values(EVENT_CATALOG).every(event => !event.choices.some(choice => /commit to this answer/i.test(choice.desc || ''))));
+T('event catalog contains exactly 20 authored encounters', Object.keys(EVENT_CATALOG).length === 20);
+T('all events have fiction, titles, descriptions, and two physical actions', Object.values(EVENT_CATALOG).every(event =>
+  event.fiction && event.title && event.text && event.actions?.length === 2));
+T('the academic event schema has been removed', Object.values(EVENT_CATALOG).every(event =>
+  !event.behavioral && !event.concept && !event.explanation && !event.profile));
 const rotePrompt = /\b(what (?:is|does|happens)|which best|how many|roughly what|is often modeled|means what|is useful because)\b/i;
 T('event prompts describe decisions rather than recall questions', Object.values(EVENT_CATALOG).every(event => !rotePrompt.test(event.text)));
 startPuzzle('sudoku');
@@ -303,73 +308,70 @@ startPuzzle('nonogram');
 R().puzzle.solution.forEach((value, i) => { if (value) toggleNonogramCell(i); });
 checkLogicPuzzle();
 T('nonogram clues have a complete solvable 5x5 answer', R().puzzle.solved === true && R().puzzle.rowClues.length === 5);
-testLaunch('event', 'monty');
-T('test lab can launch a named event directly', ui.screen === 'event' && R().event === 'monty' && R().testMode === true);
-testLaunch('event', 'mean-median');
+testLaunch('event', 'ratdoors');
+T('test lab can launch a named event directly', ui.screen === 'event' && R().event === 'ratdoors' && R().testMode === true);
+testLaunch('event', 'groaningvault');
 const initialEventView = currentEventView();
-const hiddenEventRoll = R().eventState.hiddenRoll;
-T('events begin with generated stakes and an information choice', initialEventView.choices.length === 3 && initialEventView.choices.some(choice => choice.key === 'observe'));
+const savedEventState = JSON.stringify(R().eventState);
+T('events begin with authored choices and fiction-specific consequences',
+  initialEventView.choices.length === 2 && initialEventView.choices.every(choice => choice.desc));
 saveRun('slot2');
-eventChoice('observe');
-T('buying information advances the event instead of ending it', ui.screen === 'event' && !ui.modal && R().eventState.observed && !currentEventView().choices.some(choice => choice.key === 'observe'));
 loadRun('slot2');
-T('mid-event saves preserve hidden outcomes without rerolling', ui.screen === 'event' && R().eventState.hiddenRoll === hiddenEventRoll && !R().eventState.observed);
-eventChoice('observe');
-eventChoice('a');
-T('behavioral choices resolve with direct consequences and no lesson afterward', R().eventHistory.at(-1)?.id === 'mean-median'
-  && Boolean(ui.modal?.html) && !ui.modal.html.includes('What this tested') && !ui.modal.html.includes('Mean versus median'));
+T('mid-event saves preserve authored outcomes without rerolling',
+  ui.screen === 'event' && JSON.stringify(R().eventState) === savedEventState);
+eventChoice('coffer');
+T('fictional choices resolve with direct consequences and no lesson afterward', R().eventHistory.at(-1)?.id === 'groaningvault'
+  && Boolean(ui.modal?.html) && !ui.modal.html.includes('What this tested'));
 const resolvedEventGold = R().gold;
 const resolvedHistoryLength = R().eventHistory.length;
 saveRun('slot2');
 closeModal();
 loadRun('slot2');
-T('resolved event consequences resume after an app reload', ui.screen === 'event'
-  && Boolean(ui.modal?.html) && !ui.modal.html.includes('What this tested'));
-eventChoice('b');
+T('resolved event consequences resume after an app reload', ui.screen === 'event' && Boolean(ui.modal?.html));
+eventChoice('reliquary');
 T('a resumed resolved event cannot grant consequences twice', R().gold === resolvedEventGold && R().eventHistory.length === resolvedHistoryLength);
 closeModal();
 deleteSave('slot2');
-testLaunch('event', 'anchoring');
+testLaunch('event', 'twinidols');
 saveRun('slot3');
 const legacyEventSave = JSON.parse(localStorage.getItem('cryptsweeper.save.v1.slot3'));
 delete legacyEventSave.run.eventState;
 delete legacyEventSave.run.eventHistory;
 localStorage.setItem('cryptsweeper.save.v1.slot3', JSON.stringify(legacyEventSave));
-T('legacy event saves initialize the new decision state', loadRun('slot3') && ui.screen === 'event' && R().eventState?.stage === 'choice' && Array.isArray(R().eventHistory));
+T('legacy event saves initialize fiction-first state', loadRun('slot3') && ui.screen === 'event'
+  && R().eventState?.version === 2 && R().eventState?.stage === 'choice' && Array.isArray(R().eventHistory));
+deleteSave('slot3');
+newRun('sapper'); saveRun('slot3');
+const retiredCatalogSave = JSON.parse(localStorage.getItem('cryptsweeper.save.v1.slot3'));
+retiredCatalogSave.screen = 'event';
+retiredCatalogSave.run.event = 'mean-median';
+retiredCatalogSave.run.eventState = { version:1, stage:'choice' };
+retiredCatalogSave.run.deck.push({ id:999998, key:'x500_sapper_0', up:0 });
+retiredCatalogSave.run.reward = { cards:[{ key:'x500_sapper_1', up:0 }] };
+retiredCatalogSave.run.shop = { cards:[{ key:'x500_sapper_2', sold:false }] };
+localStorage.setItem('cryptsweeper.save.v1.slot3', JSON.stringify(retiredCatalogSave));
+T('catalog migration removes retired cards and exits removed events safely', loadRun('slot3')
+  && ui.screen === 'map' && !R().deck.some(card => card.key.startsWith('x500_'))
+  && R().reward.cards.length === 0 && R().shop.cards.length === 0);
 deleteSave('slot3');
 
 let allEventPathsResolve = true;
 for (const key of Object.keys(EVENT_CATALOG)) {
-  for (const action of ['a', 'b']) {
+  for (const action of EVENT_CATALOG[key].actions) {
     testLaunch('event', key);
     R().gold = 999; R().hp = R().maxHp;
-    eventChoice(action);
+    eventChoice(action.key);
     if (!ui.modal || R().hp < 1 || R().gold < 0 || R().eventState?.stage !== 'resolved') allEventPathsResolve = false;
     closeModal();
   }
 }
-T('both primary paths of all 100 events terminate safely', allEventPathsResolve);
-let allInvestigationPathsResolve = true;
-let investigatedEvents = 0;
-for (const key of Object.keys(EVENT_CATALOG)) {
-  testLaunch('event', key);
-  R().gold = 999; R().hp = R().maxHp;
-  if (!currentEventView().choices.some(choice => choice.key === 'observe')) continue;
-  investigatedEvents++;
-  eventChoice('observe');
-  if (ui.modal || !R().eventState.observed || currentEventView().choices.some(choice => choice.key === 'observe')) allInvestigationPathsResolve = false;
-  eventChoice('b');
-  if (!ui.modal || R().eventState?.stage !== 'resolved') allInvestigationPathsResolve = false;
-  closeModal();
-}
-T('information gathering is available on many uncertainty events', investigatedEvents >= 40);
-T('every information-gathering path advances once and terminates safely', allInvestigationPathsResolve);
+T('both authored paths of all 20 events terminate safely', allEventPathsResolve);
 newRun('sapper', { daily: '2099-03-14' });
-testLaunch('event', 'sealed-urn');
+testLaunch('event', 'shrine');
 const seededEventState = JSON.stringify(R().eventState);
 newRun('sapper', { daily: '2099-03-14' });
-testLaunch('event', 'sealed-urn');
-T('daily events generate identical hidden stakes and outcomes', JSON.stringify(R().eventState) === seededEventState);
+testLaunch('event', 'shrine');
+T('daily events generate identical hidden doors and outcomes', JSON.stringify(R().eventState) === seededEventState);
 
 /* 10 — boss machinery: collapser devour + nn99 gate */
 startCombat('boss');
@@ -547,6 +549,13 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     CLASSES[cls].deck.length === 10
     && CLASSES[cls].deck.every(key => CARDS[key])
     && TRINKETS[CLASSES[cls].trinket]?.tier === 'starter'));
+  T('every Delver has guaranteed zero-Energy Chord access in the starter deck', classKeys.every(cls =>
+    CLASSES[cls].deck.includes('resonanttap')));
+  T('every Delver reward pool is explicit, compact, and class-valid', classKeys.every(cls => {
+    const pool = rewardPoolFor(cls);
+    return pool.length >= 20 && pool.length <= 28
+      && pool.every(key => CARDS[key] && [cls, 'neutral'].includes(CARDS[key].cls));
+  }));
   const expectedBasePicks = {
     sapper: 3, surveyor: 5, terraformer: 4, lamplighter: 4, gambler: 4,
     chirurgeon: 3, archivist: 5, warden: 3, hexwright: 5, revenant: 4,
@@ -559,8 +568,8 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     startCombat('dig');
     return cbt().picks === expectedBasePicks[cls] && cbt().maxPicks === expectedBasePicks[cls];
   }));
-T('catalog contains exactly 717 uniquely named cards', Object.keys(CARDS).length === 717
-    && new Set(Object.values(CARDS).map(card => card.name)).size === 717);
+T('catalog is curated down to exactly 217 uniquely named cards', Object.keys(CARDS).length === 217
+    && new Set(Object.values(CARDS).map(card => card.name)).size === 217);
 T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   ['chordcard','resonanttap','stonechorus'].every(key => CARDS[key].cost[0] === 0 && CARDS[key].cost[1] === 0
     && CARDS[key].targets.includes('number')));
@@ -588,29 +597,9 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   T('Jammed reduces a boss direct attack by 40% and consumes a stack', hpBeforeJam - R().hp === 6 && conditionBoss.effects.jammed === 0);
   T('four neutral condition cards all target enemies and advertise boss support',
     ['faultline','signaljam','sunderingchalk','gravebind'].every(key => CARDS[key].hits === 'target' && CARDS[key].text(0).includes('boss')));
-  T('every Delver has at least 64 class cards', classKeys.every(cls =>
-    Object.values(CARDS).filter(card => card.cls === cls).length >= 64));
-
-  const expansion = Object.entries(CARDS).filter(([key]) => key.startsWith('x500_'));
-  const tierCount = tier => expansion.filter(([, card]) => card.designTier === tier).length;
-  const allowedTargets = new Set(['hidden', 'open', 'number', 'row', 'anytile']);
-  const requiredDesignFields = ['mechanicsUsed', 'archetype', 'value', 'entry', 'keepOrRemove', 'example', 'balanceRisks', 'tuningRange', 'overlap'];
-  T('500-card expansion has the requested design distribution', expansion.length === 500
-    && tierCount('common') === 150 && tierCount('uncommon') === 135
-    && tierCount('rare') === 115 && tierCount('exceptional') === 50
-    && tierCount('burden') === 50);
-  T('all expansion definitions use existing card schema and mechanics hooks', expansion.every(([, card]) =>
-    ['Attack', 'Skill', 'Status', 'Curse'].includes(card.type)
-    && ['common', 'uncommon', 'rare', 'special'].includes(card.rarity)
-    && Array.isArray(card.cost) && card.cost.length === 2 && card.cost.every(cost => Number.isInteger(cost) && cost >= 0 && cost <= 3)
-    && Array.isArray(card.targets) && card.targets.every(target => allowedTargets.has(target))
-    && typeof card.text === 'function' && typeof card.text(0) === 'string' && typeof card.text(1) === 'string'
-    && typeof card.play === 'function'
-    && requiredDesignFields.every(field => card.design?.[field] && (field !== 'mechanicsUsed' || Array.isArray(card.design[field])))));
-  const burdens = expansion.filter(([, card]) => card.designTier === 'burden');
-  T('all deck burdens stay outside normal rewards and retain player agency', burdens.every(([, card]) =>
-    card.cls == null && card.rarity === 'special' && ['Status', 'Curse'].includes(card.type)
-    && card.exhaust === true && !card.unplayable && !/lose \d+ HP/i.test(card.text(0))));
+  T('every Delver retains a focused 19-card class pool', classKeys.every(cls =>
+    Object.values(CARDS).filter(card => card.cls === cls).length === 19));
+  T('retired procedural expansion cards are absent', !Object.keys(CARDS).some(key => key.startsWith('x500_')));
 
   resetProgressionForTests();
   let progress = loadProgression();
@@ -775,15 +764,15 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   newRun('sapper'); R().deck.push(...Array.from({ length:10 }, () => ({ key:'nightterrors', up:0 }))); startCombat('dig');
   T('stacked economic curses respect their playable floors', pickFloor && drawFloor && cbt().energy === 0);
 
-  const eventCurses = new Set(); let eventApplied = true;
-  for (let i = 0; i < 80; i++) {
-    newRun('sapper', { daily:`persistent-curse-${i}`, testMode:true }); closeCutscene(); startSpecificEvent('corpse');
-    const curse = R().eventState.curseKey;
-    eventCurses.add(curse); eventChoice('b');
-    eventApplied &&= R().deck.some(card => card.key === curse);
-    closeModal();
-  }
-  T('curse-bearing events can apply every persistent curse type', eventApplied && curseKeys.every(key => eventCurses.has(key)));
+  newRun('sapper', { daily:'fiction-curse', testMode:true }); closeCutscene(); startSpecificEvent('corpse');
+  const academicCurseRollRemoved = !Object.hasOwn(R().eventState, 'curseKey');
+  eventChoice('take');
+  const cartographersFearApplied = R().deck.some(card => card.key === 'claustrophobia');
+  closeModal();
+  newRun('sapper', { daily:'fiction-burden', testMode:true }); closeCutscene(); startSpecificEvent('markedledger');
+  eventChoice('amount');
+  T('event burdens come from their stories instead of a random curse table',
+    academicCurseRollRemoved && cartographersFearApplied && R().deck.some(card => card.key === 'dud'));
 }
 
 /* ================= single free edition: no purchase or paywall gates ================= */
@@ -956,12 +945,12 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   T('invalid card actions provide a specific reason and shake target',
     ui.invalidCard?.cardId === 999999 && ui.invalidCard.message.includes('cannot be played'));
 
-  newRun('sapper', { daily:'event-chain' }); startSpecificEvent('corpse'); eventChoice('b');
+  newRun('sapper', { daily:'event-chain' }); startSpecificEvent('corpse'); eventChoice('bury');
   const thread = R().eventThreads.corpse;
   R().event = 'corpse'; R().eventState = { chainReturn:true, threadKey:'corpse' };
-  const remembered = currentEventView(); eventChoice('stand');
+  const remembered = currentEventView(); eventChoice('truth');
   T('event choices return later with remembered text and consequences',
-    thread?.stage === 2 && remembered.stageLabel === 'A choice remembered' && R().eventHistory.some(row => row.chain));
+    thread?.stage === 2 && remembered.stageLabel === 'A consequence returns' && R().eventHistory.some(row => row.chain));
 
   clearGraveyard();
   newRun('sapper', { challenge:'lean', daily:'graveyard-record' });
@@ -971,6 +960,13 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   T('graveyard records build, death cause, bosses, challenge, and run records',
     grave && savedGraves[0].cause === 'The test stone' && savedGraves[0].bosses[0] === 'collapser'
       && savedGraves[0].challenge === 'lean' && savedGraves[0].deck.length === 8);
+  clearGraveyard();
+  newRun('surveyor', { daily:'graveyard-victory' });
+  const victoryGrave = recordRunHistory(R(), true);
+  R().lastDamageSource = 'The endless Vein';
+  const laterDeath = recordRunHistory(R(), false);
+  T('victories and later Vein deaths receive separate graveyard stones',
+    victoryGrave?.won && laterDeath && loadGraveyard().length === 2);
 
   clearSpeedruns();
   const speedBase = { coreWon:true, testMode:false, cls:'surveyor', floors:30, fullClears:2, challenge:null };
@@ -980,12 +976,36 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   const speedRows = loadSpeedruns().surveyor;
   T('speedrun board groups and sorts valid clears by Delver while excluding test runs',
     speedRows.length === 2 && speedRows[0].id === 'fast' && speedRows[1].id === 'slow');
+  recordSpeedrun({ ...speedBase, runId:'daily', coreClearMs:99000, daily:'2099-01-01' });
+  recordSpeedrun({ ...speedBase, runId:'lean', coreClearMs:111000, challenge:'lean' });
+  const categories = loadSpeedrunCategories();
+  T('speedrun records separate standard, daily, and challenge categories',
+    categories.standard.surveyor.length === 2 && categories.daily.surveyor[0].id === 'daily'
+      && categories['challenge:lean'].surveyor[0].id === 'lean');
+  T('speedrun eligibility reports why a run is or is not ranked',
+    speedrunEligibility({ ...speedBase, coreClearMs:1000 }).eligible
+      && !speedrunEligibility({ ...speedBase, coreClearMs:1000, testMode:true }).eligible
+      && !speedrunEligibility({ ...speedBase, coreWon:false, coreClearMs:null }).eligible);
 
   storage.delete('cryptsweeper.achievements.v1');
   R().fullClears = 1; R().bossesDefeated = ['collapser']; R().gold = 260;
   const fresh = evaluateAchievements(R(), 'map');
   T('achievement ledger persists independently earned milestones',
     fresh.length >= 3 && Object.keys(loadAchievements()).every(key => ACHIEVEMENTS[key]));
+
+  newRun('sapper', { testMode:true, daily:'post-combat-self-damage' });
+  closeCutscene();
+  R().combat = null; R().hp = 1;
+  loseHP(1, 'Controlled Blast');
+  T('lethal card self-damage resolves safely after its target ended combat',
+    R().hp === 0 && ui.screen === 'gameover');
+
+  newRun('surveyor', { testMode:true, daily:'core-victory-runner-stop' });
+  closeCutscene();
+  R().coreWon = true;
+  const coreStop = botRunContinuous({ policy:'oracle', maxSteps:10, stopAtCoreVictory:true });
+  T('balance bot stops at core victory instead of simulating the endless Vein',
+    coreStop.steps === 1 && coreStop.state.run.coreWon);
 }
 
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');

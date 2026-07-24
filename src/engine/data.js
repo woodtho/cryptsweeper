@@ -12,8 +12,7 @@ import {
   enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
   setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
   annexTiles, addMineAt,
-} from './engine.js';
-import { buildCardExpansion500 } from './cardExpansion500.js';
+} from './runtime.js';
 
 export const STRATA = [
   { name: 'Stratum 1 — The Topsoil Crypts', size: 8,  mines: 10, mineDmg: 8  },
@@ -39,70 +38,80 @@ export const CLASSES = {
     role: '80 HP · demolitions · "a mine is ammunition"',
     blurb: 'She doesn\'t avoid mines — she spends them. Detonate hidden tiles on purpose, convert blasts into AoE damage, and pay HP for tempo.',
     passive: '<b>Breachcraft:</b> the first controlled detonation each turn deals 4 damage to every enemy.',
-    deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'shortfuse', 'shortfuse', 'blastsuit', 'seedcharge'],
+    deck: ['probe', 'probe', 'brace', 'brace', 'brace', 'shortfuse', 'shortfuse', 'blastsuit', 'seedcharge', 'resonanttap'],
+    rewardPool: ['controlled','blastsuit','fusecutter','chaincharge','powderkeg','munitions','seedcharge','shockwave','bigred','markedcharge','blastdividend','killzone'],
   },
   surveyor: {
     name: 'THE SURVEYOR', hp: 66, picks: 5, sig: 'scancard', trinket: 'dowsingcharm',
     role: '66 HP · information engine · "a mine is a fact"',
     blurb: 'Fragile, precise, scaling. Gain Insight for every safe reveal and spend it for damage and draw. The class most likely to Full Clear.',
     passive: '<b>Field Method:</b> every fourth newly scanned tile grants 1⚡ and 1 Insight.',
-    deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'scancard', 'scancard', 'scancard', 'triangulate', 'fieldnotes'],
+    deck: ['probe', 'probe', 'brace', 'brace', 'scancard', 'scancard', 'scancard', 'triangulate', 'fieldnotes', 'resonanttap'],
+    rewardPool: ['triangulate','deduction','surveystakes','chordcard','sixthsense','fieldnotes','pinpoint','wholepicture','crosssection','knownquantity','eureka'],
   },
   terraformer: {
     name: 'THE TERRAFORMER', hp: 72, picks: 4, sig: 'entombcard', trinket: 'keystone',
     role: '72 HP · board editor · "a mine is terrain"',
     blurb: 'The grid is clay: seal tiles, swap them, and build constructs that act every turn and soak enemy board attacks.',
     passive: '<b>Master Builder:</b> whenever you build a construct, gain 2 Plating.',
-    deck: ['probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'entombcard', 'entombcard', 'sentry', 'faultline'],
+    deck: ['probe', 'probe', 'brace', 'brace', 'brace', 'entombcard', 'entombcard', 'sentry', 'propshaft', 'resonanttap'],
+    rewardPool: ['sentry','propshaft','scaffold','leylines','bulwark','landslide','surveyrelay','stonechoir','citybelow'],
   },
   lamplighter: {
     name: 'THE LAMPLIGHTER', hp: 68, picks: 4, sig: 'exp_lamplighter_0', trinket: 'emberjar',
     role: '68 HP · cascades & energy · "bring your own dawn"',
     blurb: 'Turns broad safe openings into explosive tempo, chaining bright cascades into extra energy and sweeping attacks.',
     passive: '<b>Kindle:</b> the first cascade of 4+ tiles each turn grants 1⚡.',
-    deck: ['probe','probe','probe','brace','brace','brace','exp_lamplighter_0','exp_lamplighter_0','exp_lamplighter_1','exp_lamplighter_2'],
+    deck: ['probe','probe','brace','brace','brace','exp_lamplighter_0','exp_lamplighter_0','exp_lamplighter_1','exp_lamplighter_2','resonanttap'],
+    rewardPool: [0,1,2,3,4,5,7,9,11,15,16,18].map(i => `exp_lamplighter_${i}`),
   },
   gambler: {
     name: 'THE GAMBLER', hp: 70, picks: 4, sig: 'exp_gambler_0', trinket: 'loadedcoin',
     role: '70 HP · flags & wagers · "the board always tells"',
     blurb: 'Makes deliberate wagers on hidden tiles, cashing correct flags into cards while turning bad reads into controlled losses.',
     passive: '<b>Lucky Read:</b> the first correct manual flag each turn draws 1 card.',
-    deck: ['probe','probe','probe','brace','brace','brace','exp_gambler_0','exp_gambler_0','exp_gambler_1','exp_gambler_2'],
+    deck: ['probe','probe','brace','brace','brace','exp_gambler_0','exp_gambler_0','exp_gambler_1','exp_gambler_2','resonanttap'],
+    rewardPool: [0,1,2,3,4,5,7,9,11,15,16,18].map(i => `exp_gambler_${i}`),
   },
   chirurgeon: {
     name: 'THE CHIRURGEON', hp: 76, picks: 3, sig: 'exp_chirurgeon_0', trinket: 'fieldkit',
     role: '76 HP · pain conversion · "nothing vital was hit"',
     blurb: 'Treats health as a tactical resource, converting the first wound each turn into protection and rebuilding after risky blasts.',
     passive: '<b>Triage:</b> the first time you lose HP each turn, gain 5 Block.',
-    deck: ['probe','probe','probe','brace','brace','brace','exp_chirurgeon_0','exp_chirurgeon_0','exp_chirurgeon_1','exp_chirurgeon_2'],
+    deck: ['probe','probe','brace','brace','brace','exp_chirurgeon_0','exp_chirurgeon_0','exp_chirurgeon_1','exp_chirurgeon_2','resonanttap'],
+    rewardPool: [0,1,2,3,4,5,7,9,11,15,16,18].map(i => `exp_chirurgeon_${i}`),
   },
   archivist: {
     name: 'THE ARCHIVIST', hp: 62, picks: 5, sig: 'exp_archivist_0', trinket: 'indexcard',
     role: '62 HP · draw & exhaust · "everything is evidence"',
     blurb: 'Cycles aggressively through a fragile deck, finding exact tools and turning exhausted cards into fresh possibilities.',
     passive: '<b>Cross-Reference:</b> the first card Exhausted each turn draws 1.',
-    deck: ['probe','probe','probe','brace','brace','brace','exp_archivist_0','exp_archivist_0','exp_archivist_1','exp_archivist_2'],
+    deck: ['probe','probe','brace','brace','brace','exp_archivist_0','exp_archivist_0','exp_archivist_1','exp_archivist_2','resonanttap'],
+    rewardPool: [0,1,2,3,4,5,7,9,11,15,16,18].map(i => `exp_archivist_${i}`),
   },
   warden: {
     name: 'THE WARDEN', hp: 82, picks: 3, sig: 'exp_warden_0', trinket: 'wardplate',
     role: '82 HP · block retention · "stone remembers pressure"',
     blurb: 'Builds defenses that persist between turns, then converts accumulated Block and Plating into crushing board control.',
     passive: '<b>Hold Fast:</b> retain one quarter of your Block between turns.',
-    deck: ['probe','probe','probe','brace','brace','brace','exp_warden_0','exp_warden_0','exp_warden_1','exp_warden_2'],
+    deck: ['probe','probe','brace','brace','brace','exp_warden_0','exp_warden_0','exp_warden_1','exp_warden_2','resonanttap'],
+    rewardPool: [0,1,2,3,4,5,7,9,11,15,16,18].map(i => `exp_warden_${i}`),
   },
   hexwright: {
     name: 'THE HEXWRIGHT', hp: 64, picks: 5, sig: 'exp_hexwright_0', trinket: 'hexkey',
     role: '64 HP · number magic · "three is a weapon"',
     blurb: 'Weaponizes high revealed numbers, stacking Insight and turning dangerous numbered tiles into precise area damage.',
     passive: '<b>Hot Number:</b> revealing a 3+ tile deals 2 damage to ALL enemies.',
-    deck: ['probe','probe','probe','brace','brace','brace','exp_hexwright_0','exp_hexwright_0','exp_hexwright_1','exp_hexwright_2'],
+    deck: ['probe','probe','brace','brace','brace','exp_hexwright_0','exp_hexwright_0','exp_hexwright_1','exp_hexwright_2','resonanttap'],
+    rewardPool: [0,1,2,3,4,5,7,9,11,15,16,18].map(i => `exp_hexwright_${i}`),
   },
   revenant: {
     name: 'THE REVENANT', hp: 55, picks: 4, sig: 'exp_revenant_0', trinket: 'gravebell',
     role: '55 HP · death defiance · "already buried once"',
     blurb: 'Walks closest to disaster, using mines and low health for enormous payoffs while refusing one lethal blow each combat.',
     passive: '<b>Not Yet:</b> survive the first lethal hit each combat at 1 HP.',
-    deck: ['probe','probe','probe','brace','brace','brace','exp_revenant_0','exp_revenant_0','exp_revenant_1','exp_revenant_2'],
+    deck: ['probe','probe','brace','brace','brace','exp_revenant_0','exp_revenant_0','exp_revenant_1','exp_revenant_2','resonanttap'],
+    rewardPool: [0,1,2,3,4,5,7,9,11,15,16,18].map(i => `exp_revenant_${i}`),
   },
 };
 
@@ -564,14 +573,6 @@ Object.assign(CARDS, {
   sunderingchalk: { name:'Sundering Chalk',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,0],targets:[],hits:'target',text:u=>`Apply ${u?2:1} Sundered to the targeted enemy. Remove its Block and halve Block gained during its next action. Works on bosses.`,play:u=>applyEnemyEffect(curTarget(),'sundered',u?2:1) },
   gravebind: { name:'Gravebind',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],hits:'target',exhaust:true,text:u=>`Apply ${u?2:1} Exposed and ${u?2:1} Jammed to the targeted enemy. Works on bosses. Exhaust.`,play:u=>{const e=curTarget();applyEnemyEffect(e,'exposed',u?2:1);applyEnemyEffect(e,'jammed',u?2:1);} },
 });
-
-Object.assign(CARDS, buildCardExpansion500({
-  cbt, board, shuffle, curTarget, atk, hitEnemy, hitRandom, hitAll,
-  gainBlock, gainPlating, gainEnergy, gainInsight, gainPicks, gainMaxPicks,
-  loseMaxPicks, spendPicks, drawCards, loseHP, revealTile, scanTile, defuseTile,
-  detonateForCards, entombTile, swapCells, addConstruct, chordAt, verifyFlag,
-  hiddenIdx, flaggedIdx, isHiddenUsable, neighborsOf, numAt, annexTiles, addMineAt,
-}));
 
 /* ---------------- trinkets ---------------- */
 export const TRINKETS = {

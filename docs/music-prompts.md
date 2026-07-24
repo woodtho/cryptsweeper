@@ -1,5 +1,11 @@
 # CryptSweeper music generation prompts
 
+Implementation note (2026-07-24): delivered masters in
+`src/assets/music/raw/` are normalized to consistent kebab-case names,
+compressed to 96 kbps MP3 for the app, and lazy-loaded by the recorded
+soundtrack player. Keep lossless masters outside the shipped asset folder when
+re-exporting or revising a track.
+
 One prompt per track from the soundtrack plan (see the track table discussed in
 review follow-up). Written to work both as AI-generator prompts (Suno/Udio
 style-text) and as composer briefs.

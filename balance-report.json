@@ -1,140 +1,287 @@
 {
-  "policy": "oracle",
-  "runsPerClass": 10,
+  "generatedAt": "2026-07-24T17:55:40.102Z",
+  "methodology": "Class-aware card priorities; oracle reads mines, honest uses only revealed and scanned information.",
+  "oracleRunsPerClass": 100,
+  "honestRunsPerClass": 20,
   "report": [
     {
       "class": "sapper",
-      "runs": 10,
-      "wins": 0,
-      "winRate": 0,
-      "avgHp": 0,
-      "avgFloors": 33.1,
-      "avgScore": 986.6,
-      "avgSteps": 781.1,
-      "endings": {
-        "gameover": 10
+      "oracle": {
+        "runs": 100,
+        "wins": 66,
+        "winRate": 0.66,
+        "avgHp": 49,
+        "avgFloors": 33.3,
+        "avgScore": 1118.1,
+        "avgSteps": 751.5,
+        "endings": {
+          "gameover": 34,
+          "map": 66
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 5.7,
+        "avgScore": 145.1,
+        "avgSteps": 100.1,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "surveyor",
-      "runs": 10,
-      "wins": 0,
-      "winRate": 0,
-      "avgHp": 0,
-      "avgFloors": 22.7,
-      "avgScore": 676.2,
-      "avgSteps": 571.7,
-      "endings": {
-        "gameover": 10
+      "oracle": {
+        "runs": 100,
+        "wins": 50,
+        "winRate": 0.5,
+        "avgHp": 32.4,
+        "avgFloors": 23.3,
+        "avgScore": 823.9,
+        "avgSteps": 609,
+        "endings": {
+          "gameover": 50,
+          "map": 50
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 2.3,
+        "avgScore": 68.3,
+        "avgSteps": 57.9,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "terraformer",
-      "runs": 10,
-      "wins": 4,
-      "winRate": 0.4,
-      "avgHp": 12.2,
-      "avgFloors": 30.9,
-      "avgScore": 1071.5,
-      "avgSteps": 1034.7,
-      "endings": {
-        "victory": 4,
-        "gameover": 6
+      "oracle": {
+        "runs": 100,
+        "wins": 98,
+        "winRate": 0.98,
+        "avgHp": 85.5,
+        "avgFloors": 35.6,
+        "avgScore": 1556.6,
+        "avgSteps": 1160,
+        "endings": {
+          "map": 98,
+          "gameover": 2
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 2.5,
+        "avgScore": 83.8,
+        "avgSteps": 57.5,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "lamplighter",
-      "runs": 10,
-      "wins": 0,
-      "winRate": 0,
-      "avgHp": 0,
-      "avgFloors": 33.1,
-      "avgScore": 954.6,
-      "avgSteps": 799.6,
-      "endings": {
-        "gameover": 10
+      "oracle": {
+        "runs": 100,
+        "wins": 94,
+        "winRate": 0.94,
+        "avgHp": 68.2,
+        "avgFloors": 35.2,
+        "avgScore": 1342,
+        "avgSteps": 943.1,
+        "endings": {
+          "map": 94,
+          "gameover": 6
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 3.1,
+        "avgScore": 99.3,
+        "avgSteps": 55.4,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "gambler",
-      "runs": 10,
-      "wins": 2,
-      "winRate": 0.2,
-      "avgHp": 8.7,
-      "avgFloors": 33.1,
-      "avgScore": 1013.3,
-      "avgSteps": 825.7,
-      "endings": {
-        "gameover": 8,
-        "victory": 2
+      "oracle": {
+        "runs": 100,
+        "wins": 74,
+        "winRate": 0.74,
+        "avgHp": 52.6,
+        "avgFloors": 31.5,
+        "avgScore": 1136.6,
+        "avgSteps": 790.9,
+        "endings": {
+          "map": 74,
+          "gameover": 26
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 3,
+        "avgScore": 84.7,
+        "avgSteps": 50.5,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "chirurgeon",
-      "runs": 10,
-      "wins": 2,
-      "winRate": 0.2,
-      "avgHp": 0.9,
-      "avgFloors": 34.5,
-      "avgScore": 1068.1,
-      "avgSteps": 950.7,
-      "endings": {
-        "gameover": 8,
-        "victory": 2
+      "oracle": {
+        "runs": 100,
+        "wins": 99,
+        "winRate": 0.99,
+        "avgHp": 85.3,
+        "avgFloors": 36,
+        "avgScore": 1329.7,
+        "avgSteps": 922.4,
+        "endings": {
+          "map": 99,
+          "gameover": 1
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 3.7,
+        "avgScore": 93.5,
+        "avgSteps": 71.3,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "archivist",
-      "runs": 10,
-      "wins": 0,
-      "winRate": 0,
-      "avgHp": 0,
-      "avgFloors": 28.8,
-      "avgScore": 898.1,
-      "avgSteps": 719.5,
-      "endings": {
-        "gameover": 10
+      "oracle": {
+        "runs": 100,
+        "wins": 79,
+        "winRate": 0.79,
+        "avgHp": 51.1,
+        "avgFloors": 31.7,
+        "avgScore": 1156,
+        "avgSteps": 772,
+        "endings": {
+          "map": 79,
+          "gameover": 21
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 2.9,
+        "avgScore": 81,
+        "avgSteps": 48.6,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "warden",
-      "runs": 10,
-      "wins": 6,
-      "winRate": 0.6,
-      "avgHp": 18.3,
-      "avgFloors": 35.4,
-      "avgScore": 1121.2,
-      "avgSteps": 1031.8,
-      "endings": {
-        "victory": 6,
-        "gameover": 4
+      "oracle": {
+        "runs": 100,
+        "wins": 97,
+        "winRate": 0.97,
+        "avgHp": 81.8,
+        "avgFloors": 35.7,
+        "avgScore": 1338.3,
+        "avgSteps": 958.5,
+        "endings": {
+          "map": 97,
+          "gameover": 3
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 4,
+        "avgScore": 93.7,
+        "avgSteps": 69.6,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "hexwright",
-      "runs": 10,
-      "wins": 3,
-      "winRate": 0.3,
-      "avgHp": 6.9,
-      "avgFloors": 35.7,
-      "avgScore": 990.7,
-      "avgSteps": 826.6,
-      "endings": {
-        "gameover": 7,
-        "victory": 3
+      "oracle": {
+        "runs": 100,
+        "wins": 75,
+        "winRate": 0.75,
+        "avgHp": 47.7,
+        "avgFloors": 32.3,
+        "avgScore": 1146.9,
+        "avgSteps": 719.7,
+        "endings": {
+          "map": 75,
+          "gameover": 25
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 2.5,
+        "avgScore": 74.3,
+        "avgSteps": 48.5,
+        "endings": {
+          "gameover": 20
+        }
       }
     },
     {
       "class": "revenant",
-      "runs": 10,
-      "wins": 0,
-      "winRate": 0,
-      "avgHp": 0,
-      "avgFloors": 30.3,
-      "avgScore": 803,
-      "avgSteps": 651.7,
-      "endings": {
-        "gameover": 10
+      "oracle": {
+        "runs": 100,
+        "wins": 86,
+        "winRate": 0.86,
+        "avgHp": 47.5,
+        "avgFloors": 34.4,
+        "avgScore": 1178.8,
+        "avgSteps": 799.5,
+        "endings": {
+          "map": 86,
+          "gameover": 14
+        }
+      },
+      "honest": {
+        "runs": 20,
+        "wins": 0,
+        "winRate": 0,
+        "avgHp": 0,
+        "avgFloors": 2.9,
+        "avgScore": 81.3,
+        "avgSteps": 53.5,
+        "endings": {
+          "gameover": 20
+        }
       }
     }
   ]

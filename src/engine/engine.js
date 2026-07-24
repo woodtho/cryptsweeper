@@ -13,9 +13,10 @@ import {
 import { recordDailyAttempt, recordDailyResult } from './daily.js';
 import { evaluateAchievements, recordRunHistory, recordSpeedrun } from './legacy.js';
 import { loadPreferences } from './preferences.js';
+import { bindRuntime } from './runtime.js';
 import {
-  EXTRA_EVENT_CATALOG, CORE_BEHAVIORAL_EVENTS,
-  createBehavioralEventState, behavioralEventView, behavioralEventFollowup, resolveBehavioralEvent,
+  FICTION_EVENT_CATALOG, createFictionEventState, fictionEventView,
+  fictionEventFollowup, resolveFictionEvent, resolveFictionEventFollowup,
 } from './events.js';
 import {
   sudokuShape, solveSudoku, countSudokuSolutions, sudokuDifficulty,
@@ -175,7 +176,21 @@ export function loadRun(slot) {
     run.lastDamageSource ??= null;
     run.runId ??= `${payload.savedAt || Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     run.historyRecorded ??= false;
+    run.historyRecords ??= {};
+    run.speedrunEligible ??= !run.testMode;
+    run.speedrunIneligibleReason ??= run.testMode ? 'Test Lab runs are not ranked.' : null;
     run.eventState ??= null;
+    /* Catalog curation can retire generated cards and events between builds.
+       Preserve the run wherever possible, but never leave a dead definition in
+       a hand, reward, shop, or event screen. */
+    run.deck = (run.deck || []).filter(card => CARDS[card.key]);
+    if (!run.deck.length && CLASSES[run.cls]) run.deck = CLASSES[run.cls].deck.map(key => mkCard(key));
+    if (run.reward?.cards) run.reward.cards = run.reward.cards.filter(card => CARDS[card.key]);
+    if (run.shop?.cards) run.shop.cards = run.shop.cards.filter(card => CARDS[card.key]);
+    run.seenEvents = (run.seenEvents || []).filter(key => EVENT_CATALOG[key]);
+    run.eventThreads = Object.fromEntries(
+      Object.entries(run.eventThreads).filter(([key]) => EVENT_CATALOG[key]?.followup),
+    );
     if (run.puzzle?.type === 'sudoku') {
       run.puzzle.size ??= 4;
       run.puzzle.boxRows ??= run.puzzle.size === 6 ? 2 : Math.sqrt(run.puzzle.size);
@@ -213,7 +228,11 @@ export function loadRun(slot) {
     /* Purchase-era saves could stop between strata on a retired paywall. Send
        them back to their boss reward so Finish can continue the now-free run. */
     if (ui.screen === 'paywall') ui.screen = run.reward ? 'reward' : 'map';
-    if (ui.screen === 'event' && run.event && !run.eventState) prepareEventState(run.event);
+    if (ui.screen === 'event' && !EVENT_CATALOG[run.event]) {
+      run.event = null; run.eventState = null; ui.screen = 'map';
+    }
+    if (ui.screen === 'event' && run.event && (!run.eventState
+      || (run.eventState.stage === 'choice' && run.eventState.version !== 2))) prepareEventState(run.event);
     const resumedEventResult = ui.screen === 'event' && run.eventState?.stage === 'resolved' && run.eventState.result
       ? { kind: 'info', ...run.eventState.result, btn: 'Continue', next: 'map' }
       : null;
@@ -296,9 +315,11 @@ export function newRun(clsKey, options = {}) {
     reward: null, shop: null, event: null, eventState: null, eventHistory: [], eventThreads: {}, puzzle: null, seenCutscenes: [],
     bossesDefeated: [], lastDamageSource: null, challenge: options.challenge || null,
     veinDepth: 0, veinSegments: 0, veinBossesDefeated: 0, veinBoons: {}, relicUpgrades: {}, coreWon: false,
-    runId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, historyRecorded: false,
+    runId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, historyRecorded: false, historyRecords: {},
     elapsedMs: 0, timerStartedAt: Date.now(), coreClearMs: null,
     daily: options.daily || null, testMode: Boolean(options.testMode),
+    speedrunEligible: !options.testMode,
+    speedrunIneligibleReason: options.testMode ? 'Test Lab runs are not ranked.' : null,
     rngState: options.daily ? dailySeed(options.daily) : null,
   };
   if (run.challenge === 'cursed') {
@@ -1401,14 +1422,18 @@ export function enemyAttack(e, n) {
 function checkPlayerDeath() {
   if (run.hp <= 0) {
     run.hp = 0;
-    if (cbt().over) return;
-    if (run.cls === 'revenant' && !cbt().classState.deathUsed) {
-      cbt().classState.deathUsed = true;
+    const combat = cbt();
+    if (combat?.over) return;
+    if (run.cls === 'revenant' && combat && !combat.classState.deathUsed) {
+      combat.classState.deathUsed = true;
       run.hp = 1;
       toast('Deathless: return from the brink at 1 HP');
       return;
     }
-    cbt().over = true;
+    // A card may kill the last enemy before applying its own HP cost. Finishing
+    // that enemy clears run.combat, but the simultaneous self-damage must still
+    // be able to end the run instead of dereferencing a vanished combat.
+    if (combat) combat.over = true;
     sfx('defeat');
     ui.screen = 'gameover';
     setRunTimerActive(false);
@@ -1985,11 +2010,23 @@ function combatVictory() {
   notify();
 }
 
-function rollCardReward(upgraded) {
-  const pool = Object.keys(CARDS).filter(k => {
-    const d = CARDS[k];
-    return (d.cls === run.cls || d.cls === 'neutral') && ['common', 'uncommon', 'rare'].includes(d.rarity);
+const CURATED_NEUTRAL_REWARDS = [
+  'resonanttap', 'stonechorus', 'steadyhand', 'lanternloan', 'hardlesson', 'emergencyexit',
+  'bandage', 'mendingsalts', 'lastlight', 'stonepoultice', 'triagekit', 'gravemoss',
+  'secondwind', 'signaljam', 'sunderingchalk', 'gravebind',
+];
+
+export function rewardPoolFor(clsKey) {
+  const keys = [...(CLASSES[clsKey]?.rewardPool || []), ...CURATED_NEUTRAL_REWARDS];
+  return [...new Set(keys)].filter(key => {
+    const card = CARDS[key];
+    return card && ['common', 'uncommon', 'rare'].includes(card.rarity)
+      && (card.cls === clsKey || card.cls === 'neutral');
   });
+}
+
+function rollCardReward(upgraded) {
+  const pool = rewardPoolFor(run.cls);
   const byRarity = r => pool.filter(k => CARDS[k].rarity === r);
   const picks = [];
   let guard = 30;
@@ -2057,10 +2094,8 @@ export function takeVeinBoon(key) {
     const candidates = run.deck.map((card, index) => ({ card, index }))
       .filter(({ card }) => CARDS[card.key]?.cost != null && CARDS[card.key]?.rarity !== 'curse');
     const chosen = randPick(candidates);
-    const pool = Object.keys(CARDS).filter(cardKey => {
-      const def = CARDS[cardKey];
-      return def.rarity === 'rare' && (def.cls === run.cls || def.cls === 'neutral') && cardKey !== chosen?.card.key;
-    });
+    const pool = rewardPoolFor(run.cls).filter(cardKey =>
+      CARDS[cardKey].rarity === 'rare' && cardKey !== chosen?.card.key);
     const replacement = randPick(pool);
     if (chosen && replacement) {
       const oldName = CARDS[chosen.card.key].name;
@@ -2109,6 +2144,7 @@ function markCoreVictory() {
   checkpointRunTimer();
   run.coreClearMs = run.elapsedMs;
   recordSpeedrun(run);
+  recordRunHistory(run, true);
   sfx('victory');
   haptic('victory');
   recordProgress(run, 'victory');
@@ -2188,7 +2224,7 @@ export function doUpgrade(deckIdx) {
 }
 
 export function genShop() {
-  const pool = Object.keys(CARDS).filter(k => (CARDS[k].cls === run.cls || CARDS[k].cls === 'neutral') && ['common', 'uncommon', 'rare'].includes(CARDS[k].rarity));
+  const pool = rewardPoolFor(run.cls);
   const cards = shuffle(pool).slice(0, 5).map(k => ({
     key: k,
     price: CARDS[k].rarity === 'rare' ? 130 + randInt(30) : CARDS[k].rarity === 'uncommon' ? 70 + randInt(20) : 45 + randInt(15),
@@ -2251,116 +2287,11 @@ export function gotoMap() {
 
 /* ----- events ----- */
 export const EVENT_CATALOG = {
-  shrine: {
-    emoji: '🚪', title: 'The 50/50 Shrine',
-    text: "Two doors of scorched brass. Behind one: a delver's prize. Behind the other: a blast that never went off — until now. The one honest coin flip in the Undermine, priced up front.",
-    choices: [
-      { key: 'left', label: 'The left door', desc: '50%: gadget + 30 gold · 50%: heavy mine damage.' },
-      { key: 'right', label: 'The right door', desc: "Same odds. It's a coin flip; the door doesn't care." },
-      { key: 'walk', label: 'Walk away', desc: 'No flip, no prize.' },
-    ],
-  },
-  corpse: {
-    emoji: '🪦', title: "The Cartographer's Corpse",
-    text: 'He mapped three strata and died six feet from a camp. His satchel bulges with annotated charts. His hand still grips a charcoal stick.',
-    choices: [
-      { key: 'take', label: 'Take his maps', desc: 'Gain a rare trinket — and his Claustrophobia (curse: boards spawn +2 mines).' },
-      { key: 'bury', label: 'Bury him properly', desc: '+3 max HP.' },
-    ],
-  },
-  monty: {
-    emoji: '🐐', title: "The Rat's Three Doors",
-    text: 'A rat host hides one gold coffer behind three doors and goats behind the others. You pick a door. He opens a different door to reveal a goat, then offers you a switch.',
-    choices: [
-      { key: 'switch', label: 'Switch doors', desc: 'Trade your first choice for the remaining closed door.' },
-      { key: 'stay', label: 'Stay', desc: 'Trust the door you chose first.' },
-    ],
-  },
-  prisoners: {
-    emoji: '⛓️', title: "The Prisoners' Bargain",
-    text: 'You and another delver choose in separate cells. Cooperate and share. Defect and seize the haul. The other prisoner is making the same calculation.',
-    choices: [
-      { key: 'cooperate', label: 'Cooperate', desc: 'Best together, but vulnerable to betrayal.' },
-      { key: 'defect', label: 'Defect', desc: 'Exploit cooperation; suffer if both defect.' },
-    ],
-  },
-  birthday: {
-    emoji: '🎂', title: 'The Birthday Crypt',
-    text: 'The inscription asks: how many randomly born delvers are needed before a shared birthday becomes more likely than not?',
-    choices: [
-      { key: '23', label: '23 delvers', desc: 'A surprisingly small gathering.' },
-      { key: '50', label: '50 delvers', desc: 'Half the days? Half the chance?' },
-      { key: '183', label: '183 delvers', desc: 'Half of a 365-day year.' },
-    ],
-  },
-  bayes: {
-    emoji: '🧪', title: "The Alchemist's Test",
-    text: 'Only 1% of delvers carry the Rot. This test catches 90% of cases but falsely marks 10% of healthy delvers. Yours is positive. Roughly how likely are you to carry it?',
-    choices: [
-      { key: '9', label: 'About 9%', desc: 'Start with the base rate, then update.' },
-      { key: '50', label: 'About 50%', desc: 'A positive test sounds like even odds.' },
-      { key: '90', label: 'About 90%', desc: 'Use the test sensitivity directly.' },
-    ],
-  },
-  secretary: {
-    emoji: '📜', title: 'The Hiring Ledger',
-    text: 'Candidates arrive one at a time. Rejected candidates cannot return. What fraction should you observe before choosing the next candidate better than all you have seen?',
-    choices: [
-      { key: '37', label: 'About 37%', desc: 'Observe first, then take the next record-breaker.' },
-      { key: 'first', label: 'Choose the first', desc: 'Never risk losing a good candidate.' },
-      { key: 'last', label: 'Wait until the last', desc: 'See almost everyone before committing.' },
-    ],
-  },
-  commons: {
-    emoji: '🍄', title: 'The Common Mushroom Bed',
-    text: 'A shared cave bed feeds every passing delver if each takes a little. It can also be stripped bare tonight.',
-    choices: [
-      { key: 'one', label: 'Take one share', desc: 'A sustainable reward for you and those behind you.' },
-      { key: 'strip', label: 'Strip the bed', desc: 'Much more gold now, with a lasting cost.' },
-      { key: 'restore', label: 'Tend the bed', desc: 'Take nothing; recover while restoring the commons.' },
-    ],
-  },
-  matching: {
-    emoji: '🪙', title: 'Matching Pennies',
-    text: 'The merchant wins if your coins match; you win if they differ. Neither side has a safe pure strategy.',
-    choices: [
-      { key: 'heads', label: 'Show heads', desc: 'The merchant chooses at the same time.' },
-      { key: 'tails', label: 'Show tails', desc: 'A symmetric choice; unpredictability is the strategy.' },
-    ],
-  },
-  sunkcost: {
-    emoji: '🕳️', title: 'The Bottomless Dig',
-    text: 'You have already spent three days digging this dry shaft. That effort is gone either way. A foreman asks whether you will spend one more day.',
-    choices: [
-      { key: 'leave', label: 'Leave the shaft', desc: 'Ignore unrecoverable costs and judge only what comes next.' },
-      { key: 'continue', label: 'Keep digging', desc: 'Maybe the next swing finally pays for the last three days.' },
-    ],
-  },
-  auction: {
-    emoji: '🔨', title: 'The Sealed-Bid Auction',
-    text: 'You value a relic at 45 gold. In this second-price auction, the highest bidder wins but pays the second-highest bid. What should you bid?',
-    choices: [
-      { key: '25', label: 'Bid 25 gold', desc: 'Shade your bid to chase a bargain.' },
-      { key: '45', label: 'Bid 45 gold', desc: 'Bid exactly what the relic is worth to you.' },
-      { key: '75', label: 'Bid 75 gold', desc: 'Bid aggressively to guarantee the win.' },
-    ],
-  },
-  ruin: {
-    emoji: '🎲', title: "The Gambler's Ruin",
-    text: 'A bone die offers one last even-money double-or-nothing wager. The house has deeper pockets than you and will keep offering the same bet.',
-    choices: [
-      { key: 'cash', label: 'Cash out', desc: 'Take a certain reward and end the repeated game.' },
-      { key: 'double', label: 'Double or nothing', desc: 'A fair single bet becomes dangerous when repeated to ruin.' },
-    ],
-  },
-  ...CORE_BEHAVIORAL_EVENTS,
-  ...EXTRA_EVENT_CATALOG,
+  ...FICTION_EVENT_CATALOG,
   /* Special-cased in currentEventView/eventChoice: presents two of the player's own
      cards to "unmake", then adds a copy of the chosen card instead of removing it. */
   unmakingfont: {
-    emoji: '⚗️', title: 'The Unmaking Font', behavioral: true, falsePurge: true,
-    concept: 'A gift disguised as a loss',
-    explanation: 'The font swears it dissolves a card forever, yet the crypt never lets a delver give anything away — what you lower into the brine rises again, doubled.',
+    emoji: '⚗️', title: 'The Unmaking Font', fiction: true, falsePurge: true,
     text: 'A font of pale, hissing brine offers to dissolve one card from your pack forever. Two cards drift up through the murk, waiting for you to choose which to unmake.',
     actions: [
       { key: 'a', label: 'Dissolve the first card', desc: '' },
@@ -2385,12 +2316,9 @@ function falsePurgeChoices() {
 
 function prepareEventState(key) {
   const event = EVENT_CATALOG[key];
-  if (!event?.behavioral) { run.eventState = null; return; }
+  if (!event || event.falsePurge) { run.eventState = null; return; }
   const rolls = Array.from({ length: 6 }, () => random());
-  const curseKey = randPick(Object.keys(PERSISTENT_CURSES));
-  run.eventState = createBehavioralEventState(
-    event, run, rolls, randPick(Object.keys(GADGETS)), curseKey, PERSISTENT_CURSES[curseKey].name,
-  );
+  run.eventState = createFictionEventState(event, run, rolls, randPick(Object.keys(GADGETS)));
 }
 
 /* Honest puzzles are a distinct event-room outcome rather than one entry hidden
@@ -2403,7 +2331,7 @@ export function currentEventView() {
   if (!event) return null;
   if (run.eventState?.chainReturn) {
     const thread = run.eventThreads?.[run.eventState.threadKey];
-    return behavioralEventFollowup(event, thread);
+    return fictionEventFollowup(event, thread);
   }
   if (event.falsePurge) {
     const picks = falsePurgeChoices();
@@ -2417,9 +2345,8 @@ export function currentEventView() {
       })),
     };
   }
-  if (!event.behavioral) return { text: event.text, choices: event.choices, stageLabel: 'Decision' };
   if (!run.eventState) prepareEventState(run.event);
-  return behavioralEventView(event, run.eventState);
+  return fictionEventView(event, run.eventState);
 }
 
 function startEvent() {
@@ -2487,6 +2414,18 @@ function applyEventEffect(effect = {}) {
     lines.push(`Add ${CARDS[effect.curse].name} to your deck.`);
     deckChanged('add', `${CARDS[effect.curse].name} stains the deck`);
   }
+  if (effect.removeCard) {
+    const index = run.deck.findIndex(card => card.key === effect.removeCard);
+    if (index >= 0) {
+      const [removed] = run.deck.splice(index, 1);
+      lines.push(`Remove ${CARDS[removed.key]?.name || removed.key} from your deck.`);
+      deckChanged('remove', `${CARDS[removed.key]?.name || removed.key} leaves the deck`);
+    }
+  }
+  if (effect.pickBonus) {
+    run.pickBonus = Math.max(0, (run.pickBonus || 0) + effect.pickBonus);
+    lines.push(`Gain ${effect.pickBonus} maximum Pick per turn for this run.`);
+  }
   if (effect.upgrade) {
     const eligible = run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null);
     const card = randPick(eligible);
@@ -2513,8 +2452,8 @@ function applyEventEffect(effect = {}) {
 }
 
 export function eventChoice(which) {
-  const behavioral = EVENT_CATALOG[run.event];
-  if (behavioral?.falsePurge) {
+  const event = EVENT_CATALOG[run.event];
+  if (event?.falsePurge) {
     const picks = falsePurgeChoices();
     const card = which === 'b' ? picks[1] : picks[0];
     if (!card) return;
@@ -2528,59 +2467,42 @@ export function eventChoice(which) {
     run.eventHistory ??= [];
     run.eventHistory.push({ id: run.event, choice: which, stratum: run.stratum, floor: run.floors });
     const html = `<p>You lower ${name} into the brine — and the font gives it back twofold.</p><p><b>Add a copy of ${name} to your deck.</b></p>`;
-    run.eventState.result = { title: `${behavioral.emoji} ${behavioral.title}`, html };
-    eventResult(`${behavioral.emoji} ${behavioral.title}`, html);
+    run.eventState.result = { title: `${event.emoji} ${event.title}`, html };
+    eventResult(`${event.emoji} ${event.title}`, html);
     return;
   }
   if (run.eventState?.chainReturn) {
     const thread = run.eventThreads[run.eventState.threadKey];
-    const followup = behavioralEventFollowup(behavioral, thread);
+    const followup = fictionEventFollowup(event, thread);
+    const result = resolveFictionEventFollowup(event, which);
+    if (!followup || !result) return;
     thread.stage = 2; thread.returnChoice = which;
-    let html;
-    if (which === 'stand') {
-      run.gold += 25;
-      run.deck.push(mkCard('dud'));
-      recordCardOwned('dud');
-      deckChanged('add', 'A remembered Dud joins the deck');
-      html = `<p>${followup.results.stand}</p><p><b>Gain 25 gold.</b></p><p><b>Add a Dud to your deck.</b></p>`;
-    } else {
-      const paid = Math.min(15, run.gold);
-      run.gold -= paid;
-      const healed = Math.min(effectiveHealing(8), run.maxHp - run.hp);
-      run.hp += healed;
-      if (healed) sfx('heal');
-      html = `<p>${followup.results.amend}</p><p><b>Pay ${paid} gold.</b></p><p><b>Recover ${healed} HP.</b></p>`;
-    }
+    const consequenceLines = applyEventEffect(result.effect);
+    const html = `<p>${result.result}</p>${consequenceLines.map(line => `<p><b>${line}</b></p>`).join('')}`;
     run.eventHistory.push({ id: run.event, chain: true, choice: which, stratum: run.stratum, floor: run.floors });
     eventResult(`↻ ${followup.title}`, html);
     return;
   }
-  if (behavioral?.behavioral) {
+  if (event) {
     if (!run.eventState) prepareEventState(run.event);
-    const result = resolveBehavioralEvent(behavioral, run.eventState, which);
+    const result = resolveFictionEvent(event, run.eventState, which);
     if (!result) return;
     const consequenceLines = applyEventEffect(result.effect);
-    if (!result.done) {
-      toast(consequenceLines.join(' '));
-      notify();
-      return;
-    }
     run.eventHistory ??= [];
     run.eventHistory.push({
-      id: run.event, choice: which, observed: run.eventState.observed,
+      id: run.event, choice: which,
       stratum: run.stratum, floor: run.floors,
     });
     run.eventThreads ??= {};
-    if (!run.eventThreads[run.event]) {
-      const chosen = behavioral.actions?.find(action => action.key === which);
+    if (event.followup && !run.eventThreads[run.event]) {
+      const chosen = event.actions?.find(item => item.key === which);
       run.eventThreads[run.event] = { stage: 1, choice: which, choiceLabel: chosen?.label || which, floor: run.floors };
     }
-    const html = `<p>${result.action.label}. The chamber answers.</p>${consequenceLines.map(line => `<p><b>${line}</b></p>`).join('')}`;
-    run.eventState.result = { title: `${behavioral.emoji} ${result.title}`, html };
-    eventResult(`${behavioral.emoji} ${result.title}`, html);
+    const html = `<p>${result.result}</p>${consequenceLines.map(line => `<p><b>${line}</b></p>`).join('')}`;
+    run.eventState.result = { title: `${event.emoji} ${result.title}`, html };
+    eventResult(`${event.emoji} ${result.title}`, html);
     return;
   }
-  // Every live catalog entry uses the behavioral decision system above.
 }
 
 /* ----- Honest Puzzle ----- */
@@ -2978,3 +2900,16 @@ function recordDailyRunEnd(won) {
   run.dailyRecorded = true;
   recordDailyResult(run.daily, { won, score: score(), cls: run.cls });
 }
+
+bindRuntime({
+  cbt, board, shuffle, randPick, randInt,
+  revealTile, hitEnemy, hitRandom, hitAll, curTarget, atk,
+  gainBlock, gainPlating, gainEnergy, gainInsight, gainPicks, gainMaxPicks,
+  loseMaxPicks, spendPicks, drawCards, loseHP, healHP, canHeal, applyEnemyEffect,
+  detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
+  chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
+  highestRevealedNumber, neighborsOf, numAt, toast, log, fleeCombat,
+  enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
+  setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
+  annexTiles, addMineAt,
+});

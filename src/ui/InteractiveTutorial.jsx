@@ -40,6 +40,8 @@ function loadGuidedProgress() {
 
 export function InteractiveTutorial({ preferences, onClose }) {
   const [mode, setMode] = useState('menu');
+  const guided = loadGuidedProgress();
+  const guidedComplete = guided.step >= LESSONS.length;
   if (mode === 'mechanics') return <MechanicsLab preferences={preferences} onMenu={() => setMode('menu')} onClose={onClose} />;
   if (mode === 'guided') return <GuidedTutorial preferences={preferences} onMenu={() => setMode('menu')} onMechanics={() => setMode('mechanics')} onClose={onClose} />;
   return <section className="tutorial tutorial-menu" aria-label="Interactive tutorial menu">
@@ -47,10 +49,10 @@ export function InteractiveTutorial({ preferences, onClose }) {
       <div><p className="eyebrow">Practice crypt · no run progress affected</p><h2>Interactive tutorial</h2></div>
       <button className="btn" type="button" onClick={onClose}>Close ×</button>
     </header>
-    <div className="tutorial-menu-intro"><h3>Choose a practice session</h3><p>Start with the guided descent, then use the Mechanics Lab to interact with every resource, board action, condition, curse, modifier, and documented passive.</p></div>
+    <div className="tutorial-menu-intro"><h3>{guidedComplete ? 'Choose a practice session' : 'Begin with the guided descent'}</h3><p>The tutorial opens systems progressively. Finish the core descent first; the Mechanics Lab then unlocks every resource, condition, curse, modifier, and passive.</p></div>
     <div className="tutorial-mode-grid">
-      <button type="button" onClick={() => setMode('guided')}><GameIcon name="picks" preferences={preferences} /><span><b>Guided descent</b><small>11 hands-on lessons covering the complete run and combat loop.</small><i>Recommended first</i></span></button>
-      <button type="button" onClick={() => setMode('mechanics')}><GameIcon name="energy" preferences={preferences} /><span><b>Mechanics Lab</b><small>48 interactive drills in five focused sessions.</small><i>Every mechanic</i></span></button>
+      <button type="button" onClick={() => setMode('guided')}><GameIcon name="picks" preferences={preferences} /><span><b>{guided.step > 0 && !guidedComplete ? 'Continue guided descent' : 'Guided descent'}</b><small>11 hands-on lessons covering the complete run and combat loop.</small><i>{guidedComplete ? 'Completed · replayable' : `Step ${guided.step + 1} of ${LESSONS.length}`}</i></span></button>
+      <button type="button" disabled={!guidedComplete} onClick={() => setMode('mechanics')}><GameIcon name="energy" preferences={preferences} /><span><b>Mechanics Lab</b><small>48 interactive drills in five focused sessions.</small><i>{guidedComplete ? 'Unlocked' : 'Finish guided descent'}</i></span></button>
     </div>
   </section>;
 }

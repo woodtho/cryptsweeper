@@ -35,9 +35,12 @@ import { customIconSets, customSetBase, customSetIcon, iconSetLabel } from './ic
 import { registerBackHandler } from './backNav.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
 import { gridNavigationIndex } from '../engine/puzzleValidation.js';
-import { ACHIEVEMENTS, CHALLENGES, clearGraveyard, loadAchievements, loadGraveyard, loadSpeedruns } from '../engine/legacy.js';
+import {
+  CHALLENGES, clearGraveyard, loadGraveyard,
+} from '../engine/legacy.js';
 import { InteractiveTutorial } from './InteractiveTutorial.jsx';
 import { MechanicTerms } from './MechanicTerms.jsx';
+import { AchievementPanel, SpeedrunPanel } from './ArchivePanels.jsx';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = {
@@ -46,10 +49,10 @@ const PANEL_TITLES = {
   music: 'The crypt jukebox',
   graveyard: 'The Delver Graveyard', achievements: 'Carved achievements', challenges: 'Challenges and daily descent',
   speedruns: 'Descent speed records',
-  collection: 'Collection',
+  collection: 'Archive',
 };
 /* sub-panels reached through the consolidated Collection menu item; Back returns here, not home */
-const COLLECTION_PANELS = ['delvers', 'enemies', 'items', 'cards', 'achievements'];
+const COLLECTION_PANELS = ['delvers', 'enemies', 'items', 'cards', 'achievements', 'saves', 'music', 'graveyard', 'speedruns'];
 
 function DelverPicker({ daily = null, challenge = null }) {
   const progress = loadProgression();
@@ -145,13 +148,9 @@ export function TitleScreen({
             <small>{dailyPlayed ? 'Daily archive and seven special rule sets' : `${daily} · today’s shared crypt is waiting`}</small>
           </button>
           <div className="home-menu-grid">
-            <button className="home-action compact" onClick={() => open('how')}><span>Tutorial &amp; How to Play</span><small>Interactive practice and searchable rules</small></button>
-            <button className="home-action compact" onClick={() => open('collection')}><span>Collection</span><small>Delver, enemy, item &amp; card indexes and achievements</small></button>
-            <button className="home-action compact" onClick={() => open('saves')}><span>Saves</span><small>{saves.length} checkpoint{saves.length === 1 ? '' : 's'}</small></button>
+            <button className="home-action compact" onClick={() => open('how')}><span>Learn</span><small>Guided tutorial and searchable rules</small></button>
+            <button className="home-action compact" onClick={() => open('collection')}><span>Archive</span><small>Indexes, records, saves, graveyard, and jukebox</small></button>
             <button className="home-action compact" onClick={() => open('settings')}><span>Settings</span><small>Sound, motion, and display</small></button>
-            <button className="home-action compact" onClick={() => open('music')}><span>Jukebox</span><small>Play the music you've unlocked</small></button>
-            <button className="home-action compact" onClick={() => open('graveyard')}><span>Graveyard</span><small>Remember completed and fallen builds</small></button>
-            <button className="home-action compact" onClick={() => open('speedruns')}><span>Speedrun records</span><small>Fastest completed descent for every Delver</small></button>
           </div>
           {testUnlocked && <button className="home-action test-lab-action" onClick={() => open('test')}><span>Test lab</span><small>Launch encounters, puzzles, scenes, rewards, and combat directly</small></button>}
         </div>
@@ -194,6 +193,10 @@ export function TitleScreen({
             <button className="home-action compact" onClick={() => open('items')}><span>Item index</span><small>Trinkets and gadgets discovered</small></button>
             <button className="home-action compact" onClick={() => open('cards')}><span>Card index</span><small>Cards seen, obtained, and played</small></button>
             <button className="home-action compact" onClick={() => open('achievements')}><span>Achievements</span><small>Carvings earned across every descent</small></button>
+            <button className="home-action compact" onClick={() => open('graveyard')}><span>Graveyard</span><small>Completed and fallen builds</small></button>
+            <button className="home-action compact" onClick={() => open('speedruns')}><span>Speedrun records</span><small>Eligible clears by category and Delver</small></button>
+            <button className="home-action compact" onClick={() => open('saves')}><span>Saves</span><small>{saves.length} checkpoint{saves.length === 1 ? '' : 's'}</small></button>
+            <button className="home-action compact" onClick={() => open('music')}><span>Jukebox</span><small>Unlocked recorded and infinite music</small></button>
           </div>}
           {['delvers', 'enemies', 'items', 'cards'].includes(panel) && <CollectionIndex kind={panel} preferences={preferences} onPreferenceChange={onPreferenceChange} />}
           {panel === 'settings' && <div className="settings-list">
@@ -489,42 +492,6 @@ function ChallengePanel({ today }) {
     {Object.entries(CHALLENGES).map(([key, challenge]) => <button type="button" className="challenge-card" key={key} onClick={() => setSelected(key)}>
       <span>{challenge.mark}</span><div><b>{challenge.name}</b><small>{challenge.desc}</small></div><i>Choose ▸</i>
     </button>)}
-  </div>;
-}
-
-function AchievementPanel() {
-  const earned = loadAchievements();
-  return <div className="achievement-grid">
-    {Object.entries(ACHIEVEMENTS).map(([key, achievement]) => <article className={`achievement-stone ${earned[key] ? 'earned' : ''}`} key={key}>
-      <span>{earned[key] ? '✦' : '◇'}</span><div><b>{earned[key] ? achievement.name : 'Uncarved stone'}</b><small>{achievement.desc}</small>
-        {earned[key] && <time>{new Date(earned[key].earnedAt).toLocaleDateString()}</time>}</div>
-    </article>)}
-  </div>;
-}
-
-function SpeedrunPanel() {
-  const board = loadSpeedruns();
-  const records = Object.values(board).flat();
-  const overall = records.slice().sort((a, b) => a.durationMs - b.durationMs)[0];
-  return <div className="speedrun-board">
-    <header className="speedrun-board-head">
-      <span>◷</span>
-      <div><b>THE CLOCK BELOW</b><small>Active play time to defeat NN-99. Locking or backgrounding the app pauses the clock.</small></div>
-      <strong>{overall ? formatRunTime(overall.durationMs, true) : '—'}</strong>
-    </header>
-    <div className="speedrun-grid">
-      {Object.entries(CLASSES).map(([key, cls]) => {
-        const rows = board[key] || [];
-        return <article className={`speedrun-card ${rows.length ? 'recorded' : 'empty'}`} key={key}>
-          <header><span className={`speedrun-sigil ${key}`}>{cls.name.slice(0, 1)}</span><div><b>{cls.name}</b><small>{rows.length ? `${rows.length} recorded clear${rows.length === 1 ? '' : 's'}` : 'No completed descent'}</small></div><strong>{rows[0] ? formatRunTime(rows[0].durationMs, true) : '—'}</strong></header>
-          {rows.length > 0 && <ol>{rows.slice(0, 3).map((row, index) => <li key={row.id}>
-            <i>{index + 1}</i><time>{formatRunTime(row.durationMs, true)}</time>
-            <span>{row.daily ? 'Daily' : row.challenge ? CHALLENGES[row.challenge]?.name || row.challenge : 'Standard'}</span>
-            <small>{new Date(row.endedAt).toLocaleDateString()}</small>
-          </li>)}</ol>}
-        </article>;
-      })}
-    </div>
   </div>;
 }
 
@@ -1354,7 +1321,6 @@ export function EventScreen() {
         <h2><GameIcon name="event" preferences={prefs} /> {event.title}</h2>
         {view.stageLabel && <div className="event-stage">{view.stageLabel}</div>}
         <p>{view.text}</p>
-        {run.eventState?.history?.length > 0 && <div className="event-evidence"><b>Mechanism inspected</b><span>Fresh scratches expose the immediate contents of each passage.</span></div>}
         <div className="choicelist">
           {view.choices.map(choice => <button type="button" className="choice" key={choice.key} disabled={choice.disabled} onClick={() => eventChoice(choice.key)}>
             <span className="cname">{choice.label}</span>

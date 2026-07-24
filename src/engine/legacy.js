@@ -3,7 +3,8 @@ import { loadCollection } from './collection.js';
 
 const GRAVEYARD_KEY = 'cryptsweeper.graveyard.v1';
 const ACHIEVEMENT_KEY = 'cryptsweeper.achievements.v1';
-const SPEEDRUN_KEY = 'cryptsweeper.speedruns.v1';
+const SPEEDRUN_KEY = 'cryptsweeper.speedruns.v2';
+const LEGACY_SPEEDRUN_KEY = 'cryptsweeper.speedruns.v1';
 
 /* Stable content keys used by achievement tests. Hardcoded (rather than
    imported from data.js) to keep this module free of the engine import cycle. */
@@ -192,8 +193,12 @@ export function loadGraveyard() {
 }
 
 export function recordRunHistory(run, won) {
-  if (!run || run.historyRecorded || typeof localStorage === 'undefined') return null;
-  run.historyRecorded = true;
+  if (!run || typeof localStorage === 'undefined') return null;
+  const outcome = won ? 'victory' : 'defeat';
+  run.historyRecords ??= {};
+  if (run.historyRecords[outcome] || (!won && run.historyRecorded)) return null;
+  run.historyRecords[outcome] = true;
+  if (!won) run.historyRecorded = true;
   const entry = {
     id: run.runId || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     endedAt: Date.now(), won: Boolean(won), cls: run.cls, challenge: run.challenge || null,
@@ -219,40 +224,80 @@ export function clearGraveyard() {
   try { localStorage.removeItem(GRAVEYARD_KEY); } catch { /* storage unavailable */ }
 }
 
-export function loadSpeedruns() {
+export function speedrunCategoryFor(run) {
+  if (run?.daily) return 'daily';
+  if (run?.challenge) return `challenge:${run.challenge}`;
+  return 'standard';
+}
+
+export function speedrunEligibility(run) {
+  if (!run) return { eligible:false, reason:'No active run.' };
+  if (run.testMode) return { eligible:false, reason:'Test Lab runs are not ranked.' };
+  if (run.speedrunEligible === false) return { eligible:false, reason:run.speedrunIneligibleReason || 'Run marked ineligible.' };
+  if (!run.coreWon) return { eligible:false, reason:'Defeat NN-99 to finish the timed descent.' };
+  if (!Number.isFinite(run.coreClearMs) || run.coreClearMs < 0) return { eligible:false, reason:'No valid active-play timer was recorded.' };
+  return { eligible:true, reason:'Eligible', category:speedrunCategoryFor(run) };
+}
+
+function normalizeSpeedrunBoard(board) {
+  if (!board || Array.isArray(board) || typeof board !== 'object') return {};
+  return Object.fromEntries(Object.entries(board).map(([cls, rows]) => [
+    cls,
+    (Array.isArray(rows) ? rows : [])
+      .filter(row => Number.isFinite(row?.durationMs) && row.durationMs >= 0)
+      .sort((a, b) => a.durationMs - b.durationMs)
+      .slice(0, 10),
+  ]));
+}
+
+export function loadSpeedrunCategories() {
   try {
-    const board = JSON.parse(localStorage.getItem(SPEEDRUN_KEY) || '{}');
-    if (!board || Array.isArray(board) || typeof board !== 'object') return {};
-    return Object.fromEntries(Object.entries(board).map(([cls, rows]) => [
-      cls,
-      (Array.isArray(rows) ? rows : [])
-        .filter(row => Number.isFinite(row?.durationMs) && row.durationMs >= 0)
-        .sort((a, b) => a.durationMs - b.durationMs)
-        .slice(0, 10),
-    ]));
+    const saved = JSON.parse(localStorage.getItem(SPEEDRUN_KEY) || '{}');
+    if (saved && !Array.isArray(saved) && typeof saved === 'object' && Object.keys(saved).length) {
+      return Object.fromEntries(Object.entries(saved)
+        .map(([category, board]) => [category, normalizeSpeedrunBoard(board)]));
+    }
+    const legacy = normalizeSpeedrunBoard(JSON.parse(localStorage.getItem(LEGACY_SPEEDRUN_KEY) || '{}'));
+    const categories = {};
+    for (const [cls, rows] of Object.entries(legacy)) for (const row of rows) {
+      const category = row.daily ? 'daily' : row.challenge ? `challenge:${row.challenge}` : 'standard';
+      categories[category] ??= {};
+      categories[category][cls] ??= [];
+      categories[category][cls].push(row);
+    }
+    return Object.fromEntries(Object.entries(categories)
+      .map(([category, board]) => [category, normalizeSpeedrunBoard(board)]));
   } catch { return {}; }
 }
 
-/* The finite descent ends at NN-99. Vein-only challenges do not pass through
-   that finish line, and test-lab runs must never enter a player leaderboard. */
+export function loadSpeedruns(category = 'standard') {
+  return loadSpeedrunCategories()[category] || {};
+}
+
 export function recordSpeedrun(run) {
-  if (!run || run.testMode || !run.coreWon || !Number.isFinite(run.coreClearMs)
-    || run.coreClearMs < 0 || typeof localStorage === 'undefined') return null;
-  const board = loadSpeedruns();
+  const eligibility = speedrunEligibility(run);
+  if (!eligibility.eligible || typeof localStorage === 'undefined') return null;
+  const categories = loadSpeedrunCategories();
+  const category = eligibility.category;
+  const board = categories[category] || {};
   const rows = board[run.cls] || [];
   const entry = {
     id: run.runId || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     cls: run.cls, durationMs: Math.round(run.coreClearMs), endedAt: Date.now(),
-    challenge: run.challenge || null, daily: run.daily || null,
+    category, challenge: run.challenge || null, daily: run.daily || null,
     floors: run.floors || 0, fullClears: run.fullClears || 0,
   };
   const existing = rows.find(row => row.id === entry.id);
   if (existing) return existing;
   board[run.cls] = [...rows, entry].sort((a, b) => a.durationMs - b.durationMs).slice(0, 10);
-  try { localStorage.setItem(SPEEDRUN_KEY, JSON.stringify(board)); } catch { return null; }
+  categories[category] = board;
+  try { localStorage.setItem(SPEEDRUN_KEY, JSON.stringify(categories)); } catch { return null; }
   return entry;
 }
 
 export function clearSpeedruns() {
-  try { localStorage.removeItem(SPEEDRUN_KEY); } catch { /* storage unavailable */ }
+  try {
+    localStorage.removeItem(SPEEDRUN_KEY);
+    localStorage.removeItem(LEGACY_SPEEDRUN_KEY);
+  } catch { /* storage unavailable */ }
 }

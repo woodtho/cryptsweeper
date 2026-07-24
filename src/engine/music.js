@@ -1,15 +1,3 @@
-import homeTheme from '../assets/music/raw/home-theme.mp3';
-import topsoilCrypts from '../assets/music/raw/delve-topsoil-crypts.mp3';
-import fogGalleries from '../assets/music/raw/delve-fog-galleries.mp3';
-import machineSeam from '../assets/music/raw/delve-machine-seam.mp3';
-import machineRequiem from '../assets/music/raw/machine-requiem.mp3';
-import fallingCandlelight from '../assets/music/raw/falling-candlelight.mp3';
-import coinwhiskersBargain from '../assets/music/raw/coinwhiskers-bargain.mp3';
-import wardensBelow from '../assets/music/raw/wardens-below.mp3';
-import survivorsDawn from '../assets/music/raw/survivors-dawn.mp3';
-import cryptRemembered from '../assets/music/raw/crypt-remembered.mp3';
-import defeatLament from '../assets/music/raw/defeat-lament.mp3';
-
 /* CRYPTSWEEPER — recorded soundtrack plus a quiet generative ambient layer.
    The supplied songs carry the melody while WebAudio adds a slow drone,
    cave details, and combat pulse. Each stratum gets its own recording.
@@ -45,7 +33,7 @@ let droneOscs = [];
 let timer = null, started = false, armed = false;
 let desired = { mood: 'title', stratum: 0 };
 let preview = null; // jukebox override: { id, mood, stratum } — wins over `desired` until cleared
-let recording = null, recordingId = null;
+let recording = null, recordingId = null, recordingRequest = 0;
 let paused = false, looping = true, musicVolume = 1;
 const PARAM_DEFAULTS = {
   ambient: 0.65, activity: 0.5, cave: 0.5, pulse: 0.5,
@@ -77,19 +65,34 @@ function activeParams() { return parameterProfiles[profileName()]; }
 function infinitePlayback() { return !preview || preview.playbackMode !== 'direct'; }
 function ambientGain() { return infinitePlayback() ? Math.max(0.0001, 0.1 * activeParams().ambient * musicVolume) : 0.0001; }
 
-const RECORDINGS = {
-  home: homeTheme,
-  topsoil: topsoilCrypts,
-  fog: fogGalleries,
-  machineSeam,
-  machineRequiem,
-  camp: fallingCandlelight,
-  shop: coinwhiskersBargain,
-  boss: wardensBelow,
-  victory: survivorsDawn,
-  finale: cryptRemembered,
-  defeat: defeatLament,
+const RECORDING_FILES = {
+  home: 'home-theme.mp3',
+  topsoil: 'delve-topsoil-crypts.mp3',
+  fog: 'delve-fog-galleries.mp3',
+  machineSeam: 'delve-machine-seam.mp3',
+  machineRequiem: 'machine-requiem.mp3',
+  camp: 'falling-candlelight.mp3',
+  shop: 'coinwhiskers-bargain.mp3',
+  boss: 'wardens-below.mp3',
+  victory: 'survivors-dawn.mp3',
+  finale: 'crypt-remembered.mp3',
+  defeat: 'defeat-lament.mp3',
 };
+const RECORDING_LOADERS = import.meta.glob('../assets/music/raw/*.mp3', {
+  query: '?url',
+  import: 'default',
+});
+const recordingUrls = new Map();
+
+async function recordingUrl(id) {
+  if (recordingUrls.has(id)) return recordingUrls.get(id);
+  const file = RECORDING_FILES[id];
+  const loader = RECORDING_LOADERS[`../assets/music/raw/${file}`];
+  if (!loader) return null;
+  const url = await loader();
+  recordingUrls.set(id, url);
+  return url;
+}
 
 function recordingFor(state = active()) {
   if (state.recording) return state.recording;
@@ -107,6 +110,7 @@ function recordingFor(state = active()) {
 }
 
 function stopRecording() {
+  recordingRequest++;
   if (recording) {
     recording.pause();
     recording.removeAttribute('src');
@@ -116,13 +120,16 @@ function stopRecording() {
   recordingId = null;
 }
 
-function syncRecording() {
+async function syncRecording() {
   if (off || paused || !started || typeof Audio === 'undefined') return;
   const id = recordingFor();
-  if (!id || !RECORDINGS[id]) { stopRecording(); return; }
+  if (!id || !RECORDING_FILES[id]) { stopRecording(); return; }
   if (recordingId !== id) {
     stopRecording();
-    recording = new Audio(RECORDINGS[id]);
+    const request = ++recordingRequest;
+    const url = await recordingUrl(id);
+    if (!url || request !== recordingRequest || off || paused || recordingFor() !== id) return;
+    recording = new Audio(url);
     recording.loop = infinitePlayback() || looping;
     recording.preload = 'auto';
     recording.volume = 0.58 * musicVolume;

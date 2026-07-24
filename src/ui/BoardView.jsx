@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   run, ui, cbt, board, numAt, neighborsOf, aliveEnemies, tileEligible,
   clickTile, toggleFlag, puzzleClick, puzzleToggleFlag, LAIR_COLORS,
@@ -21,7 +21,22 @@ function orthIdx(i, size, dir) {
   return c < size - 1 ? i + 1 : -1;
 }
 
-function Tile({ i, mode, hiliteLair }) {
+function focusBoardTile(current, i, size, key) {
+  const offsets = { ArrowUp:-size, ArrowDown:size, ArrowLeft:-1, ArrowRight:1 };
+  if (!(key in offsets)) return false;
+  const row = Math.floor(i / size);
+  let next = i + offsets[key];
+  if ((key === 'ArrowLeft' && i % size === 0) || (key === 'ArrowRight' && Math.floor(next / size) !== row)) return true;
+  const boardEl = current.closest('.board');
+  while (next >= 0 && next < size * size) {
+    const target = boardEl?.querySelector(`[data-board-tile="${next}"]`);
+    if (target) { target.focus(); break; }
+    next += offsets[key];
+  }
+  return true;
+}
+
+function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
   const prefs = loadPreferences();
   const b = mode === 'puzzle' ? run.puzzle.board : board();
   const cell = b.cells[i];
@@ -139,6 +154,7 @@ function Tile({ i, mode, hiliteLair }) {
   };
   const onClick = () => {
     if (lp.current.fired) { lp.current.fired = false; return; }
+    if (inspectMode) { onInspect(i, title.join('\n') || 'Unmarked stone'); return; }
     if (mode === 'puzzle') puzzleClick(i); else clickTile(i);
   };
   const onContextMenu = ev => {
@@ -151,9 +167,18 @@ function Tile({ i, mode, hiliteLair }) {
     }
   };
 
+  const inspect = () => onInspect(i, title.join('\n') || (cell.revealed ? 'Cleared stone' : 'Unmarked hidden stone'));
+  const onKeyDown = event => {
+    if (focusBoardTile(event.currentTarget, i, b.size, event.key)) { event.preventDefault(); return; }
+    if (event.key.toLowerCase() === 'f') { event.preventDefault(); flagAction(); return; }
+    if (event.key.toLowerCase() === 'i') { event.preventDefault(); inspect(); }
+  };
+
   return (
-    <div className={cls.join(' ')} title={title.join('\n') || undefined}
+    <button type="button" className={cls.join(' ')} title={title.join('\n') || undefined}
+      data-board-tile={i} aria-label={`Tile ${Math.floor(i / b.size) + 1}, ${i % b.size + 1}. ${title.join('. ') || (cell.revealed ? 'Cleared' : 'Hidden')}`}
       onClick={onClick} onContextMenu={onContextMenu}
+      onFocus={() => { if (inspectMode) inspect(); }} onKeyDown={onKeyDown}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove}
       onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress}>
       {lairStyle ? <span className="lairzone" style={lairStyle} /> : null}
@@ -162,18 +187,34 @@ function Tile({ i, mode, hiliteLair }) {
       {!cell.revealed && !cell.entombed && cell.scan
         ? <span className={`scanmark ${cell.scan}`}>{interfaceIcon(cell.scan === 'mine' ? 'bomb' : 'safe', prefs)}</span> : null}
       {teleTop ? <span className="telemark">▼</span> : null}
-    </div>
+    </button>
   );
 }
 
 export function BoardView({ mode = 'combat', hiliteLair = -1 }) {
+  const [inspectMode, setInspectMode] = useState(false);
+  const [inspection, setInspection] = useState(null);
   const b = mode === 'puzzle' ? run.puzzle.board : board();
   const cap = clamp(Math.floor(520 / b.size), 26, 40);
   // shrink below the cap on narrow viewports so the whole board always fits on screen
   const tile = `min(${cap}px, calc((100vw - 58px) / ${b.size}))`;
-  return (
-    <div className="board" style={{ '--bsize': b.size, '--tile': tile }}>
-      {b.cells.map((_, i) => <Tile key={i} i={i} mode={mode} hiliteLair={hiliteLair} />)}
+  const targeting = mode !== 'puzzle' && (ui.targeting || ui.gadgetTargeting);
+  return <div className="board-shell">
+    <div className="board-tools">
+      <button type="button" className={`btn board-inspect-toggle ${inspectMode ? 'active' : ''}`} disabled={Boolean(targeting)}
+        aria-pressed={inspectMode} onClick={() => { setInspectMode(value => !value); setInspection(null); }}>
+        {inspectMode ? 'Finish inspection' : 'Inspect tiles'}
+      </button>
+      <small>Keyboard: arrows move · Enter digs · F flags · I inspects</small>
     </div>
-  );
+    <div className="board" role="grid" aria-label="Crypt board" style={{ '--bsize': b.size, '--tile': tile }}>
+      {b.cells.map((_, i) => <Tile key={i} i={i} mode={mode} hiliteLair={hiliteLair}
+        inspectMode={inspectMode} onInspect={(index, text) => setInspection({ index, text })} />)}
+    </div>
+    {inspection && <aside className="tile-inspection" role="status">
+      <div><b>Tile {Math.floor(inspection.index / b.size) + 1}, {inspection.index % b.size + 1}</b>
+        {inspection.text.split('\n').map(line => <span key={line}>{line}</span>)}</div>
+      <button type="button" className="btn" onClick={() => setInspection(null)}>Close</button>
+    </aside>}
+  </div>;
 }
