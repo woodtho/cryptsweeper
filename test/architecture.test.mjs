@@ -30,6 +30,15 @@ test('battle boards expose touch inspection and basic keyboard controls',
   board.includes('Inspect tiles') && board.includes('ArrowUp') && board.includes("toLowerCase() === 'f'")
     && board.includes("toLowerCase() === 'i'") && board.includes('data-board-tile'));
 
+const combat = source('src/ui/CombatScreen.jsx');
+const styles = source('src/styles.css');
+test('mobile hands retain their compact look with deal and flying-card animations',
+  combat.includes("if (showHand)") && combat.includes("selected ? 'selected' : ''")
+    && styles.includes('.handslot.selected') && styles.includes('.handslot.deal')
+    && styles.includes('.cardghost.played') && styles.includes('.cardghost.discard')
+    && styles.includes('.handslot, .handslot:hover, .handslot.selected { transform: none; }')
+    && styles.includes('.card.selected { transform: translateY(-4px); }'));
+
 const tutorial = source('src/ui/InteractiveTutorial.jsx');
 test('Mechanics Lab unlocks progressively after the guided tutorial',
   tutorial.includes('disabled={!guidedComplete}') && tutorial.includes('Finish guided descent'));
@@ -38,6 +47,9 @@ const screens = source('src/ui/screens.jsx');
 test('home screen presents Learn, Archive, and Settings as its secondary hierarchy',
   screens.includes('<span>Learn</span>') && screens.includes('<span>Archive</span>')
     && !screens.includes('<span>Speedrun records</span><small>Fastest completed descent'));
+test('home navigation styles Continue as forward and Back as the red return action',
+  screens.includes('className="home-action" onClick={() => loadRun(\'auto\')}><span>Continue descent</span>')
+    && screens.includes('className="btn primary" onClick={() => open(COLLECTION_PANELS.includes(panel)'));
 test('archive and record panels are split out of the large screen module',
   screens.includes("from './ArchivePanels.jsx'") && source('src/ui/ArchivePanels.jsx').includes('SpeedrunPanel'));
 

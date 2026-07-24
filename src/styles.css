@@ -1700,6 +1700,10 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
   transform: rotate(0deg) translateY(-14px);
   z-index: 6;
 }
+.handslot.selected {
+  transform: rotate(0deg) translateY(-14px);
+  z-index: 7;
+}
 /* cards are dealt from the draw pile, staggered */
 .handslot.deal { animation: dealin .34s cubic-bezier(.2, .9, .3, 1.25) backwards; }
 .handslot.invalid-card { animation: invalidcard .28s ease-out; }
@@ -2098,17 +2102,17 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
   }
   .hand {
     flex-wrap: nowrap; overflow-x: auto;
+    align-items: stretch;
     padding: 6px 2px 4px;
     scrollbar-width: thin;
   }
   .card { width: 146px; min-height: 192px; }
   .card:hover { transform: none; }
   .card.selected { transform: translateY(-4px); }
-  /* no fan on a scrolling tray */
-  .handslot { transform: none; }
-  .handslot:hover { transform: none; }
+  /* The touch tray keeps its compact straight resting layout. Deal and flying
+     card keyframes still provide the same lifecycle motion as larger screens. */
+  .handslot, .handslot:hover, .handslot.selected { transform: none; }
   .handslot { flex: none; }
-  .hand { align-items: stretch; padding-top: 4px; }
   .sndbtn {
     top: auto;
     bottom: calc(12px + var(--app-safe-bottom));

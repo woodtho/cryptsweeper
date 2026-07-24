@@ -157,7 +157,11 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
       }
     }
     prevHandRef.current = c.hand.map(x => ({ id: x.id, key: x.key, up: x.up }));
-    for (const card of c.hand) seenRef.current.ids.add(card.id);
+    // A closed mobile drawer has no card nodes to animate. Keep unseen cards
+    // fresh until the player opens the hand, then deal them into view.
+    if (showHand) {
+      for (const card of c.hand) seenRef.current.ids.add(card.id);
+    }
   });
 
   const minesLeft = b.cells.filter(x => x.mine && !x.void).length;
@@ -294,9 +298,10 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
             const center = (c.hand.length - 1) / 2;
             const isNew = !seenRef.current.ids.has(card.id);
             const invalid = ui.invalidCard?.cardId === card.id;
+            const selected = t ? t.handIdx === i : false;
             return (
               <div key={invalid ? `${card.id}-${ui.invalidCard.seq}` : card.id}
-                className={`handslot ${isNew ? 'deal' : ''} ${invalid ? 'invalid-card' : ''}`}
+                className={`handslot ${isNew ? 'deal' : ''} ${invalid ? 'invalid-card' : ''} ${selected ? 'selected' : ''}`}
                 style={{
                   '--rot': `${(i - center) * 2}deg`,
                   '--dip': `${Math.abs(i - center) * 4}px`,
@@ -309,7 +314,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
                   else nodesRef.current.delete(card.id);
                 }}>
                 <CardView card={card} inCombat
-                  selected={t ? t.handIdx === i : false}
+                  selected={selected}
                   dim={!affordable || def.unplayable}
                   onClick={() => clickHandCard(i)} />
               </div>

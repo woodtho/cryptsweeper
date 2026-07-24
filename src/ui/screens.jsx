@@ -141,7 +141,7 @@ export function TitleScreen({
 
       {panel === 'home' ? (
         <div className="home-menu" aria-label="Main menu">
-          {auto && <button className="home-action primary" onClick={() => loadRun('auto')}><span>Continue descent</span><small>{auto.stratum === 3 ? `Vein Depth ${auto.veinDepth || 0}` : `Stratum ${auto.stratum + 1}`} · {auto.hp}/{auto.maxHp} HP · {auto.floors} floors · {formatRunTime(auto.elapsedMs)}</small></button>}
+          {auto && <button className="home-action" onClick={() => loadRun('auto')}><span>Continue descent</span><small>{auto.stratum === 3 ? `Vein Depth ${auto.veinDepth || 0}` : `Stratum ${auto.stratum + 1}`} · {auto.hp}/{auto.maxHp} HP · {auto.floors} floors · {formatRunTime(auto.elapsedMs)}</small></button>}
           <button className="home-action" onClick={() => open('play')}><span>New run</span><small>Choose a Delver and enter the Undermine</small></button>
           <button className={`home-action daily challenge-home ${dailyPlayed ? '' : 'unplayed'}`} onClick={() => open('challenges')}>
             <span>Challenges {!dailyPlayed && <i className="daily-unplayed-badge"><b /> Daily unplayed</i>}</span>
@@ -157,7 +157,7 @@ export function TitleScreen({
       ) : (
         <section className="home-panel screenpanel">
           <div className="home-panel-head">
-            <button className="btn" onClick={() => open(COLLECTION_PANELS.includes(panel) ? 'collection' : 'home')}>← Back</button>
+            <button className="btn primary" onClick={() => open(COLLECTION_PANELS.includes(panel) ? 'collection' : 'home')}>← Back</button>
             <p className="eyebrow">{PANEL_TITLES[panel]}</p>
           </div>
 
