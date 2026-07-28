@@ -50,6 +50,7 @@ export const isHiddenUsable = (...args) => call('isHiddenUsable', args);
 export const area3x3 = (...args) => call('area3x3', args);
 export const highestRevealedNumber = (...args) => call('highestRevealedNumber', args);
 export const neighborsOf = (...args) => call('neighborsOf', args);
+export const outerRingIndices = (...args) => call('outerRingIndices', args);
 export const numAt = (...args) => call('numAt', args);
 export const toast = (...args) => call('toast', args);
 export const log = (...args) => call('log', args);

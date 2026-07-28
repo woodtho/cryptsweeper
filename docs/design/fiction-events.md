@@ -1,6 +1,6 @@
 # Fiction-first events
 
-CryptSweeper uses a deliberately small authored event deck. An event is a
+Flag the Deep uses a deliberately small authored event deck. An event is a
 physical situation in the Undermine, not a lesson or a disguised multiple-choice
 question. Its costs, rewards, uncertainty, and delayed consequences must follow
 from objects and people present in the scene.

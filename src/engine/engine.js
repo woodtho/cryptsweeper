@@ -1,4 +1,4 @@
-/* CRYPTSWEEPER — game engine (DOM-free). React subscribes via subscribe/getVersion;
+/* FLAG THE DEEP — game engine (DOM-free). React subscribes via subscribe/getVersion;
    every exported action mutates state then notify()s. Content data lives in data.js. */
 import {
   STRATA, CLASSES, CARDS, TRINKETS, GADGETS, ENEMIES, FIGHTS, NN99_PHASES, PERSISTENT_CURSES,
@@ -85,10 +85,14 @@ function saveReviver(key, value) {
 function saveSummary(slot, payload) {
   const r = payload.run;
   return {
-    slot, savedAt: payload.savedAt, cls: r.cls, hp: r.hp, maxHp: r.maxHp,
+    slot, name: payload.name || null, savedAt: payload.savedAt, cls: r.cls, hp: r.hp, maxHp: r.maxHp,
     stratum: r.stratum, floors: r.floors, veinDepth: r.veinDepth || 0, daily: r.daily || null,
     elapsedMs: Math.max(0, Number(r.elapsedMs) || 0),
   };
+}
+
+function normalizeSaveName(name) {
+  return String(name || '').replace(/\s+/g, ' ').trim().slice(0, 32);
 }
 
 function checkpointRunTimer(now = Date.now()) {
@@ -123,19 +127,35 @@ export function setRunTimerActive(active, now = Date.now()) {
   persistRun('auto');
 }
 
-function persistRun(slot) {
+function persistRun(slot, requestedName) {
   if (typeof localStorage === 'undefined' || !run) return false;
   try {
     checkpointRunTimer();
-    const payload = { version: SAVE_VERSION, savedAt: Date.now(), screen: ui.screen, cutscene: ui.cutscene, run };
+    let priorName = '';
+    if (slot !== 'auto' && requestedName === undefined) {
+      try { priorName = JSON.parse(localStorage.getItem(slotKey(slot)) || '{}').name || ''; } catch { /* new or corrupt slot */ }
+    }
+    const name = slot === 'auto' ? '' : normalizeSaveName(requestedName === undefined ? priorName : requestedName);
+    const screen = ui.screen === 'title'
+      ? (run.resumeScreen || (run.combat ? 'combat' : 'map'))
+      : ui.screen;
+    if (screen !== 'title') run.resumeScreen = screen;
+    const payload = {
+      version: SAVE_VERSION, savedAt: Date.now(), screen, cutscene: ui.cutscene, run,
+      ...(name ? { name } : {}),
+    };
     localStorage.setItem(slotKey(slot), JSON.stringify(payload, saveReplacer));
     return true;
   } catch { return false; }
 }
 
-export function saveRun(slot) {
-  const ok = persistRun(slot);
-  if (ok) toast(`Run saved to ${slot === 'auto' ? 'autosave' : slot}`);
+export function saveRun(slot, name) {
+  const ok = persistRun(slot, name);
+  if (ok) {
+    const destination = slot === 'auto' ? 'autosave' : normalizeSaveName(name)
+      || listSaves().find(save => save.slot === slot)?.name || `save slot ${slot.slice(-1)}`;
+    toast(`Run saved to ${destination}`);
+  }
   return ok;
 }
 
@@ -180,6 +200,7 @@ export function loadRun(slot) {
     run.speedrunEligible ??= !run.testMode;
     run.speedrunIneligibleReason ??= run.testMode ? 'Test Lab runs are not ranked.' : null;
     run.eventState ??= null;
+    run.resumeScreen ??= null;
     /* Catalog curation can retire generated cards and events between builds.
        Preserve the run wherever possible, but never leave a dead definition in
        a hand, reward, shop, or event screen. */
@@ -187,6 +208,13 @@ export function loadRun(slot) {
     if (!run.deck.length && CLASSES[run.cls]) run.deck = CLASSES[run.cls].deck.map(key => mkCard(key));
     if (run.reward?.cards) run.reward.cards = run.reward.cards.filter(card => CARDS[card.key]);
     if (run.shop?.cards) run.shop.cards = run.shop.cards.filter(card => CARDS[card.key]);
+    if (run.combat) {
+      for (const pile of ['draw', 'hand', 'discard', 'exhaust', 'powersPlayed']) {
+        if (Array.isArray(run.combat[pile])) {
+          run.combat[pile] = run.combat[pile].filter(card => CARDS[card.key]);
+        }
+      }
+    }
     run.seenEvents = (run.seenEvents || []).filter(key => EVENT_CATALOG[key]);
     run.eventThreads = Object.fromEntries(
       Object.entries(run.eventThreads).filter(([key]) => EVENT_CATALOG[key]?.followup),
@@ -215,7 +243,7 @@ export function loadRun(slot) {
       };
       run.combat.classState = {
         passiveUsed: false, scanCount: 0, kindleUsed: false, luckyUsed: false,
-        painUsed: false, exhaustUsed: false, deathUsed: false,
+        painUsed: false, exhaustUsed: false, deathUsed: false, constructBuiltThisTurn: false,
         ...run.combat.classState,
       };
     }
@@ -223,7 +251,7 @@ export function loadRun(slot) {
     seedRunCollection(run);
     /* older autosaves could be stamped 'title' by goHome — resume into gameplay */
     ui.screen = !payload.screen || payload.screen === 'title'
-      ? (run.combat ? 'combat' : 'map')
+      ? (run.resumeScreen || (run.combat ? 'combat' : 'map'))
       : payload.screen;
     /* Purchase-era saves could stop between strata on a retired paywall. Send
        them back to their boss reward so Finish can continue the now-free run. */
@@ -249,6 +277,7 @@ export function deleteSave(slot) {
 
 export function goHome() {
   setRunTimerActive(false);
+  run.resumeScreen = ui.screen;
   persistRun('auto'); // capture the resumable screen before leaving it
   ui.screen = 'title';
   ui.targeting = null; ui.gadgetTargeting = null; ui.modal = null; ui.cutscene = null; ui.flagMode = false; ui.battlePreview = null;
@@ -538,6 +567,42 @@ export function neighborsOf(i, size) {
     if (nr >= 0 && nr < size && nc >= 0 && nc < size) out.push(idxOf(nr, nc, size));
   }
   return out;
+}
+
+/* The visible perimeter of a shaped board. Generated combat boards include a
+   void padding row, so matrix coordinates 0/size-1 are not the playable edge.
+   Flooding exterior void also keeps enclosed holes (for example a donut board)
+   from being mistaken for the outer ring. */
+export function outerRingIndices(b = board()) {
+  if (!b?.cells?.length) return [];
+  const orthogonal = i => {
+    const r = Math.floor(i / b.size), c = i % b.size, out = [];
+    if (r > 0) out.push(i - b.size);
+    if (r < b.size - 1) out.push(i + b.size);
+    if (c > 0) out.push(i - 1);
+    if (c < b.size - 1) out.push(i + 1);
+    return out;
+  };
+  const exterior = new Set();
+  const queue = [];
+  for (let i = 0; i < b.cells.length; i++) {
+    const r = Math.floor(i / b.size), c = i % b.size;
+    if ((r === 0 || c === 0 || r === b.size - 1 || c === b.size - 1) && b.cells[i].void) {
+      exterior.add(i); queue.push(i);
+    }
+  }
+  while (queue.length) {
+    const i = queue.shift();
+    for (const next of orthogonal(i)) {
+      if (b.cells[next].void && !exterior.has(next)) { exterior.add(next); queue.push(next); }
+    }
+  }
+  return b.cells.flatMap((cell, i) => {
+    if (cell.void) return [];
+    const r = Math.floor(i / b.size), c = i % b.size;
+    const matrixEdge = r === 0 || c === 0 || r === b.size - 1 || c === b.size - 1;
+    return matrixEdge || orthogonal(i).some(next => exterior.has(next)) ? [i] : [];
+  });
 }
 
 /* Solvability scorer: fraction of safe tiles provable from `opening` with
@@ -1025,16 +1090,24 @@ export function verifyFlag(i) {
   if (isHiddenUsable(i)) { cell.flag = 2; sfx('flag'); }
 }
 
+export const MAX_CONSTRUCTS = 3;
+
 export function addConstruct(i, kind, opts = {}) {
   const cell = board().cells[i];
-  if (!cell || !cell.revealed || cell.void || cell.construct) return;
+  if (!cell || !cell.revealed || cell.void || cell.construct) return false;
+  if (board().cells.filter(candidate => candidate.construct).length >= MAX_CONSTRUCTS) {
+    toast(`Construct limit reached (${MAX_CONSTRUCTS}).`, true);
+    return false;
+  }
   cell.construct = { kind, ...opts };
   const names = { sentry: 'Sentry', bulwark: 'Bulwark', relay: 'Survey Relay' };
   log(`🏗 ${names[kind] || kind} built.`);
-  if (run.cls === 'terraformer') {
-    gainPlating(2);
-    toast('Master Builder: +2 Plating');
+  if (run.cls === 'terraformer' && !cbt().classState.constructBuiltThisTurn) {
+    cbt().classState.constructBuiltThisTurn = true;
+    gainBlock(4);
+    toast('Master Builder: first Construct this turn grants +4 Block');
   }
+  return true;
 }
 
 /* Full Clear is a payoff, not a win condition: the collapse deals heavy damage to
@@ -1067,11 +1140,26 @@ function checkFullClear() {
 /* Replace the current board mid-combat (Full Clear re-seal, NN-99 phases). */
 function regenBoard(size, mines) {
   const c = cbt();
+  const constructs = c.board?.cells.flatMap(cell => cell.construct ? [{ ...cell.construct }] : []) || [];
   clearPrimed();
   c.lie = null;
   c.board = genBoard(size, mines);
   c.setup = true;
   openSafe(c.board.opening);
+  const availableSites = () => c.board.cells
+    .map((cell, index) => ({ cell, index }))
+    .filter(({ cell }) => cell.revealed && !cell.void && !cell.crater && !cell.construct);
+  for (const construct of constructs) {
+    let site = availableSites()[0];
+    if (!site) {
+      site = c.board.cells
+        .map((cell, index) => ({ cell, index }))
+        .find(({ cell }) => !cell.void && !cell.mine && !cell.construct);
+      if (site) { site.cell.revealed = true; site.cell.ever = true; }
+    }
+    if (site) site.cell.construct = construct;
+  }
+  if (constructs.length) log(`🏗 ${constructs.length} Construct${constructs.length === 1 ? '' : 's'} braced through the shifting board.`);
   c.setup = false;
   for (const e of c.enemies) {
     if (e.hp > 0 && e.data.buried) {
@@ -1159,7 +1247,8 @@ export function boardAttack(desc, fn) {
   const b = board();
   const ci = b.cells.findIndex(c => c.construct);
   if (ci >= 0) {
-    const name = b.cells[ci].construct.kind === 'sentry' ? 'Sentry' : 'Bulwark';
+    const names = { sentry: 'Sentry', bulwark: 'Bulwark', relay: 'Survey Relay' };
+    const name = names[b.cells[ci].construct.kind] || 'Construct';
     b.cells[ci].construct = null;
     log(`${desc} — your ${name} absorbs the blow and crumbles.`);
     toast(`${name} destroyed (absorbed board attack)`, true);
@@ -1272,7 +1361,13 @@ export function devourRing() {
     if (cell.void) continue;
     const r = Math.floor(i / b.size), col = i % b.size;
     if (r !== minR && r !== maxR && col !== minC && col !== maxC) continue;
-    if (cell.construct) cell.construct = null;
+    if (cell.construct) {
+      const names = { sentry: 'Sentry', bulwark: 'Bulwark', relay: 'Survey Relay' };
+      const name = names[cell.construct.kind] || 'Construct';
+      log(`🕳 The Collapser devours your ${name}.`);
+      toast(`${name} destroyed by Devour`, true);
+      cell.construct = null;
+    }
     if (cell.grub) { cell.grub = false; unburyAt(i); }
     if (c.primed === i) { c.primed = null; cell.primed = false; }
     if (!cell.revealed && !cell.entombed && cell.mine) {
@@ -1295,7 +1390,16 @@ export function atk(n) {
   return Math.max(0, n - rubble);
 }
 export function gainBlock(n) { if (!run?.combat) return; cbt().block += n; sfx('block'); log(`🛡 +${n} Block`); }
-export function gainPlating(n) { if (!run?.combat) return; cbt().plating += n; sfx('plating'); log(`⛨ +${n} Plating`); }
+export const MAX_PLATING = 40;
+export function gainPlating(n) {
+  if (!run?.combat || n <= 0) return 0;
+  const before = cbt().plating;
+  cbt().plating = Math.min(MAX_PLATING, cbt().plating + n);
+  const gained = cbt().plating - before;
+  if (gained > 0) { sfx('plating'); log(`⛨ +${gained} Plating`); }
+  if (gained < n) toast(`Plating is capped at ${MAX_PLATING}.`, true);
+  return gained;
+}
 function absorbPlating(n) {
   const c = cbt();
   if (!c || n <= 0) return { soak: 0, rest: Math.max(0, n) };
@@ -1606,7 +1710,7 @@ export function startCombat(kind) {
     },
     classState: {
       passiveUsed: false, scanCount: 0, kindleUsed: false, luckyUsed: false,
-      painUsed: false, exhaustUsed: false, deathUsed: false,
+      painUsed: false, exhaustUsed: false, deathUsed: false, constructBuiltThisTurn: false,
     },
     instinctUsed: 0, gogglesUsed: false, compassUsed: false, canaryUsed: false, keystoneUsed: false,
     nitro: 0, nitroBoost: 0, lie: null, primed: null, targetIdx: 0,
@@ -1688,6 +1792,7 @@ function startTurn() {
   c.classState.luckyUsed = false;
   c.classState.painUsed = false;
   c.classState.exhaustUsed = false;
+  c.classState.constructBuiltThisTurn = false;
   c.powers.blastDividendUsed = false;
   c.signalCoreUsed = false;
   c.dowsingScanUses = 0;
@@ -1761,7 +1866,7 @@ export function endTurn() {
   for (let i = 0; i < b.cells.length; i++) {
     const con = b.cells[i].construct;
     if (!con || c.over) continue;
-    const repeats = c.powers.stonechoir ? 2 : 1;
+    const repeats = c.powers.stonechoir && con.kind !== 'bulwark' ? 2 : 1;
     for (let n = 0; n < repeats && !c.over; n++) {
       if (con.kind === 'sentry') { log('🗼 Sentry fires.'); hitRandom(con.dmg); }
       else if (con.kind === 'bulwark') { gainPlating(con.plating); gainBlock(con.block); }
@@ -2012,8 +2117,7 @@ function combatVictory() {
 
 const CURATED_NEUTRAL_REWARDS = [
   'resonanttap', 'stonechorus', 'steadyhand', 'lanternloan', 'hardlesson', 'emergencyexit',
-  'bandage', 'mendingsalts', 'lastlight', 'stonepoultice', 'triagekit', 'gravemoss',
-  'secondwind', 'signaljam', 'sunderingchalk', 'gravebind',
+  'bandage', 'lastlight', 'gravemoss', 'signaljam', 'sunderingchalk', 'gravebind',
 ];
 
 export function rewardPoolFor(clsKey) {
@@ -2219,6 +2323,7 @@ export function doUpgrade(deckIdx) {
   ui.modal = null;
   toast(`${CARDS[run.deck[deckIdx].key].name}+ !`);
   deckChanged('upgrade', `${CARDS[run.deck[deckIdx].key].name} was upgraded`);
+  if (ui.screen === 'puzzle' && run.puzzle) run.puzzle.active = false;
   if (ui.screen === 'camp' || ui.screen === 'puzzle') ui.screen = 'map';
   notify();
 }
@@ -2281,6 +2386,7 @@ export function doRemove(deckIdx) {
   notify();
 }
 export function gotoMap() {
+  if (ui.screen === 'puzzle' && run.puzzle) run.puzzle.active = false;
   ui.screen = 'map';
   notify();
 }
@@ -2706,6 +2812,7 @@ export function startPuzzle(type = 'mines') {
   else if (family === 'lights') startLightsPuzzle(difficulty);
   else if (family === 'nonogram') startNonogramPuzzle(difficulty);
   else startMinesPuzzle(difficulty);
+  run.puzzle.active = true;
   ui.screen = 'puzzle';
   ui.flagMode = false;
   notify();
@@ -2722,12 +2829,59 @@ function puzzleFlood(start) {
     if (numL(i) === 0) for (const j of neighborsOf(i, b.size)) q.push(j);
   }
 }
+function checkMinesPuzzleSolved() {
+  const p = run.puzzle;
+  if (p.board.cells.every(c => c.mine || c.revealed)) {
+    p.solved = true;
+    toast('★ Flawless. The stone offers its secret.');
+    return true;
+  }
+  return false;
+}
+export function puzzleChordAt(i) {
+  const p = run.puzzle;
+  if (!p || (p.type && p.type !== 'mines') || p.failed || p.solved) {
+    return { attempted: false, ok: false, reason: 'No active Minesweeper puzzle.' };
+  }
+  const b = p.board, cell = b.cells[i];
+  if (!cell?.revealed) return { attempted: false, ok: false, reason: 'Chord a revealed number.' };
+  const adjacent = neighborsOf(i, b.size);
+  const number = adjacent.filter(j => b.cells[j].mine).length;
+  const unopened = adjacent.filter(j => !b.cells[j].revealed && !b.cells[j].flag);
+  if (number <= 0 || !unopened.length) {
+    return { attempted: false, ok: false, reason: 'This tile has nothing to Chord.' };
+  }
+  const flags = adjacent.filter(j => b.cells[j].flag).length;
+  if (flags !== number) {
+    return {
+      attempted: false, ok: false,
+      reason: `This ${number} needs ${number} adjacent flag${number === 1 ? '' : 's'}; it has ${flags}.`,
+    };
+  }
+
+  sfx('chord');
+  const exposedMine = unopened.find(j => b.cells[j].mine);
+  if (exposedMine != null) {
+    const mine = b.cells[exposedMine];
+    mine.revealed = true; mine.crater = true; mine.mine = false;
+    p.failed = true;
+    sfx('boom'); haptic('mine');
+    toast('False Chord! A misplaced flag exposes the real mine.', true);
+    notify();
+    return { attempted: true, ok: false, detonated: exposedMine };
+  }
+
+  for (const j of unopened) puzzleFlood(j);
+  checkMinesPuzzleSolved();
+  notify();
+  return { attempted: true, ok: true, revealed: unopened.length };
+}
 export function puzzleClick(i) {
   const p = run.puzzle;
   if (p.type && p.type !== 'mines') return;
   if (p.failed || p.solved) return;
   const cell = p.board.cells[i];
-  if (cell.revealed) return;
+  if (cell.revealed) return puzzleChordAt(i);
   if (ui.flagMode) { cell.flag = cell.flag ? 0 : 1; notify(); return; }
   if (cell.flag) return;
   if (p.scanMode) {
@@ -2742,10 +2896,7 @@ export function puzzleClick(i) {
     return;
   }
   puzzleFlood(i);
-  if (p.board.cells.every(c => c.mine || c.revealed)) {
-    p.solved = true;
-    toast('★ Flawless. The stone offers its secret.');
-  }
+  checkMinesPuzzleSolved();
   notify();
 }
 export function puzzleToggleFlag(i) {
@@ -2909,6 +3060,7 @@ bindRuntime({
   detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
   chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
   highestRevealedNumber, neighborsOf, numAt, toast, log, fleeCombat,
+  outerRingIndices,
   enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
   setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
   annexTiles, addMineAt,

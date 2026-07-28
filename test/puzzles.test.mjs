@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import {
   run, newRun, closeCutscene, startPuzzle, neighborsOf, solveScore,
-  puzzleClick, setLogicPuzzleCell, toggleSudokuNoteMode, toggleLightsCell, toggleNonogramCell,
+  puzzleClick, puzzleChordAt, puzzleToggleFlag, setLogicPuzzleCell, toggleSudokuNoteMode, toggleLightsCell, toggleNonogramCell,
   answerSequence, checkLogicPuzzle, saveRun, loadRun, deleteSave,
 } from '../src/engine/engine.js';
 import {
@@ -104,6 +104,30 @@ for (const [type, size] of [['mines',6], ['mines-medium',7], ['mines-hard',8]]) 
   }
   test(`${type} generates 30 fully provable boards`, valid);
 }
+
+const puzzleCell = mine => ({
+  mine, revealed:false, flag:0, entombed:false, void:false, ever:false,
+  crater:false, scan:null, construct:null, grub:false, primed:false, glow:false,
+});
+function chordBoard(flagIndex) {
+  fresh(`puzzle-chord-${flagIndex}`); startPuzzle('mines');
+  const cells = Array.from({ length:9 }, () => puzzleCell(false));
+  cells[0].mine = true;
+  cells[4].revealed = true;
+  run.puzzle.board = { size:3, cells };
+  puzzleToggleFlag(flagIndex);
+}
+chordBoard(0);
+const correctChord = puzzleChordAt(4);
+test('Honest Minesweeper Chord opens neighbors when every matching flag is correct',
+  correctChord.attempted && correctChord.ok && run.puzzle.solved
+    && run.puzzle.board.cells.every(cell => cell.mine || cell.revealed));
+
+chordBoard(2);
+const falseChord = puzzleClick(4);
+test('Honest Minesweeper false Chord detonates an unflagged mine',
+  falseChord.attempted && !falseChord.ok && run.puzzle.failed
+    && run.puzzle.board.cells[0].crater && !run.puzzle.board.cells[0].mine);
 
 /* Sequences: each level has one offered answer and gives no solving explanation. */
 for (const type of ['sequence', 'sequence-medium', 'sequence-hard']) {

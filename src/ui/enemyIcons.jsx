@@ -1,4 +1,4 @@
-/* CRYPTSWEEPER — Delver's Bestiary: ten original monster marks, plus the
+/* FLAG THE DEEP — Delver's Bestiary: ten original monster marks, plus the
    enemy icon styles that map every foe to a face. Same drawn language as the
    map's Delver's Marks: 24×24, 1.7px round strokes, currentColor throughout.
    Tokens are stored as 'svg:<name>' so they survive in preferences. */

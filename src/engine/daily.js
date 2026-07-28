@@ -1,4 +1,4 @@
-/* CRYPTSWEEPER — daily challenge records.
+/* FLAG THE DEEP — daily challenge records.
    One entry per date key: attempts, best score, whether it was ever won, and
    whether a win happened on the actual calendar day ("on time") versus later.
    Any past date can be replayed — the daily seed is just the date string. */

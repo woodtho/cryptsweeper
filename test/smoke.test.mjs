@@ -1,14 +1,14 @@
-/* Headless smoke test for the Cryptsweeper engine (no DOM, no React). */
+/* Headless smoke test for the Flag the Deep engine (no DOM, no React). */
 import {
   run, ui, cbt, board,
-  genBoard, solveScore, neighborsOf, numAt, hiddenIdx, isHiddenUsable,
+  genBoard, solveScore, neighborsOf, outerRingIndices, numAt, hiddenIdx, isHiddenUsable,
   newRun, reachableNodes, startCombat, revealTile, openSafe, chordAt, endTurn,
   takeRewardCard, takeBossTrinket, takeVeinBoon, finishReward, genShop, buyShopCard,
   startPuzzle, puzzleClick, devourRing, hitEnemy, checkNNPhase,
   detonateForCards, fleeCombat,
   SHAPES, annexTiles, addMineAt, clickTile, basePicksFor,
   saveRun, listSaves, loadRun, deleteSave, goHome,
-  scanTile, addConstruct,
+  scanTile, addConstruct, gainPlating, MAX_CONSTRUCTS, MAX_PLATING,
   campTrainPicks, closeCutscene, closeBattlePreview, closeModal,
   EVENT_CATALOG, eventChoice, currentEventView, startSpecificEvent, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
   toggleLightsCell, toggleNonogramCell, answerSequence,
@@ -349,10 +349,18 @@ retiredCatalogSave.run.eventState = { version:1, stage:'choice' };
 retiredCatalogSave.run.deck.push({ id:999998, key:'x500_sapper_0', up:0 });
 retiredCatalogSave.run.reward = { cards:[{ key:'x500_sapper_1', up:0 }] };
 retiredCatalogSave.run.shop = { cards:[{ key:'x500_sapper_2', sold:false }] };
+retiredCatalogSave.run.combat = {
+  draw: [{ id:999997, key:'mendingsalts', up:0 }],
+  hand: [{ id:999996, key:'stonepoultice', up:0 }],
+  discard: [{ id:999995, key:'triagekit', up:0 }],
+  exhaust: [{ id:999994, key:'secondwind', up:0 }],
+  powersPlayed: [],
+};
 localStorage.setItem('cryptsweeper.save.v1.slot3', JSON.stringify(retiredCatalogSave));
 T('catalog migration removes retired cards and exits removed events safely', loadRun('slot3')
   && ui.screen === 'map' && !R().deck.some(card => card.key.startsWith('x500_'))
-  && R().reward.cards.length === 0 && R().shop.cards.length === 0);
+  && R().reward.cards.length === 0 && R().shop.cards.length === 0
+  && ['draw', 'hand', 'discard', 'exhaust'].every(pile => R().combat[pile].length === 0));
 deleteSave('slot3');
 
 let allEventPathsResolve = true;
@@ -406,9 +414,11 @@ T('NN-99 phase 2 regenerates a denser board (12+2 grid)', board().size === 14);
 {
   const open = board().cells.findIndex(c => c.revealed && !c.construct && !c.void);
   if (open >= 0) {
-    const { addConstruct } = await import('../src/engine/engine.js');
     addConstruct(open, 'sentry', { dmg: 5 });
     T('addConstruct builds a Sentry on a revealed tile', board().cells[open].construct?.kind === 'sentry');
+    nn.hp = 70; checkNNPhase(nn);
+    T('Constructs survive NN-99 board shifts instead of silently expiring',
+      board().cells.filter(cell => cell.construct?.kind === 'sentry').length === 1);
   }
 }
 
@@ -435,6 +445,16 @@ startCombat('dig');
   T('Scaffold annexes pre-scanned safe tiles',
     board().cells.filter(x => !x.void).length === playable1 + 3
     && board().cells.filter(x => !x.void && x.scan === 'safe' && !x.mine).length >= 3);
+  const ring = outerRingIndices(board());
+  const ringMine = ring.find(i => !board().cells[i].entombed);
+  for (const i of ring) if (!board().cells[i].entombed) board().cells[i].revealed = false;
+  board().cells[ringMine].mine = true;
+  const enemyHpBeforeSlide = cc.enemies[0].hp;
+  CARDS.landslide.play(0);
+  T('Landslide uses the visible shaped-board perimeter, removes its mines, and deals damage',
+    ring.length > 0 && ring.every(i => !board().cells[i].void)
+    && !board().cells[ringMine].mine && board().cells[ringMine].revealed
+    && cc.enemies[0].hp < enemyHpBeforeSlide);
 
   const classPicks = basePicksFor(R().cls);
   T('turn starts with the selected Delver\'s picks', cc.picks === classPicks);
@@ -470,7 +490,8 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
 /* 13 — persistent saves restore Sets and live enemy definitions */
 {
   const hp = R().hp;
-  T('named save writes metadata', saveRun('slot1') && listSaves().some(s => s.slot === 'slot1' && s.hp === hp));
+  T('named save writes its user-facing name and metadata', saveRun('slot1', 'The Crooked Lantern')
+    && listSaves().some(s => s.slot === 'slot1' && s.name === 'The Crooked Lantern' && s.hp === hp));
   R().hp = 1;
   T('named save restores run state', loadRun('slot1') && R().hp === hp);
   T('loaded map edges are Sets', Object.values(R().map.edges).every(edge => edge instanceof Set));
@@ -489,6 +510,19 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   legacy.screen = 'title'; // saves written before the goHome fix look like this
   localStorage.setItem(key, JSON.stringify(legacy));
   T('title-stamped legacy autosave still resumes', loadRun('auto') && ui.screen !== 'title');
+}
+
+/* 13c — saving from the title keeps an active Honest Puzzle resumable */
+{
+  startPuzzle('sudoku');
+  setLogicPuzzleCell(R().puzzle.givens.includes(0) ? 1 : 0, 2);
+  const puzzleSignature = JSON.stringify(R().puzzle);
+  goHome();
+  T('saving a named checkpoint from home retains the puzzle resume screen',
+    saveRun('slot2', 'Half-solved Runes') && listSaves().find(save => save.slot === 'slot2')?.name === 'Half-solved Runes');
+  T('loading that home-written checkpoint returns to the same puzzle state',
+    loadRun('slot2') && ui.screen === 'puzzle' && R().puzzle.active && JSON.stringify(R().puzzle) === puzzleSignature);
+  deleteSave('slot2');
 }
 
 /* 14 — the daily challenge seed is repeatable */
@@ -535,10 +569,24 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   T('Surveyor Field Method rewards four fresh scans', cbt().energy === energy0 + 1 && cbt().insight === insight0b + 1);
 
   newRun('terraformer'); startCombat('dig');
-  const open = board().cells.findIndex(c => c.revealed && !c.void && !c.construct);
-  const plating0 = cbt().plating;
-  addConstruct(open, 'relay', { block: 2 });
-  T('Terraformer Master Builder grants Plating', cbt().plating === plating0 + 2 && board().cells[open].construct?.kind === 'relay');
+  const openTiles = board().cells.map((c, i) => c.revealed && !c.void ? i : -1).filter(i => i >= 0);
+  const block0 = cbt().block, plating0 = cbt().plating;
+  addConstruct(openTiles[0], 'relay', { block: 2 });
+  addConstruct(openTiles[1], 'bulwark', { plating: 1, block: 3 });
+  addConstruct(openTiles[2], 'relay', { block: 2 });
+  T('Terraformer Master Builder grants temporary Block only once per turn',
+    cbt().block === block0 + 4 && cbt().plating === plating0
+    && board().cells.filter(cell => cell.construct).length === MAX_CONSTRUCTS);
+  T('Terraformer cannot exceed three active Constructs',
+    addConstruct(openTiles[3], 'sentry', { dmg: 5 }) === false
+    && board().cells.filter(cell => cell.construct).length === MAX_CONSTRUCTS);
+  cbt().plating = 0;
+  cbt().powers.stonechoir = true;
+  cbt().enemies = [];
+  endTurn();
+  T('Stone Choir does not double persistent Bulwark Plating', cbt().plating === 1);
+  gainPlating(MAX_PLATING + 10);
+  T('persistent Plating cannot grow beyond its combat cap', cbt().plating === MAX_PLATING);
 }
 
 /* 16 — complete Delver roster, persistent unlocks, and the 200-card catalog */
@@ -568,21 +616,23 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     startCombat('dig');
     return cbt().picks === expectedBasePicks[cls] && cbt().maxPicks === expectedBasePicks[cls];
   }));
-T('catalog is curated down to exactly 217 uniquely named cards', Object.keys(CARDS).length === 217
-    && new Set(Object.values(CARDS).map(card => card.name)).size === 217);
+T('catalog is curated down to exactly 213 uniquely named cards', Object.keys(CARDS).length === 213
+    && new Set(Object.values(CARDS).map(card => card.name)).size === 213);
 T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   ['chordcard','resonanttap','stonechorus'].every(key => CARDS[key].cost[0] === 0 && CARDS[key].cost[1] === 0
     && CARDS[key].targets.includes('number')));
-  T('eight healing cards provide varied, exhaust-limited recovery',
-    ['bandage','mendingsalts','lastlight','stonepoultice','triagekit','gravemoss','secondwind']
+  T('four healing cards cover distinct recovery roles without flooding rewards',
+    ['bandage','lastlight','gravemoss']
       .every(key => CARDS[key]?.cls === 'neutral' && CARDS[key].exhaust && CARDS[key].can)
-      && CARDS.bedrockshelter?.cls === 'terraformer' && CARDS.bedrockshelter.exhaust && CARDS.bedrockshelter.can);
+      && CARDS.bedrockshelter?.cls === 'terraformer' && CARDS.bedrockshelter.exhaust && CARDS.bedrockshelter.can
+      && ['mendingsalts','stonepoultice','triagekit','secondwind'].every(key => !CARDS[key])
+      && rewardPoolFor('terraformer').includes('bedrockshelter'));
   newRun('sapper', { daily:'healing-card' }); R().hp -= 20; startCombat('dig');
   const beforeBandage = R().hp; CARDS.bandage.play(0);
   T('Bandage restores persistent run HP without exceeding maximum HP', R().hp === beforeBandage + 4 && R().hp <= R().maxHp);
   newRun('sapper', { challenge:'brittle', daily:'brittle-healing-card' }); R().hp -= 20; startCombat('dig');
-  const beforeSalts = R().hp; CARDS.mendingsalts.play(0);
-  T('Brittle Bones also halves recovery from healing cards', R().hp === beforeSalts + 4);
+  const beforeBrittleBandage = R().hp; CARDS.bandage.play(0);
+  T('Brittle Bones also halves recovery from healing cards', R().hp === beforeBrittleBandage + 2);
   newRun('sapper', { daily:'enemy-condition-card' }); startCombat('boss');
   const conditionBoss = cbt().enemies[0];
   T('all enemy conditions explicitly support boss targets', conditionBoss.def.boss

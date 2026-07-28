@@ -1,6 +1,6 @@
-/* CRYPTSWEEPER — game data: strata, classes, cards, enemies, trinkets, gadgets.
-   Effects call engine verbs at play-time (the engine↔data import cycle is safe:
-   nothing here invokes engine code during module evaluation). */
+/* FLAG THE DEEP — game data: strata, classes, cards, enemies, trinkets, gadgets.
+   Effects call runtime-bound engine verbs at play-time, so this catalog remains
+   safe to import without creating an engine↔data cycle. */
 import {
   cbt, board, shuffle, randPick, randInt,
   revealTile, hitEnemy, hitRandom, hitAll, curTarget, atk,
@@ -8,7 +8,7 @@ import {
   loseMaxPicks, spendPicks, drawCards, loseHP, healHP, canHeal, applyEnemyEffect,
   detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
   chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
-  highestRevealedNumber, neighborsOf, numAt, toast, log, fleeCombat,
+  highestRevealedNumber, neighborsOf, outerRingIndices, numAt, toast, log, fleeCombat,
   enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
   setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
   annexTiles, addMineAt,
@@ -50,12 +50,12 @@ export const CLASSES = {
     rewardPool: ['triangulate','deduction','surveystakes','chordcard','sixthsense','fieldnotes','pinpoint','wholepicture','crosssection','knownquantity','eureka'],
   },
   terraformer: {
-    name: 'THE TERRAFORMER', hp: 72, picks: 4, sig: 'entombcard', trinket: 'keystone',
-    role: '72 HP · board editor · "a mine is terrain"',
+    name: 'THE TERRAFORMER', hp: 68, picks: 4, sig: 'entombcard', trinket: 'keystone',
+    role: '68 HP · board editor · "a mine is terrain"',
     blurb: 'The grid is clay: seal tiles, swap them, and build constructs that act every turn and soak enemy board attacks.',
-    passive: '<b>Master Builder:</b> whenever you build a construct, gain 2 Plating.',
+    passive: '<b>Master Builder:</b> the first Construct you build each turn grants 4 Block. You can maintain up to 3 Constructs.',
     deck: ['probe', 'probe', 'brace', 'brace', 'brace', 'entombcard', 'entombcard', 'sentry', 'propshaft', 'resonanttap'],
-    rewardPool: ['sentry','propshaft','scaffold','leylines','bulwark','landslide','surveyrelay','stonechoir','citybelow'],
+    rewardPool: ['sentry','propshaft','scaffold','leylines','bulwark','landslide','surveyrelay','stonechoir','citybelow','bedrockshelter'],
   },
   lamplighter: {
     name: 'THE LAMPLIGHTER', hp: 68, picks: 4, sig: 'exp_lamplighter_0', trinket: 'emberjar',
@@ -120,6 +120,7 @@ const kwR = s => `<span class="kw reveal">${s}</span>`;
 const kwD = s => `<span class="kw detonate">${s}</span>`;
 const kwS = s => `<span class="kw scan">${s}</span>`;
 const kwG = s => `<span class="kw gridk">${s}</span>`;
+const hasConstructRoom = () => board().cells.filter(cell => cell.construct).length < 3;
 
 /* ---------------- cards ----------------
    cost: [base, upgraded]. targets: list of tile-target specs collected in order:
@@ -380,6 +381,7 @@ export const CARDS = {
   sentry: {
     name: 'Sentry', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1], hits: 'random',
     targets: ['open'],
+    can: hasConstructRoom, canMsg: 'Construct limit reached (3).',
     text: u => `Build a Sentry on the chosen revealed tile. At the end of each turn, it deals ${u ? 7 : 5} damage to a random enemy. Enemy board attacks hit constructs first.`,
     play: (u, tg) => addConstruct(tg[0], 'sentry', { dmg: u ? 7 : 5 }),
   },
@@ -415,8 +417,9 @@ export const CARDS = {
   bulwark: {
     name: 'Bulwark', type: 'Skill', rarity: 'uncommon', cls: 'terraformer', cost: [2, 2],
     targets: ['open'],
-    text: u => `Build a Bulwark on the chosen revealed tile. At the end of each turn, gain ${u ? 3 : 2} ${kwG('Plating')} and ${u ? 4 : 3} Block.`,
-    play: (u, tg) => addConstruct(tg[0], 'bulwark', { plating: u ? 3 : 2, block: u ? 4 : 3 }),
+    can: hasConstructRoom, canMsg: 'Construct limit reached (3).',
+    text: u => `Build a Bulwark on the chosen revealed tile. At the end of each turn, gain ${u ? 2 : 1} ${kwG('Plating')} and ${u ? 4 : 3} Block. Stone Choir does not double Bulwarks.`,
+    play: (u, tg) => addConstruct(tg[0], 'bulwark', { plating: u ? 2 : 1, block: u ? 4 : 3 }),
   },
   landslide: {
     name: 'Landslide', type: 'Attack', rarity: 'rare', cls: 'terraformer', cost: [3, 3], hits: 'all',
@@ -424,40 +427,40 @@ export const CARDS = {
     text: u => `Reveal every hidden tile in the outer ring, safely removing its mines. Deal ${u ? 5 : 4} damage to all enemies for each tile revealed this way.`,
     play: u => {
       const b = board(); let n = 0;
-      for (let i = 0; i < b.cells.length; i++) {
+      for (const i of outerRingIndices(b)) {
         if (board() !== b) break; // board re-sealed mid-slide
-        const r = Math.floor(i / b.size), c = i % b.size;
-        if (r !== 0 && c !== 0 && r !== b.size - 1 && c !== b.size - 1) continue;
         const cell = b.cells[i];
-        if (cell.void || cell.revealed || cell.entombed) continue;
+        if (cell.revealed || cell.entombed) continue;
         if (cell.mine) { cell.mine = false; cell.flag = 0; log('A mine crumbles away in the landslide.'); }
         revealTile(i, 'card-safe'); n++;
       }
+      if (!n) toast('The outer ring is already clear.', true);
       hitAll(atk((u ? 5 : 4) * n));
     },
   },
   surveyrelay: {
     name: 'Survey Relay', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1],
     targets: ['open'],
+    can: hasConstructRoom, canMsg: 'Construct limit reached (3).',
     text: u => `Build a Relay on the chosen revealed tile. At the end of each turn, ${kwS('Scan')} a random hidden tile and gain ${u ? 4 : 2} Block. Enemy board attacks hit constructs first.`,
     play: (u, tg) => addConstruct(tg[0], 'relay', { block: u ? 4 : 2 }),
   },
   stonechoir: {
     name: 'Stone Choir', type: 'Power', rarity: 'uncommon', cls: 'terraformer', cost: [2, 1],
     targets: [],
-    text: () => `For the rest of this combat, your constructs trigger twice at the end of each turn.`,
+    text: () => `For the rest of this combat, Sentries and Survey Relays trigger twice at the end of each turn. Bulwarks trigger once.`,
     play: () => { cbt().powers.stonechoir = true; },
   },
   citybelow: {
     name: 'The City Below', type: 'Attack', rarity: 'rare', cls: 'terraformer', cost: [2, 2], hits: 'all',
     targets: [],
-    text: u => `For each construct, deal ${u ? 13 : 10} damage to all enemies and gain ${u ? 3 : 2} Plating.`,
+    text: u => `For each construct, deal ${u ? 13 : 10} damage to all enemies and gain ${u ? 2 : 1} Plating.`,
     can: () => board().cells.some(c => c.construct),
     canMsg: 'Build a construct first.',
     play: u => {
       const n = board().cells.filter(c => c.construct).length;
       hitAll(atk(n * (u ? 13 : 10)));
-      if (cbt()) gainPlating(n * (u ? 3 : 2));
+      if (cbt()) gainPlating(n * (u ? 2 : 1));
     },
   },
 
@@ -561,12 +564,8 @@ Object.assign(CARDS, {
   hardlesson: { name:'Hard Lesson',type:'Attack',rarity:'uncommon',cls:'neutral',cost:[0,0],hits:'target',targets:[],can:()=>cbt().picks>0,canMsg:'No picks left to spend.',text:u=>`Spend up to 3 picks. Deal ${u?8:6} damage to the targeted enemy for each pick spent.`,play:u=>hitEnemy(curTarget(),atk(spendPicks(3)*(u?8:6))) },
   emergencyexit: { name:'Emergency Exit',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,1],targets:[],text:u=>`Lose 1 max pick for the rest of this combat. Gain ${u?16:12} Plating and draw 2 cards.`,play:u=>{loseMaxPicks(1);gainPlating(u?16:12);drawCards(2);} },
   bandage: { name:'Bandage',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?6:4} HP. Exhaust.`,play:u=>healHP(u?6:4) },
-  mendingsalts: { name:'Mending Salts',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[2,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?10:7} HP. Exhaust.`,play:u=>healHP(u?10:7) },
   lastlight: { name:'Final Ember',type:'Skill',rarity:'rare',cls:'neutral',cost:[2,2],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Lose 1 max pick for the rest of this combat. Recover ${u?15:11} HP. Exhaust.`,play:u=>{loseMaxPicks(1);healHP(u?15:11);} },
-  stonepoultice: { name:'Stone Poultice',type:'Skill',rarity:'common',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?5:3} HP. Gain ${u?5:3} Block. Exhaust.`,play:u=>{healHP(u?5:3);gainBlock(u?5:3);} },
-  triagekit: { name:'Triage Kit',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover 2 HP plus 2 for each other card Exhausted this combat, up to ${u?12:8} HP. Exhaust.`,play:u=>healHP(Math.min(u?12:8,2+cbt().exhaust.length*2)) },
   gravemoss: { name:'Grave Moss',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Spend up to ${u?3:2} picks. Recover 3 HP for each pick spent, then recover 2 HP. Exhaust.`,play:u=>healHP(spendPicks(u?3:2)*3+2) },
-  secondwind: { name:'Second Wind',type:'Skill',rarity:'rare',cls:'neutral',cost:[0,0],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover ${u?10:7} HP. Exhaust.`,play:u=>healHP(u?10:7) },
   bedrockshelter: { name:'Bedrock Shelter',type:'Skill',rarity:'uncommon',cls:'terraformer',cost:[1,1],targets:[],exhaust:true,can:canHeal,canMsg:'Already at full HP.',text:u=>`Recover 3 HP plus 2 for each Construct, up to ${u?13:9} HP. Exhaust.`,play:u=>healHP(Math.min(u?13:9,3+board().cells.filter(cell=>cell.construct).length*2)) },
   faultline: { name:'Fault Line',type:'Attack',rarity:'common',cls:'neutral',cost:[1,1],targets:[],hits:'target',text:u=>`Deal ${u?7:5} damage. Apply ${u?2:1} Exposed to the targeted enemy. Exposed makes the next hit deal 25% more damage. Works on bosses.`,play:u=>{const e=curTarget();hitEnemy(e,atk(u?7:5));applyEnemyEffect(e,'exposed',u?2:1);} },
   signaljam: { name:'Signal Jam',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[1,1],targets:[],hits:'target',text:u=>`Apply ${u?2:1} Jammed to the targeted enemy. Its next direct attack deals 40% less damage. Works on bosses.${u?' Draw 1 card.':''}`,play:u=>{applyEnemyEffect(curTarget(),'jammed',u?2:1);if(u)drawCards(1);} },

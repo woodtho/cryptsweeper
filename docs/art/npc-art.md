@@ -1,4 +1,4 @@
-# Cryptsweeper — NPC & Boss Character Art
+# Flag the Deep — NPC & Boss Character Art
 
 Design brief for non-Delver characters: the recurring **Rat Merchant**, the three **boss
 characters** as they appear in cutscene portraits, and guidance for adding future NPCs.

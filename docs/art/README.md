@@ -1,6 +1,6 @@
-# Cryptsweeper — Art Design Docs
+# Flag the Deep — Art Design Docs
 
-The art bible for Cryptsweeper's characters, NPCs, and cutscenes. Start with the direction
+The art bible for Flag the Deep's characters, NPCs, and cutscenes. Start with the direction
 doc; it holds the world, palette, lighting, style, and export specs that the other three
 inherit.
 

@@ -1,4 +1,4 @@
-# Cryptsweeper — Delver Portrait Art
+# Flag the Deep — Delver Portrait Art
 
 Design brief for the ten playable **Delvers**. Inherits everything in
 [art-direction.md](art-direction.md). Portraits are the game's flagship art and top
@@ -46,7 +46,7 @@ as their costume/light spot color so players learn them by color.
 |---|---|---|---|---|---|
 | 1 | `sapper` | The Sapper | 80 | Demolitions — *"a mine is ammunition"* | Blood + candle spark |
 | 2 | `surveyor` | The Surveyor | 66 | Information engine — *"a mine is a fact"* | Cold blue / lens glint |
-| 3 | `terraformer` | The Terraformer | 72 | Board editor — *"a mine is terrain"* | Violet + stone |
+| 3 | `terraformer` | The Terraformer | 68 | Board editor — *"a mine is terrain"* | Violet + stone |
 | 4 | `lamplighter` | The Lamplighter | 68 | Cascades & energy — *"bring your own dawn"* | Candle amber (bright) |
 | 5 | `gambler` | The Gambler | 70 | Flags & wagers — *"the board always tells"* | Gold coin + blood |
 | 6 | `chirurgeon` | The Chirurgeon | 76 | Pain conversion — *"nothing vital was hit"* | Moss green + bone |

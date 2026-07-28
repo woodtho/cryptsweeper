@@ -21,7 +21,7 @@ const CORE = {
 
 /* Every inventory slot gets its own trail mark. The forms use the terse
    scratches, gates, loops, and notches of improvised wayfinding symbols while
-   remaining original to Cryptsweeper and legible at small sizes. */
+   remaining original to Flag the Deep and legible at small sizes. */
 const ITEM_MARKS = {
   blastgoggles: <Mark><circle cx="8" cy="12" r="4" /><circle cx="16" cy="12" r="4" /><path d="M12 12 H12 M4 10 L2 7 M20 10 L22 7 M7 16 L5 20 M17 16 L19 20" /></Mark>,
   dowsingcharm: <Mark><path d="M6 3 L12 10 L18 3 M12 10 V17 M8 20 Q12 15 16 20 Q12 23 8 20" /></Mark>,

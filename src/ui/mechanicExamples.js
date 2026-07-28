@@ -248,7 +248,7 @@ export const MECHANIC_EXAMPLES = {
     card: 'Sentry',
     setup: 'Playing the Terraformer, you hold Sentry over a revealed tile.',
     action: 'You build the Sentry construct.',
-    result: 'Master Builder grants 2 Plating each time a Construct is built — stacking defense as you fortify.',
+    result: 'Master Builder grants 4 Block for the first Construct built that turn. Up to 3 Constructs can remain active.',
   },
   lamplighter: {
     card: 'Probe',

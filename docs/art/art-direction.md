@@ -1,4 +1,4 @@
-# Cryptsweeper — Art Direction Bible
+# Flag the Deep — Art Direction Bible
 
 The shared foundation for all character, NPC, and cutscene art. Read this first;
 the per-domain docs ([delver-portraits](delver-portraits.md), [npc-art](npc-art.md),
@@ -8,7 +8,7 @@ the per-domain docs ([delver-portraits](delver-portraits.md), [npc-art](npc-art.
 
 ## 1. The world in one paragraph
 
-Cryptsweeper is a roguelite deckbuilder fused with Minesweeper. You are a **Delver**
+Flag the Deep is a roguelite deckbuilder fused with Minesweeper. You are a **Delver**
 descending through three strata of the **Undermine** — a living mine that grows hexed
 charges in its own stone. It is a place of pick-marks and old graves, drowned archives
 and buried clockwork, lit by hand-carried flame. The tone is **grim but not gory,
@@ -85,7 +85,7 @@ those imports.
 
 ## 6. Canonical art pipeline
 
-Cryptsweeper ships one complete art set to every player. There are no free/paid visual
+Flag the Deep ships one complete art set to every player. There are no free/paid visual
 tiers and no alternate-art entitlement. A finished delivery replaces its canonical WebP
 directly in `src/assets/delvers/`, `src/assets/npcs/`, or `src/assets/cutscenes/`.
 

@@ -1,4 +1,4 @@
-# Cryptsweeper — Cutscene Art
+# Flag the Deep — Cutscene Art
 
 Design brief for the narrative **cutscene** backgrounds. Inherits
 [art-direction.md](art-direction.md). Cutscenes are how the run's story is told between

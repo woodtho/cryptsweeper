@@ -1,4 +1,4 @@
-# CryptSweeper
+# Flag the Deep
 
 A mobile-first roguelite deckbuilder built around Minesweeper deduction.
 
@@ -26,8 +26,8 @@ persistent WebView/browser storage.
 
 ## Current game
 
-CryptSweeper has ten illustrated Delvers with distinct passives, trinkets,
-starting resources, starter decks, and curated reward pools. Every starter
+Flag the Deep has ten illustrated Delvers with distinct passives, trinkets,
+starting resources, starter decks, and a curated 213-card catalog. Every starter
 deck includes a zero-energy Chord card so the core deduction payoff is
 available from the first battle.
 

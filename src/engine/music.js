@@ -1,4 +1,4 @@
-/* CRYPTSWEEPER — recorded soundtrack plus a quiet generative ambient layer.
+/* FLAG THE DEEP — recorded soundtrack plus a quiet generative ambient layer.
    The supplied songs carry the melody while WebAudio adds a slow drone,
    cave details, and combat pulse. Each stratum gets its own recording.
    Music owns a separate AudioContext from sfx so visibility changes never

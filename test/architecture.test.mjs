@@ -13,7 +13,7 @@ const directImport = spawnSync(process.execPath, ['--input-type=module', '-e',
   "import('./src/engine/data.js').then(m=>console.log(Object.keys(m.CARDS).length))"],
 { cwd:new URL('..', import.meta.url), encoding:'utf8' });
 test('data catalog imports without evaluating the engine or hitting a circular dependency',
-  directImport.status === 0 && directImport.stdout.trim() === '217' && !directImport.stderr);
+  directImport.status === 0 && directImport.stdout.trim() === '213' && !directImport.stderr);
 
 const workflow = source('.github/workflows/deploy.yml');
 test('deployment is gated by the complete test suite',
@@ -52,6 +52,13 @@ test('home navigation styles Continue as forward and Back as the red return acti
     && screens.includes('className="btn primary" onClick={() => open(COLLECTION_PANELS.includes(panel)'));
 test('archive and record panels are split out of the large screen module',
   screens.includes("from './ArchivePanels.jsx'") && source('src/ui/ArchivePanels.jsx').includes('SpeedrunPanel'));
+test('save menus expose editable checkpoint names and identify overwrites',
+  screens.includes('className="save-name-input"') && screens.includes('Name for checkpoint')
+    && screens.includes('Overwrite “${item.name') && screens.includes('saved ? \'Overwrite\' : \'Save\''));
+test('the shop card pager counts only unsold cards',
+  screens.includes('const availableCardIndices =') && screens.includes('const remainingCards = availableCardIndices.length')
+    && screens.includes('`${selectedCardPosition + 1} / ${remainingCards}`')
+    && screens.includes('setSelectedCard(next)'));
 
 const music = source('src/engine/music.js');
 const musicDir = new URL('../src/assets/music/raw/', import.meta.url);

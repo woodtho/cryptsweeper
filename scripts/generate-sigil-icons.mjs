@@ -416,7 +416,7 @@ const tiles = slots.map((slot, index) => {
 });
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${columns * tile}" height="${rows * tile}" viewBox="0 0 ${columns * tile} ${rows * tile}">
-<title>Cryptsweeper sigil icon set</title>
+<title>Flag the Deep sigil icon set</title>
 ${tiles.join('\n')}
 </svg>\n`;
 

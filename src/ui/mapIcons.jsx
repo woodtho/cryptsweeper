@@ -1,4 +1,4 @@
-/* CRYPTSWEEPER — Delver's Marks: an original set of ten carved map icons.
+/* FLAG THE DEEP — Delver's Marks: an original set of ten carved map icons.
    Hand-drawn SVGs in the game's angular, chamfered aesthetic. Everything is
    stroked in currentColor so node states (reachable, current, done) tint the
    marks exactly like the text glyphs. Referenced as 'svg:<name>' tokens. */

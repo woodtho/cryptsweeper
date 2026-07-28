@@ -53,6 +53,27 @@ const PANEL_TITLES = {
 };
 /* sub-panels reached through the consolidated Collection menu item; Back returns here, not home */
 const COLLECTION_PANELS = ['delvers', 'enemies', 'items', 'cards', 'achievements', 'saves', 'music', 'graveyard', 'speedruns'];
+const NAMED_SAVE_SLOTS = ['slot1', 'slot2', 'slot3'];
+
+function slotNumber(slot) {
+  return Number(slot.replace('slot', '')) || 1;
+}
+
+function suggestedSaveName(slot, saved = null) {
+  if (saved?.name) return saved.name;
+  const number = slotNumber(slot);
+  if (!run) return `Checkpoint ${number}`;
+  const delver = (CLASSES[run.cls]?.name || run.cls || 'Delver').replace(/^THE /, '');
+  const depth = run.stratum === 3 ? `Vein ${run.veinDepth || 0}` : `Stratum ${run.stratum + 1}`;
+  return `${delver} — ${depth}`.slice(0, 32);
+}
+
+function initialSaveNames() {
+  const saves = listSaves();
+  return Object.fromEntries(NAMED_SAVE_SLOTS.map(slot => [
+    slot, suggestedSaveName(slot, saves.find(save => save.slot === slot)),
+  ]));
+}
 
 function DelverPicker({ daily = null, challenge = null }) {
   const progress = loadProgression();
@@ -105,6 +126,7 @@ export function TitleScreen({
     try { return sessionStorage.getItem('cryptsweeper.testLab') === 'unlocked'; } catch { return false; }
   });
   const [saveRevision, setSaveRevision] = useState(0);
+  const [saveNames, setSaveNames] = useState(initialSaveNames);
   const saves = listSaves();
   const auto = saves.find(s => s.slot === 'auto');
   const progress = loadProgression();
@@ -133,7 +155,7 @@ export function TitleScreen({
     <main className="home-screen">
       <header className="home-hero">
         <p className="eyebrow">Roguelite deckbuilder × minesweeper · v{__APP_VERSION__}</p>
-        <h1 className="logo tappable-logo" onClick={tapTitle}>CRYPT<span className="flag">SWEEPER</span></h1>
+        <h1 className="logo tappable-logo" onClick={tapTitle}>FLAG <span className="flag">THE DEEP</span></h1>
         {!testUnlocked && titleTaps >= 7 && <p className="test-knock mono">{10 - titleTaps} sealed knock{10 - titleTaps === 1 ? '' : 's'} remain…</p>}
         <p className="tagline">Every fight is a board. Every card is a guess you don't have to make.</p>
         {progress.deepestVein > 0 && <p className="eyebrow">Deepest Vein record · {progress.deepestVein}</p>}
@@ -173,14 +195,21 @@ export function TitleScreen({
           {panel === 'saves' && <div className="save-list">
             {['auto', 'slot1', 'slot2', 'slot3'].map((slot, i) => {
               const item = saves.find(s => s.slot === slot);
-              const label = slot === 'auto' ? 'Autosave' : `Save slot ${i}`;
+              const label = slot === 'auto' ? 'Autosave' : item?.name || `Checkpoint ${i}`;
               return <div className="save-row" key={`${slot}-${saveRevision}`}>
-                <div><b>{label}</b>{item
+                <div className="save-slot-details"><b>{label}</b>{item
                   ? <small>{CLASSES[item.cls]?.name || item.cls} · {item.stratum === 3 ? `Vein Depth ${item.veinDepth || 0}` : `Stratum ${item.stratum + 1}`} · {item.hp}/{item.maxHp} HP · {formatRunTime(item.elapsedMs)} · {new Date(item.savedAt).toLocaleString()}</small>
-                  : <small>Empty</small>}</div>
+                  : <small>Empty</small>}
+                  {slot !== 'auto' && run && <input className="save-name-input" maxLength={32} value={saveNames[slot] || ''}
+                    aria-label={`Name for checkpoint ${i}`} placeholder={`Checkpoint ${i}`}
+                    onChange={event => setSaveNames(names => ({ ...names, [slot]: event.target.value }))} />}
+                </div>
                 <div className="save-actions">
                   {item && <button className="btn primary" onClick={() => loadRun(slot)}>Load</button>}
-                  {slot !== 'auto' && run && <button className="btn" onClick={() => { saveRun(slot); setSaveRevision(x => x + 1); }}>Save here</button>}
+                  {slot !== 'auto' && run && <button className="btn" onClick={() => {
+                    const name = saveNames[slot]?.trim() || suggestedSaveName(slot, item);
+                    saveRun(slot, name); setSaveNames(names => ({ ...names, [slot]: name })); setSaveRevision(x => x + 1);
+                  }}>{item ? `Overwrite “${item.name || `Checkpoint ${i}`}”` : 'Save here'}</button>}
                   {item && <button className="btn danger" onClick={() => { deleteSave(slot); setSaveRevision(x => x + 1); }}>Delete</button>}
                 </div>
               </div>;
@@ -704,6 +733,8 @@ export function InGameMenu({
   const [tab, setTab] = useState('game');
   const [musicPaused, setPaused] = useState(isMusicPaused);
   const [musicLoops, setLoops] = useState(isMusicLooping);
+  const [saveNames, setSaveNames] = useState(initialSaveNames);
+  const saves = listSaves();
   // back steps from a sub-tab to the main tab first; only then does App close the menu
   useEffect(() => {
     if (tab === 'game') return undefined;
@@ -718,7 +749,22 @@ export function InGameMenu({
       <div className="game-menu-body">
         {tab === 'game' && <div className="game-menu-actions">
           <button className="home-action primary" onClick={() => { saveRun('auto'); onClose(); }}><span>Save now</span><small>Update the autosave without leaving this screen</small></button>
-          {['slot1', 'slot2', 'slot3'].map((slot, i) => <button className="home-action compact" key={slot} onClick={() => saveRun(slot)}><span>Save slot {i + 1}</span><small>Write a named checkpoint</small></button>)}
+          {NAMED_SAVE_SLOTS.map((slot, i) => {
+            const saved = saves.find(save => save.slot === slot);
+            return <div className="save-row game-save-row" key={slot}>
+              <div className="save-slot-details">
+                <b>{saved?.name || `Checkpoint ${i + 1}`}</b>
+                <small>{saved ? `${CLASSES[saved.cls]?.name || saved.cls} · ${saved.stratum === 3 ? `Vein ${saved.veinDepth || 0}` : `Stratum ${saved.stratum + 1}`} · ${saved.hp}/${saved.maxHp} HP` : 'Empty slot'}</small>
+                <input className="save-name-input" maxLength={32} value={saveNames[slot] || ''}
+                  aria-label={`Name for checkpoint ${i + 1}`} placeholder={`Checkpoint ${i + 1}`}
+                  onChange={event => setSaveNames(names => ({ ...names, [slot]: event.target.value }))} />
+              </div>
+              <button className="btn" onClick={() => {
+                const name = saveNames[slot]?.trim() || suggestedSaveName(slot, saved);
+                saveRun(slot, name); setSaveNames(names => ({ ...names, [slot]: name }));
+              }}>{saved ? 'Overwrite' : 'Save'}</button>
+            </div>;
+          })}
           <button className="home-action" onClick={() => { onClose(); goHome(); }}><span>Go home</span><small>Autosave and return to the title screen</small></button>
         </div>}
         {tab === 'settings' && <div className="settings-list">
@@ -785,7 +831,7 @@ function HowToPlay() {
   return <MechanicTerms><div className="rulebook">
     <div className="rulebook-intro">
       <div className="daily-rune"><GameIcon name="picks" preferences={prefs} /></div>
-      <div><h2>Dig. Read. Survive.</h2><p>Cryptsweeper combines Minesweeper deduction with a turn-based deckbuilder. Open safe ground, use cards to control uncertainty, and defeat every enemy before the crypt buries you.</p></div>
+      <div><h2>Dig. Read. Survive.</h2><p>Flag the Deep combines Minesweeper deduction with a turn-based deckbuilder. Open safe ground, use cards to control uncertainty, and defeat every enemy before the crypt buries you.</p></div>
     </div>
 
     <div className="how-actions">
@@ -811,7 +857,7 @@ function HowToPlay() {
         <li>Tap a hidden tile to <b data-mechanic="reveal">Reveal</b> it. A number counts mines in its eight neighboring spaces. A revealed zero cascades through connected safe tiles.</li>
         <li>Manual digs spend one <b data-mechanic="picks">Pick</b>; a whole cascade still costs one. Picks refill to your Max Picks each turn. Card actions normally do not spend Picks.</li>
         <li>Long-press a hidden tile on touch—or right-click with a mouse—to place a free <b data-mechanic="flag">Flag</b>. A normal flag is only your guess; a verified flag is guaranteed correct.</li>
-        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent flag count matches. The flags must be on the correct mines; wrong flags expose and detonate the unmarked mines. Basic Chord cards cost 0 Energy.</li>
+        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. In battles, <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent flag count matches. Honest Puzzle Minesweeper instead lets you tap the revealed number directly. The flags must be on the correct mines; wrong flags expose and detonate the unmarked mines. Basic battle Chord cards cost 0 Energy.</li>
         <li><b data-mechanic="detonate">Detonate</b> deliberately triggers and removes a mine. Controlled card detonations attack enemies safely unless the card says you take damage.</li>
         <li><b data-mechanic="entomb">Entomb</b> permanently seals a tile and counts it as resolved. Constructs occupy revealed tiles and perform their listed effect each turn.</li>
         <li>Boards may be rectangles, crosses, diamonds, rings, or caverns. Excavate and Annex effects add new ground; Seed and Bury effects can add mines; some bosses destroy whole regions.</li>
@@ -839,7 +885,7 @@ function HowToPlay() {
     <HowSection icon={<GameIcon name="health" preferences={prefs} />} title="Damage, defenses, and clearing" open={Boolean(search)} visible={sectionVisible.damage}>
       <ul>
         <li>Enemy attacks remove <b data-mechanic="block">Block</b> before Health. Block normally resets at your next turn; the Warden retains a quarter.</li>
-        <li><b data-mechanic="plating">Plating</b> persists between turns. It absorbs enemy attacks after Block, and directly absorbs uncontrolled mine damage and hostile blasts that bypass Block. Card costs and voluntary Health loss bypass both defenses.</li>
+        <li><b data-mechanic="plating">Plating</b> persists between turns and is capped at 40. It absorbs enemy attacks after Block, and directly absorbs uncontrolled mine damage and hostile blasts that bypass Block. Card costs and voluntary Health loss bypass both defenses.</li>
         <li><b data-mechanic="instinct">Instinct</b> prevents the first accidentally revealed mine in a combat by verified-flagging it instead. Some Delvers or items modify this safety net.</li>
         <li>A <b data-mechanic="full clear">Full Clear</b> resolves every safe tile. The board collapses for <b>50 damage to all enemies</b>, grants an upgraded card reward, and re-seals if anything survives.</li>
         <li>A Full Clear is powerful but does not itself win combat: every enemy must be killed. Reaching zero Health ends the run.</li>
@@ -865,7 +911,7 @@ function HowToPlay() {
         <li><b>Trinkets</b> are passive and last for the run. <b>Gadgets</b> are consumable tools; you can carry at most three gadget copies. Tap the bag to inspect all items and use gadgets.</li>
         <li>Shops sell cards, trinkets, gadgets, and card removal. Gold is run-specific and prices vary; each removal raises the next removal cost.</li>
         <li>At camp, choose one: Rest heals 30% max Health, Smith upgrades a card, Survey starts the next fight 25% revealed, or Train adds one Max Pick up to the run's +2 training cap.</li>
-        <li><b>Honest Puzzles</b> begin with no-guess Minesweeper, 4×4 Sudoku, and 3×3 word squares. Deeper strata unlock larger versions plus number sequences, Lights Out, and nonograms. Minesweeper offers limited scans and flags; other puzzles explain their controls in the room. Solve flawlessly for an upgrade, or abandon without the prize.</li>
+        <li><b>Honest Puzzles</b> begin with no-guess Minesweeper, 4×4 Sudoku, and 3×3 word squares. Deeper strata unlock larger versions plus number sequences, Lights Out, and nonograms. Minesweeper offers limited scans, flags, and direct Chording by tapping a revealed number with a matching adjacent flag count; other puzzles explain their controls in the room. Solve flawlessly for an upgrade, or abandon without the prize.</li>
       </ul>
     </HowSection>
 
@@ -1186,9 +1232,11 @@ export function ShopScreen() {
     ...s.gadgets.map((item, index) => ({ ...item, index, kind: 'gadget', def: GADGETS[item.key] })),
   ];
   const selected = selectedItem == null ? null : items.find(item => `${item.kind}:${item.index}` === selectedItem);
-  const remainingCards = s.cards.filter(item => !item.sold).length;
+  const availableCardIndices = s.cards.flatMap((item, index) => item.sold ? [] : [index]);
+  const remainingCards = availableCardIndices.length;
   const remainingItems = items.filter(item => !item.sold).length;
   const cardOffer = selectedCard >= 0 ? s.cards[selectedCard] : null;
+  const selectedCardPosition = availableCardIndices.indexOf(selectedCard);
   const buySelected = () => {
     if (!selected || selected.sold) return;
     if (selected.kind === 'trinket') buyShopTrinket(selected.index);
@@ -1198,7 +1246,7 @@ export function ShopScreen() {
     if (!cardOffer || cardOffer.sold || run.gold < cardOffer.price) return;
     buyShopCard(selectedCard);
     const next = s.cards.findIndex((item, index) => index !== selectedCard && !item.sold);
-    if (next >= 0) setSelectedCard(next);
+    setSelectedCard(next);
   };
   const moveSelectedCard = direction => {
     if (!s.cards.length) return;
@@ -1276,7 +1324,7 @@ export function ShopScreen() {
           </div>
           <div className="shop-card-browser" aria-label="Card navigation">
             <button type="button" className="btn" disabled={remainingCards <= 1} onClick={() => moveSelectedCard(-1)} aria-label="Previous card">‹</button>
-            <span>{selectedCard >= 0 ? `${selectedCard + 1} / ${s.cards.length}` : 'No cards'}</span>
+            <span>{selectedCardPosition >= 0 ? `${selectedCardPosition + 1} / ${remainingCards}` : 'No cards'}</span>
             <button type="button" className="btn" disabled={remainingCards <= 1} onClick={() => moveSelectedCard(1)} aria-label="Next card">›</button>
           </div>
           {cardOffer ? <div className={`shop-card-feature ${cardOffer.sold ? 'sold' : ''}`}>
@@ -1347,7 +1395,7 @@ export function PuzzleScreen() {
   const prefs = loadPreferences();
   const type = p.type || 'mines';
   const descriptions = {
-    mines: 'Reveal every safe tile. Flags mark suspected mines; scans expose a tile without opening it.',
+    mines: 'Reveal every safe tile. Flag adjacent mines, then tap a matching revealed number to Chord its unflagged neighbours. Misplaced flags can expose a mine. Scans identify a tile without opening it.',
     sudoku: `Fill every row, column, and outlined ${p.boxRows}×${p.boxCols} box with 1–${p.size} exactly once.`,
     crossword: `Fill the ${p.size}×${p.size} word square. Every answer works both across and down.`,
     sequence: 'Choose the value that continues the sequence.',

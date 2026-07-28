@@ -30,12 +30,12 @@ const cells = Array.from({ length: columns * rows }, (_, index) => {
 }).join('\n');
 
 const guide = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <title>Cryptsweeper complete icon atlas template</title>
+  <title>Flag the Deep complete icon atlas template</title>
   <desc>10 columns by 9 rows, 128 pixels per tile. Tiles are ordered left to right, top to bottom.</desc>
   <g id="guide" font-family="Arial, sans-serif">${cells}</g>
 </svg>\n`;
 const blank = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <title>Cryptsweeper blank complete icon atlas</title>
+  <title>Flag the Deep blank complete icon atlas</title>
   <desc>Transparent 10 by 9 atlas canvas. Each tile is 128 by 128 pixels.</desc>
   <g id="artwork">${slots.map((slot, index) => `<g id="tile-${index + 1}-${slot.domain}-${slot.key}"/>`).join('')}</g>
 </svg>\n`;

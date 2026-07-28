@@ -1,4 +1,4 @@
-/* CRYPTSWEEPER — synthesized sound effects (WebAudio, no assets).
+/* FLAG THE DEEP — synthesized sound effects (WebAudio, no assets).
    No-ops outside the browser so the engine stays testable in Node.
    The AudioContext is created lazily inside user-gesture call stacks. */
 

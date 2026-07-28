@@ -13,8 +13,8 @@
     </filter>
   </defs>
   <g filter="url(#shadow)" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700">
-    <text x="300" y="180" font-size="82" letter-spacing="7" fill="#e8e1ce" stroke="#111923" stroke-width="4" paint-order="stroke">CRYPT</text>
-    <text x="300" y="262" font-size="76" letter-spacing="3" fill="url(#gold)" stroke="#111923" stroke-width="4" paint-order="stroke">SWEEPER</text>
+    <text x="300" y="180" font-size="82" letter-spacing="9" fill="#e8e1ce" stroke="#111923" stroke-width="4" paint-order="stroke">FLAG</text>
+    <text x="300" y="262" font-size="76" letter-spacing="4" fill="url(#gold)" stroke="#111923" stroke-width="4" paint-order="stroke">THE DEEP</text>
   </g>
   <path d="M104 296H496" stroke="#b98935" stroke-width="3" opacity=".85"/>
   <path d="M176 308H424" stroke="#5b7880" stroke-width="1" opacity=".8"/>

@@ -1,4 +1,4 @@
-# CryptSweeper music generation prompts
+# Flag the Deep music generation prompts
 
 Implementation note (2026-07-24): delivered masters in
 `src/assets/music/raw/` are normalized to consistent kebab-case names,

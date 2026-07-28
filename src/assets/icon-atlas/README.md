@@ -1,4 +1,4 @@
-# Cryptsweeper complete icon atlas
+# Flag the Deep complete icon atlas
 
 The complete-set template is a **10-column × 9-row** uniform atlas. Every tile is **128 × 128 pixels**, giving a final canvas of **1280 × 1152 pixels**.
 

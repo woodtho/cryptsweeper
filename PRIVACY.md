@@ -2,12 +2,12 @@
 adds analytics, advertising, crash reporting, cloud saves, accounts, or other
 networked services, update both policies and the app-store disclosures. -->
 
-# Privacy Policy for Cryptsweeper
+# Privacy Policy for Flag the Deep
 
-**Effective date:** July 20, 2026
+**Effective date:** July 28, 2026
 **Developer:** Thomas Wood ("we", "us", "the developer")
 
-Thank you for playing **Cryptsweeper** (the "Game"). This policy explains how the
+Thank you for playing **Flag the Deep** (the "Game"). This policy explains how the
 Game handles information. The short version: **the Game does not collect, transmit,
 sell, or share any personal information.** The developer never receives your locally
 saved game data.
