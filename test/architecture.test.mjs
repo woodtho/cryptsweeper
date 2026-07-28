@@ -32,12 +32,24 @@ test('battle boards expose touch inspection and basic keyboard controls',
 
 const combat = source('src/ui/CombatScreen.jsx');
 const styles = source('src/styles.css');
+const entrypoint = source('src/main.jsx');
+const handheldTheme = source('src/gba-theme.css');
 test('mobile hands retain their compact look with deal and flying-card animations',
   combat.includes("if (showHand)") && combat.includes("selected ? 'selected' : ''")
     && styles.includes('.handslot.selected') && styles.includes('.handslot.deal')
     && styles.includes('.cardghost.played') && styles.includes('.cardghost.discard')
     && styles.includes('.handslot, .handslot:hover, .handslot.selected { transform: none; }')
     && styles.includes('.card.selected { transform: translateY(-4px); }'));
+test('the original handheld pixel skin loads after the base theme and covers core game surfaces',
+  entrypoint.indexOf("import './styles.css'") < entrypoint.indexOf("import './gba-theme.css'")
+    && handheldTheme.includes('--gba-screen:')
+    && handheldTheme.includes('.home-action::before')
+    && handheldTheme.includes('.mapnode.reachable')
+    && handheldTheme.includes('.tile.open')
+    && handheldTheme.includes('.enemy-token')
+    && handheldTheme.includes('.card .rules')
+    && handheldTheme.includes('@media (max-width: 700px)')
+    && handheldTheme.includes('uses no Nintendo logos'));
 
 const tutorial = source('src/ui/InteractiveTutorial.jsx');
 test('Mechanics Lab unlocks progressively after the guided tutorial',
