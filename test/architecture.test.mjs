@@ -44,6 +44,8 @@ test('Mechanics Lab unlocks progressively after the guided tutorial',
   tutorial.includes('disabled={!guidedComplete}') && tutorial.includes('Finish guided descent'));
 
 const screens = source('src/ui/screens.jsx');
+const cardData = source('src/engine/data.js');
+const mechanicRules = source('src/ui/mechanics.js');
 test('home screen presents Learn, Archive, and Settings as its secondary hierarchy',
   screens.includes('<span>Learn</span>') && screens.includes('<span>Archive</span>')
     && !screens.includes('<span>Speedrun records</span><small>Fastest completed descent'));
@@ -59,6 +61,14 @@ test('the shop card pager counts only unsold cards',
   screens.includes('const availableCardIndices =') && screens.includes('const remainingCards = availableCardIndices.length')
     && screens.includes('`${selectedCardPosition + 1} / ${remainingCards}`')
     && screens.includes('setSelectedCard(next)'));
+test('Construct cards state placement and trigger timing, with every related term defined',
+  ['Sentry Construct on an empty revealed tile', 'Bulwark Construct on an empty revealed tile',
+    'Survey Relay Construct on an empty revealed tile', 'after End Turn, before enemies act',
+    'Count your active Constructs', 'for each active Construct']
+    .every(text => cardData.includes(text))
+    && ['construct:', 'sentry:', 'bulwark:', "'survey relay':", "'master builder':",
+      "'stone choir':", "'board attack':"].every(text => mechanicRules.includes(text))
+    && screens.includes('data-mechanic="board attack"'));
 
 const music = source('src/engine/music.js');
 const musicDir = new URL('../src/assets/music/raw/', import.meta.url);

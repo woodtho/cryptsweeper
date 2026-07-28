@@ -818,7 +818,7 @@ function HowToPlay() {
     TRINKETS[cls.trinket]?.name || '', TRINKETS[cls.trinket]?.desc || '', ...cls.deck.map(cardKey => CARDS[cardKey]?.name || cardKey)));
   const sectionVisible = {
     run: matches('run map strata route nodes daily challenge autosave unlock collection progression dig elite event shop treasure camp boss'),
-    board: matches('board reveal number mine picks flag verified scan defuse chord detonate entomb construct shapes excavate annex seed bury crater lair'),
+    board: matches('board reveal number mine picks flag verified scan defuse chord detonate entomb construct sentry bulwark survey relay master builder stone choir board attack shapes excavate annex seed bury crater lair'),
     combat: matches('combat turns targeting enemies intents energy health block lair buried gated boss attack random all cards'),
     damage: matches('damage defenses clearing health block plating mine damage instinct full clear defeat healing'),
     cards: matches('cards piles upgrades attack skill power energy discard draw exhaust rewards curse claustrophobia vertigo exhaustion night terrors paranoia'),
@@ -835,7 +835,7 @@ function HowToPlay() {
     </div>
 
     <div className="how-actions">
-      <button type="button" className="home-action primary tutorial-launch" onClick={() => setTutorialOpen(true)}><span>Start interactive tutorial</span><small>Guided descent plus 48 narrated drills covering every mechanic, condition, resource, modifier, and Delver</small></button>
+      <button type="button" className="home-action primary tutorial-launch" onClick={() => setTutorialOpen(true)}><span>Start interactive tutorial</span><small>Guided descent plus 55 narrated drills covering every mechanic, condition, resource, modifier, and Delver</small></button>
       <label className="index-search how-search"><span className="sr-only">Search How to Play</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search rules, enemies, cards, controls…" aria-label="Search How to Play" />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear How to Play search">×</button>}</label>
     </div>
     {!anythingVisible && <div className="index-empty"><b>No matching rules</b><small>Try an enemy name, mechanic, room, card type, or control.</small></div>}
@@ -859,7 +859,8 @@ function HowToPlay() {
         <li>Long-press a hidden tile on touch—or right-click with a mouse—to place a free <b data-mechanic="flag">Flag</b>. A normal flag is only your guess; a verified flag is guaranteed correct.</li>
         <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. In battles, <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent flag count matches. Honest Puzzle Minesweeper instead lets you tap the revealed number directly. The flags must be on the correct mines; wrong flags expose and detonate the unmarked mines. Basic battle Chord cards cost 0 Energy.</li>
         <li><b data-mechanic="detonate">Detonate</b> deliberately triggers and removes a mine. Controlled card detonations attack enemies safely unless the card says you take damage.</li>
-        <li><b data-mechanic="entomb">Entomb</b> permanently seals a tile and counts it as resolved. Constructs occupy revealed tiles and perform their listed effect each turn.</li>
+        <li><b data-mechanic="entomb">Entomb</b> permanently seals a tile and counts it as resolved. A <b data-mechanic="construct">Construct</b> is built on an empty revealed tile and persists until destroyed; you can maintain up to 3.</li>
+        <li>After you press End Turn, Constructs trigger before enemies act: a <b data-mechanic="sentry">Sentry</b> attacks, a <b data-mechanic="bulwark">Bulwark</b> grants Plating and Block, and a <b data-mechanic="survey relay">Survey Relay</b> Scans and grants Block. One Construct can destroy itself to cancel an enemy <b data-mechanic="board attack">Board Attack</b>.</li>
         <li>Boards may be rectangles, crosses, diamonds, rings, or caverns. Excavate and Annex effects add new ground; Seed and Bury effects can add mines; some bosses destroy whole regions.</li>
       </ul>
       <div className="symbol-grid">

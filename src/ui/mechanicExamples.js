@@ -108,9 +108,45 @@ export const MECHANIC_EXAMPLES = {
   },
   construct: {
     card: 'Sentry',
-    setup: 'You have a revealed tile and are holding Sentry.',
-    action: 'You play Sentry on that open tile.',
-    result: 'It becomes a construct dealing 5 to a random enemy at the end of every turn, and it soaks the next enemy board attack before it reaches you.',
+    setup: 'You have an empty revealed tile, 2 active Constructs, and Sentry in hand.',
+    action: 'You build Sentry as your third and final active Construct.',
+    result: 'It persists through board re-seals, triggers before enemies after End Turn, and can destroy itself to cancel one enemy Board Attack.',
+  },
+  sentry: {
+    card: 'Sentry',
+    setup: 'A Sentry with 5 damage is active and two enemies remain.',
+    action: 'You press End Turn.',
+    result: 'Before either enemy acts, the Sentry triggers and deals 5 damage to one random enemy.',
+  },
+  bulwark: {
+    card: 'Bulwark',
+    setup: 'A Bulwark that grants 1 Plating and 3 Block is active.',
+    action: 'You press End Turn.',
+    result: 'Before enemies act, it grants 1 persistent Plating and 3 temporary Block. Stone Choir would not repeat this trigger.',
+  },
+  'survey relay': {
+    card: 'Survey Relay',
+    setup: 'A Survey Relay that grants 2 Block is active while hidden tiles remain.',
+    action: 'You press End Turn.',
+    result: 'Before enemies act, it Scans one random hidden tile and then grants 2 Block.',
+  },
+  'master builder': {
+    card: 'Sentry',
+    setup: 'As the Terraformer, you have built no Construct this turn.',
+    action: 'You build a Sentry, then build a Survey Relay in the same turn.',
+    result: 'Master Builder immediately grants 4 Block for the Sentry. The Relay gives no second passive bonus that turn.',
+  },
+  'stone choir': {
+    card: 'Stone Choir',
+    setup: 'A Sentry, Bulwark, and Survey Relay are active when you play Stone Choir.',
+    action: 'You press End Turn.',
+    result: 'The Sentry and Relay each trigger twice. The Bulwark still triggers only once.',
+  },
+  'board attack': {
+    card: 'Sentry',
+    setup: 'You have one Sentry and the Minelayer intends to Lay 2 Mines.',
+    action: 'You end the turn and the Minelayer performs its Board Attack.',
+    result: 'The Sentry is destroyed and the entire Lay Mines effect is cancelled. Direct attacks, Prime, and Devour are not cancelled this way.',
   },
   block: {
     card: 'Brace',

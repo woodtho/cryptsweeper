@@ -6,7 +6,11 @@ import { BattleMechanicStory } from './BattleMechanicStory.jsx';
 import { MechanicTerms } from './MechanicTerms.jsx';
 
 const RESOURCE_KEYS = ['health','gold','deck','mines','turn','block','plating','insight','picks','max picks','energy','vein'];
-const BOARD_KEYS = ['reveal','detonate','scan','defuse','chord','entomb','flag','verified flag','full clear','instinct','mine damage','lair','construct'];
+const BOARD_KEYS = [
+  'reveal','detonate','scan','defuse','chord','entomb','flag','verified flag','full clear',
+  'instinct','mine damage','lair','construct','sentry','bulwark','survey relay',
+  'master builder','stone choir','board attack',
+];
 const COMBAT_KEYS = ['power','exhaust','exposed','jammed','sundered'];
 const MODIFIER_KEYS = ['armoured','burrowing','cursed','unstable'];
 const CURSE_KEYS = ['claustrophobia','vertigo','exhaustion','night terrors','paranoia'];
@@ -18,7 +22,9 @@ const MECHANIC_ICONS = {
   reveal:'safe', detonate:'bomb', scan:'scan', defuse:'services', chord:'target', entomb:'buried',
   block:'block', plating:'plating', insight:'insight', picks:'picks', 'max picks':'picks', energy:'energy',
   flag:'flag', 'verified flag':'flag', 'full clear':'victory', instinct:'instinct', 'mine damage':'bomb',
-  lair:'lair', construct:'sentry', power:'energy', exhaust:'exhaust',
+  lair:'lair', construct:'sentry', sentry:'sentry', bulwark:'bulwark', 'survey relay':'relay',
+  'master builder':'sentry', 'stone choir':'relay', 'board attack':'crater',
+  power:'energy', exhaust:'exhaust',
   exposed:'target', jammed:'relay', sundered:'attack',
   claustrophobia:'mines', vertigo:'picks', exhaustion:'draw', 'night terrors':'energy', paranoia:'flag',
   archivist:'exhaust', chirurgeon:'health', gambler:'flag', hexwright:'safe', lamplighter:'energy',

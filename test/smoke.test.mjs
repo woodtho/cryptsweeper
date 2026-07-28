@@ -735,7 +735,7 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
       && tutorialSource.includes('Target revealed 1 with Resonant Tap')
       && tutorialSource.includes('8 Block + 2 Plating absorb Attack 10'));
   T('Mechanics Lab covers every glossary mechanic plus every enemy modifier in five interactive sessions',
-    Object.keys(MECHANICS).length === 49
+    Object.keys(MECHANICS).length === 55
       && Object.keys(MECHANICS).every(key => mechanicsLabSource.includes(`'${key}'`))
       && Object.keys(ENEMY_MODIFIERS).length === 4
       && mechanicsLabSource.includes('Object.entries(ENEMY_MODIFIERS)')

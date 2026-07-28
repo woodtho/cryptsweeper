@@ -23,7 +23,13 @@ export const MECHANICS = {
   instinct: { name: 'Instinct', summary: 'Your built-in safety net: the first accidentally revealed mine is verified-flagged instead of exploding.', related: ['detonate', 'verified flag', 'mine damage'] },
   'mine damage': { name: 'Mine Damage', summary: 'Damage from an uncontrolled mine. It bypasses Block but is absorbed by Plating.', related: ['detonate', 'block', 'plating'] },
   lair: { name: 'Lair', summary: 'An enemy-owned board region. Digging it wounds the owner; killing the owner crumbles its lair open.', related: ['reveal', 'detonate', 'entomb'] },
-  construct: { name: 'Construct', summary: 'A persistent device built on an open tile. You can maintain 3. Constructs survive shifting boards, act each turn, and are destroyed when they absorb an enemy board attack or are visibly devoured.', related: ['plating', 'block', 'entomb'] },
+  construct: { name: 'Construct', summary: 'A persistent device built on an empty revealed tile; you can maintain 3. After you press End Turn, every Construct triggers before enemies act. Constructs survive Full Clear re-seals and boss board shifts. One Construct is destroyed to cancel an enemy Board Attack; Devour instead destroys any Construct on the consumed ring.', related: ['sentry', 'bulwark', 'survey relay', 'board attack'] },
+  sentry: { name: 'Sentry', summary: 'A Construct that deals its listed damage to a random enemy when it triggers. Stone Choir makes it trigger twice.', related: ['construct', 'stone choir', 'board attack'] },
+  bulwark: { name: 'Bulwark', summary: 'A Construct that grants its listed persistent Plating and temporary Block when it triggers. Stone Choir never makes it trigger twice.', related: ['construct', 'plating', 'block'] },
+  'survey relay': { name: 'Survey Relay', summary: 'A Construct that Scans one random hidden tile, if any remain, then grants its listed Block when it triggers. Stone Choir makes it trigger twice.', related: ['construct', 'scan', 'stone choir'] },
+  'master builder': { name: 'Master Builder', summary: 'The Terraformer passive. Building your first Construct each turn immediately grants 4 Block. Later Constructs that turn do not grant this bonus.', related: ['terraformer', 'construct', 'block'] },
+  'stone choir': { name: 'Stone Choir', summary: 'A combat-long Power that makes every Sentry and Survey Relay trigger twice. Bulwarks continue to trigger once.', related: ['sentry', 'survey relay', 'bulwark', 'power'] },
+  'board attack': { name: 'Board Attack', summary: 'An enemy intent that changes the board, such as laying mines, applying fog, scrambling mines, or excavating ground. One active Construct is destroyed to cancel the whole Board Attack. Direct attacks, Priming, and Devour follow their own rules.', related: ['construct', 'turn', 'lair'] },
   power: { name: 'Power', summary: 'A card that creates a combat-long passive effect instead of entering the discard pile.', related: ['energy', 'exhaust'] },
   exhaust: { name: 'Exhaust', summary: 'Remove a card from your draw cycle for the rest of the current combat.', related: ['power', 'energy'] },
   armoured: { name: 'Armoured', summary: 'An enemy modifier that starts with 8 Block plus 4 for each deeper stratum. Its opening Block expires after its first action.', related: ['block', 'sundered'] },
@@ -50,7 +56,12 @@ export const MECHANICS = {
   revenant: { name: 'Revenant', summary: 'A death-defying Delver. Not Yet survives the first lethal hit of each combat at 1 Health.', related: ['health', 'block'] },
 };
 
-const ALIASES = { pick: 'picks', flags: 'flag', 'verified-flag': 'verified flag', constructs: 'construct', lairs: 'lair', claustophobia: 'claustrophobia', nightterrors: 'night terrors' };
+const ALIASES = {
+  pick: 'picks', flags: 'flag', 'verified-flag': 'verified flag', constructs: 'construct',
+  sentries: 'sentry', bulwarks: 'bulwark', relay: 'survey relay', relays: 'survey relay',
+  'survey relays': 'survey relay', 'board attacks': 'board attack',
+  lairs: 'lair', claustophobia: 'claustrophobia', nightterrors: 'night terrors',
+};
 export function mechanicKey(value) {
   const key = String(value || '').trim().toLowerCase().replace(/[.:,!]+$/, '');
   return MECHANICS[key] ? key : ALIASES[key];

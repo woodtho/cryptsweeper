@@ -52,7 +52,7 @@ export function InteractiveTutorial({ preferences, onClose }) {
     <div className="tutorial-menu-intro"><h3>{guidedComplete ? 'Choose a practice session' : 'Begin with the guided descent'}</h3><p>The tutorial opens systems progressively. Finish the core descent first; the Mechanics Lab then unlocks every resource, condition, curse, modifier, and passive.</p></div>
     <div className="tutorial-mode-grid">
       <button type="button" onClick={() => setMode('guided')}><GameIcon name="picks" preferences={preferences} /><span><b>{guided.step > 0 && !guidedComplete ? 'Continue guided descent' : 'Guided descent'}</b><small>11 hands-on lessons covering the complete run and combat loop.</small><i>{guidedComplete ? 'Completed · replayable' : `Step ${guided.step + 1} of ${LESSONS.length}`}</i></span></button>
-      <button type="button" disabled={!guidedComplete} onClick={() => setMode('mechanics')}><GameIcon name="energy" preferences={preferences} /><span><b>Mechanics Lab</b><small>48 interactive drills in five focused sessions.</small><i>{guidedComplete ? 'Unlocked' : 'Finish guided descent'}</i></span></button>
+      <button type="button" disabled={!guidedComplete} onClick={() => setMode('mechanics')}><GameIcon name="energy" preferences={preferences} /><span><b>Mechanics Lab</b><small>55 interactive drills in five focused sessions.</small><i>{guidedComplete ? 'Unlocked' : 'Finish guided descent'}</i></span></button>
     </div>
   </section>;
 }

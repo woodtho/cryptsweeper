@@ -12,7 +12,11 @@ const HUD_FOCUS = {
   archivist:'deck', chirurgeon:'health', gambler:'deck', hexwright:'mines', lamplighter:'energy',
   revenant:'health', sapper:'mines', surveyor:'insight', terraformer:'plating', warden:'block',
 };
-const BOARD_KEYS = new Set(['reveal','detonate','scan','defuse','chord','entomb','flag','verified flag','full clear','instinct','mine damage','lair','construct']);
+const BOARD_KEYS = new Set([
+  'reveal','detonate','scan','defuse','chord','entomb','flag','verified flag','full clear',
+  'instinct','mine damage','lair','construct','sentry','bulwark','survey relay',
+  'master builder','stone choir','board attack',
+]);
 const ENEMY_KEYS = new Set(['exposed','jammed','sundered']);
 const MODIFIER_KEYS = new Set(['armoured','burrowing','cursed','unstable']);
 const DELVER_KEYS = new Set(['archivist','chirurgeon','gambler','hexwright','lamplighter','revenant','sapper','surveyor','terraformer','warden']);
