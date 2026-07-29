@@ -456,21 +456,28 @@ export function closeBattlePreview() {
 
 /* ================= toast / log / modal ================= */
 let _toastId = 0;
-export function toast(msg, bad = false) {
+export const TOAST_DURATION_MS = 4000;
+export function toast(msg, bad = false, details = '') {
+  const text = String(msg ?? '').trim();
+  if (!text) return null;
+  const duplicate = ui.toasts.find(item => item.msg === text);
+  if (duplicate) return duplicate.id;
   const id = ++_toastId;
-  ui.toasts.push({ id, msg, bad });
+  ui.toasts.push({ id, msg: text, bad });
+  const expanded = String(details ?? '').trim();
+  log(`${bad ? '⚠' : '◆'} ${text}${expanded ? ` — ${expanded}` : ''}`);
   const t = setTimeout(() => {
     ui.toasts = ui.toasts.filter(x => x.id !== id);
     notify();
-  }, 2600);
+  }, TOAST_DURATION_MS);
   if (t && typeof t.unref === 'function') t.unref();
   notify();
+  return id;
 }
 function invalidCardFeedback(card, message) {
   sfx('invalid'); haptic('invalid');
   ui.invalidCard = { seq: (ui.invalidCard?.seq || 0) + 1, cardId: card?.id ?? null, message };
-  log(`⚠ ${message}`);
-  toast(message, true);
+  toast(message, true, card?.name ? `Could not play ${card.name}.` : 'That action is not currently legal.');
 }
 function deckChanged(kind, label) {
   sfx(kind === 'upgrade' ? 'upgrade' : kind === 'remove' ? 'remove' : 'cardadd');
@@ -1661,6 +1668,7 @@ export function gainLight(n) {
   const before = Number(s.light || 0);
   s.light = Math.min(10, before + n);
   const gained = s.light - before;
+  s.lightGainedThisTurn = Number(s.lightGainedThisTurn || 0) + gained;
   if (gained) log(`✦ +${gained} Light (${s.light}/10)`);
   const flame = c.powers.whiteFlame;
   if (s.light >= 10 && flame && !s.whiteFlameResolving) {
@@ -1732,7 +1740,7 @@ export function drawCards(n) {
 }
 
 export function enemyAttack(e, n) {
-  if (!run?.combat) return;
+  if (!run?.combat) return null;
   const c = cbt();
   if (hasT('wardenseal') && !c.wardenSealUsed) {
     const original = n;
@@ -1780,6 +1788,7 @@ export function enemyAttack(e, n) {
     hitEnemy(e, 4, { noNitro: true });
   }
   checkPlayerDeath();
+  return { incoming, blockSoak, platingSoak, rest };
 }
 
 function checkPlayerDeath() {
@@ -1819,6 +1828,271 @@ export const ENEMY_EFFECTS = {
   jammed: { name: 'Jammed', mark: '⌁', desc: 'The next direct attack deals 40% less damage. One stack is consumed per attack. Works on bosses.' },
   sundered: { name: 'Sundered', mark: '╱', desc: 'Removes current Block and halves Block gained during the next enemy action. Works on bosses.' },
 };
+
+export const BOSS_RESONANCE = {
+  sapper: {
+    name: 'Chain Test', mark: '⛓',
+    desc: 'Build a Blast Chain of 2 before this resolves. Success turns the chain back on the boss; failure causes an attack and plants a mine.',
+  },
+  surveyor: {
+    name: 'Data Audit', mark: '◇',
+    desc: 'Bank at least 3 Insight. A complete survey weakens the attack and leaves the boss Exposed; missing data means taking the full hit.',
+  },
+  terraformer: {
+    name: 'Overload Pulse', mark: '⌁',
+    desc: 'Have a Construct in play while every heat-bearing Construct remains below 2 Heat. Cool engineering damages the boss; hot machinery grants it Block.',
+  },
+  lamplighter: {
+    name: 'Dousing Field', mark: '✦',
+    desc: 'Gain at least 3 Light during the turn. Each Light gained reduces the attack, and reaching 3 also leaves the boss Exposed.',
+  },
+  gambler: {
+    name: 'House Wager', mark: '●',
+    desc: 'The boss forces a Wager. Loaded or Two-Headed guarantees Heads and strikes the boss; an unrigged flip can land Tails and strike you.',
+  },
+  chirurgeon: {
+    name: 'Blood Scent', mark: '✚',
+    desc: 'The attack grows with untreated Blood. Treat all Blood that existed when this intent appeared to leave the boss Exposed.',
+  },
+  archivist: {
+    name: 'Redaction', mark: '❞',
+    desc: 'Recall a card that was already Archived when this intent appeared—or File one if the Archive was empty. Success exposes the boss; unanswered entries strengthen its attack and Block.',
+  },
+  warden: {
+    name: 'Break Test', mark: '⛨',
+    desc: 'Absorb all three small attacks with Block or Plating. A perfect defence Ripostes; any breach grants the boss Block.',
+  },
+  hexwright: {
+    name: 'Rune Cipher', mark: '⌘',
+    desc: 'Raise total Rune value by 3 before this resolves. Solving the cipher strikes the boss; failure adds mines to the board.',
+  },
+  revenant: {
+    name: 'Grave Call', mark: '↑',
+    desc: 'Rise a card that was already in the Grave when this intent appeared—or bury one if the Grave was empty. Success strikes the boss; unanswered Graves empower its attack and Block.',
+  },
+};
+
+function bossResonanceTier(e) {
+  return Math.max(0, Math.min(2, Number(e?.def?.home || 0)));
+}
+
+function runePower() {
+  return board().cells.reduce((sum, cell) => sum + Number(cell.rune?.value || 0), 0);
+}
+
+function exposeBossQuietly(e) {
+  if (!e || e.hp <= 0) return;
+  e.effects ??= {};
+  e.effects.exposed = Math.min(3, Number(e.effects.exposed || 0) + 1);
+}
+
+export function bossResonanceIntent(e) {
+  const c = run?.combat;
+  const spec = BOSS_RESONANCE[run?.cls];
+  if (!c || !spec) return { kind: 'attack', cls: 'atk', n: 10, label: 'Attack 10' };
+  const base = {
+    kind: 'resonance', cls: 'resonance', resonance: run.cls,
+    label: `${spec.mark} ${spec.name}`, detail: spec.desc,
+  };
+  switch (run.cls) {
+    case 'sapper': return { ...base, label: `${base.label} · Chain 2` };
+    case 'surveyor': return { ...base, label: `${base.label} · Bank 3 Insight` };
+    case 'terraformer': return { ...base, label: `${base.label} · Keep Heat < 2` };
+    case 'lamplighter': return { ...base, label: `${base.label} · Gain 3 Light` };
+    case 'gambler': return { ...base, label: `${base.label} · Rig Heads` };
+    case 'chirurgeon':
+      return {
+        ...base, startBlood: Number(c.classState.untreatedBlood || 0),
+        label: `${base.label} · ${Number(c.classState.untreatedBlood || 0) ? `Treat ${Number(c.classState.untreatedBlood || 0)}` : 'Keep Blood clear'}`,
+      };
+    case 'archivist': {
+      const startArchive = c.archive.length;
+      return { ...base, startArchive, label: `${base.label} · ${startArchive ? 'Recall 1' : 'File 1'}` };
+    }
+    case 'warden': {
+      const hit = 4 + bossResonanceTier(e);
+      return { ...base, hit, label: `${base.label} · 3 × ${hit}` };
+    }
+    case 'hexwright': {
+      const targetRunePower = runePower() + 3;
+      return { ...base, targetRunePower, label: `${base.label} · Reach ${targetRunePower}` };
+    }
+    case 'revenant': {
+      const startGrave = c.grave.length;
+      return { ...base, startGrave, label: `${base.label} · ${startGrave ? 'Rise 1' : 'Bury 1'}` };
+    }
+    default: return base;
+  }
+}
+
+export function resolveBossResonance(e, intent) {
+  const c = run?.combat;
+  if (!c || !e || e.hp <= 0 || intent?.kind !== 'resonance') return false;
+  const tier = bossResonanceTier(e);
+  const spec = BOSS_RESONANCE[intent.resonance] || BOSS_RESONANCE[run.cls];
+  const announce = (message, bad, details) => toast(`${spec?.mark || '◆'} ${message}`, bad, details || intent.detail);
+
+  switch (intent.resonance) {
+    case 'sapper': {
+      const chain = Number(c.classState.blastChain || 0);
+      if (chain >= 2) {
+        const damage = 8 + tier * 2;
+        announce(`Chain Test passed — ${damage} damage`, false, `Blast Chain reached ${chain}.`);
+        hitEnemy(e, damage, { bypassGate: true, noNitro: true });
+      } else {
+        const damage = 6 + tier * 2;
+        announce(`Chain Test failed — attack ${damage}`, true, `Blast Chain reached ${chain}; 2 was required.`);
+        enemyAttack(e, damage);
+        if (run?.combat && !c.over) layMines(1, randInt(board().size));
+      }
+      break;
+    }
+    case 'surveyor': {
+      const insight = Number(c.insight || 0);
+      const damage = Math.max(1, 10 + tier * 2 - (insight >= 3 ? 6 : 0));
+      if (insight >= 3) {
+        exposeBossQuietly(e);
+        announce(`Data Audit passed — attack reduced to ${damage}`, false, `${insight} Insight banked; the boss is Exposed.`);
+      } else {
+        announce(`Data Audit failed — attack ${damage}`, true, `${insight}/3 Insight banked.`);
+      }
+      enemyAttack(e, damage);
+      break;
+    }
+    case 'terraformer': {
+      const constructs = board().cells.filter(cell => cell.construct);
+      const heated = constructs.filter(cell => cell.construct
+        && ['sentry', 'relay'].includes(cell.construct.kind)
+        && Number(cell.construct.heat || 0) >= 2);
+      if (constructs.length && !heated.length) {
+        const damage = 4 * constructs.length + tier * 2;
+        announce(`Overload Pulse grounded — ${damage} damage`, false, `${constructs.length} Construct${constructs.length === 1 ? '' : 's'} stayed cool.`);
+        hitEnemy(e, damage, { bypassGate: true, noNitro: true });
+      } else {
+        const block = 4 + heated.length * 4;
+        e.block += block;
+        announce(`Overload Pulse charged ${block} Block`, true,
+          constructs.length ? `${heated.length} Construct${heated.length === 1 ? '' : 's'} had 2+ Heat.` : 'No Construct was available to ground the pulse.');
+      }
+      for (const cell of constructs) {
+        if (['sentry', 'relay'].includes(cell.construct?.kind)) cell.construct.heat = Number(cell.construct.heat || 0) + 1;
+      }
+      break;
+    }
+    case 'lamplighter': {
+      const gained = Number(c.classState.lightGainedThisTurn || 0);
+      const damage = Math.max(3, 14 + tier * 2 - gained * 3);
+      if (gained >= 3) {
+        exposeBossQuietly(e);
+        announce(`Dousing Field pierced — attack reduced to ${damage}`, false, `${gained} Light gained; the boss is Exposed.`);
+      } else {
+        announce(`Dousing Field burns for ${damage}`, true, `${gained}/3 Light gained.`);
+      }
+      enemyAttack(e, damage);
+      break;
+    }
+    case 'gambler': {
+      const state = c.classState;
+      const loaded = Number(state.riggedWagers || 0) > 0;
+      if (loaded) state.riggedWagers--;
+      const twoHeaded = Boolean(state.twoHeadedCoin) && !state.twoHeadedCoinUsed;
+      if (twoHeaded) state.twoHeadedCoinUsed = true;
+      const heads = loaded || twoHeaded || randInt(2) === 1;
+      const damage = 9 + tier * 2;
+      announce(`House Wager: ${heads ? 'HEADS' : 'TAILS'}`, !heads,
+        loaded ? 'Loaded guaranteed Heads.' : twoHeaded ? 'Two-Headed Coin guaranteed Heads.' : 'The flip was unrigged.');
+      if (heads) hitEnemy(e, damage, { bypassGate: true, noNitro: true });
+      else enemyAttack(e, damage);
+      break;
+    }
+    case 'chirurgeon': {
+      const untreated = Number(c.classState.untreatedBlood || 0);
+      const wounds = Math.min(3, untreated);
+      const clean = untreated === 0;
+      const damage = Math.max(2, 8 + tier * 2 + wounds * 2 - (clean ? 4 : 0));
+      if (clean) {
+        exposeBossQuietly(e);
+        announce(`Blood Scent cleansed — attack ${damage}`, false,
+          Number(intent.startBlood || 0) ? 'The marked Blood was treated; the boss is Exposed.' : 'No untreated Blood was left for the boss to track; it is Exposed.');
+      } else {
+        announce(`Blood Scent finds ${untreated} untreated — attack ${damage}`, true,
+          'Each of the first 3 untreated Blood adds 2 damage.');
+      }
+      enemyAttack(e, damage);
+      break;
+    }
+    case 'archivist': {
+      const archived = c.archive.length;
+      const starting = Number(intent.startArchive || 0);
+      const answered = starting > 0 ? archived < starting : archived > 0;
+      const damage = 7 + tier * 2 + Math.min(3, archived) * 2;
+      if (answered) {
+        exposeBossQuietly(e);
+        announce(`Redaction answered — attack ${damage}`, false,
+          starting > 0 ? 'An indexed card was Recalled; the boss is Exposed.' : 'A new card was Filed; the boss is Exposed.');
+      } else {
+        const block = Math.min(3, archived) * 3;
+        e.block += block;
+        announce(`Redaction cites ${archived} card${archived === 1 ? '' : 's'} — attack ${damage}`, archived > 0,
+          `${block} Block gained from unanswered Archive entries.`);
+      }
+      enemyAttack(e, damage);
+      break;
+    }
+    case 'warden': {
+      let perfect = true;
+      for (let strike = 0; strike < 3 && run?.combat && !c.over && e.hp > 0; strike++) {
+        const result = enemyAttack(e, intent.hit || 4 + tier);
+        if (!result || result.rest > 0) perfect = false;
+      }
+      if (!run?.combat || c.over || e.hp <= 0) break;
+      if (perfect) {
+        const damage = 10 + tier * 2;
+        announce(`Break Test held — Riposte ${damage}`, false, 'All three strikes were fully absorbed.');
+        hitEnemy(e, damage, { bypassGate: true, noNitro: true });
+      } else {
+        const block = 5 + tier * 2;
+        e.block += block;
+        announce(`Break Test breached — ${block} boss Block`, true, 'At least one strike reached Health.');
+      }
+      break;
+    }
+    case 'hexwright': {
+      const power = runePower();
+      if (power >= Number(intent.targetRunePower || 3)) {
+        const damage = 11 + tier * 2;
+        announce(`Rune Cipher solved — ${damage} damage`, false, `Rune power reached ${power}/${intent.targetRunePower}.`);
+        hitEnemy(e, damage, { bypassGate: true, noNitro: true });
+      } else {
+        const mines = 1 + tier;
+        announce(`Rune Cipher failed — ${mines} mine${mines === 1 ? '' : 's'}`, true, `Rune power reached ${power}/${intent.targetRunePower}.`);
+        layMines(mines, randInt(board().size));
+      }
+      break;
+    }
+    case 'revenant': {
+      const grave = c.grave.length;
+      const starting = Number(intent.startGrave || 0);
+      const answered = starting > 0 ? grave < starting : grave > 0;
+      if (answered) {
+        const damage = 10 + tier * 2;
+        announce(`Grave Call answered — ${damage} damage`, false,
+          starting > 0 ? 'A marked Grave card Rose.' : 'A new card entered the Grave.');
+        hitEnemy(e, damage, { bypassGate: true, noNitro: true });
+      } else {
+        const block = Math.min(3, grave) * 3;
+        const damage = 7 + tier * 2;
+        e.block += block;
+        announce(`Grave Call unanswered — attack ${damage}`, true, `${block} Block gained from ${grave} waiting Grave card${grave === 1 ? '' : 's'}.`);
+        enemyAttack(e, damage);
+      }
+      break;
+    }
+    default:
+      enemyAttack(e, 10 + tier * 2);
+  }
+  return true;
+}
 
 export function applyEnemyEffect(e, key, stacks = 1) {
   if (!run?.combat || !e || e.hp <= 0 || !ENEMY_EFFECTS[key]) return false;
@@ -1975,7 +2249,7 @@ export function startCombat(kind) {
     classState: {
       passiveUsed: false, scanCount: 0, kindleUsed: false, luckyUsed: false,
       painUsed: false, exhaustUsed: false, deathUsed: false, constructBuiltThisTurn: false,
-      blastChain: 0, light: 0, preserveLight: 0, loaded: 0,
+      blastChain: 0, light: 0, lightGainedThisTurn: 0, preserveLight: 0, loaded: 0,
       loadedCap: hasT('twoheadedcoin') ? 4 : 3, riggedWagers: 0,
       twoHeadedCoin: hasT('twoheadedcoin'), twoHeadedCoinUsed: false,
       doubleWagers: 0, bloodSpent: 0, bloodSpentThisTurn: 0, untreatedBlood: 0,
@@ -2089,6 +2363,7 @@ function startTurn() {
   c.classState.exhaustUsed = false;
   c.classState.constructBuiltThisTurn = false;
   c.classState.blastChain = 0;
+  c.classState.lightGainedThisTurn = 0;
   c.classState.bloodSpentThisTurn = 0;
   c.classState.twoHeadedCoinUsed = false;
   c.classState.triageRecoveryUsed = false;
@@ -3027,9 +3302,33 @@ function sudokuTemplate(size, givensText) {
   };
 }
 const SUDOKU_PUZZLES = {
-  4: [sudokuTemplate(4, '0230 3012 0043 0001')],
-  6: [sudokuTemplate(6, '000050 056103 004061 000204 045000 610000')],
-  9: [sudokuTemplate(9, '800000000 003600000 070090200 050007000 000045700 000100030 001000068 008500010 090000400')],
+  4: [
+    '0230 3012 0043 0001',
+    '2041 0003 0402 0030',
+    '1200 0321 0010 0002',
+    '2000 1304 0200 4000',
+    '0401 0120 0043 0000',
+    '0401 0200 0032 2300',
+    '0030 0204 0021 0100',
+  ].map(text => sudokuTemplate(4, text)),
+  6: [
+    '000050 056103 004061 000204 045000 610000',
+    '426501 000264 612000 040000 560012 000605',
+    '001342 030050 020030 300204 106020 053006',
+    '500403 003062 020005 600024 300251 200000',
+    '000000 605200 216003 453120 002604 060050',
+    '020500 501000 152030 000100 216054 005060',
+    '104030 000045 546003 001004 060350 010000',
+  ].map(text => sudokuTemplate(6, text)),
+  9: [
+    '800000000 003600000 070090200 050007000 000045700 000100030 001000068 008500010 090000400',
+    '751600390 046009005 003007000 530010920 060005800 010960050 602090017 000070060 000000500',
+    '000700030 090400578 050306000 001800005 008030010 000109780 300084007 002007090 765000000',
+    '004081002 900746005 100000000 800000040 005128700 090050000 000002000 730410000 089300104',
+    '900068302 000200047 050009800 610020000 000870000 000006529 000080105 000001090 005002006',
+    '000009200 008010000 610030000 000068100 200305068 060070300 309000051 000050983 007000000',
+    '000001200 080000050 904070000 009060400 000102507 200007000 000095076 607004000 092030000',
+  ].map(text => sudokuTemplate(9, text)),
 };
 
 const CROSSWORD_PUZZLES = {
@@ -3037,16 +3336,64 @@ const CROSSWORD_PUZZLES = {
     { words: ['CAR', 'APE', 'RED'], acrossClues: ['Road vehicle', 'Large primate', 'Warning colour'], downClues: ['Automobile', 'Mimic', 'Colour of blood'] },
     { words: ['APE', 'PEA', 'EAR'], acrossClues: ['Primate', 'Small green vegetable', 'Organ used for listening'], downClues: ['Mimic another person', 'Round garden seed', 'Part of the body used for listening'] },
     { words: ['CAT', 'ARE', 'TEN'], acrossClues: ['Feline', 'Exist', 'Number after nine'], downClues: ['Household mouser', 'Present form of “be”', 'Pins in a full bowling rack'] },
+    { words: ['BAT', 'ARE', 'TEN'], acrossClues: ['Flying mammal', 'Exist', 'Number after nine'], downClues: ['Club used at the plate', 'Second-person form of “be”', 'Count of fingers'] },
+    { words: ['MAN', 'ARE', 'NET'], acrossClues: ['Adult male', 'Exist', 'Mesh used to catch things'], downClues: ['Person of the male sex', 'Present plural of “be”', 'What remains after deductions'] },
+    { words: ['SIR', 'ICE', 'RED'], acrossClues: ['Respectful address', 'Frozen water', 'Colour of fresh blood'], downClues: ['Title for a knight', 'What skates glide across', 'Stop-light colour'] },
+    { words: ['DOT', 'ORE', 'TEN'], acrossClues: ['Small round mark', 'Rock containing metal', 'Number after nine'], downClues: ['Point in an address', 'Miner’s raw material', 'Two hands’ worth of digits'] },
+    { words: ['PEN', 'EYE', 'NET'], acrossClues: ['Writing implement', 'Organ of sight', 'Woven snare'], downClues: ['Enclosure for livestock', 'Needle opening', 'Goalkeeper’s target'] },
   ],
   4: [
     { words: ['BALL', 'AREA', 'LEAD', 'LADY'], acrossClues: ['Round toy', 'Region', 'Guide from the front', 'Woman of rank'], downClues: ['Formal dance', 'Surface measure', 'Metal with symbol Pb', 'Polite form of address'] },
     { words: ['SAND', 'AREA', 'NEAR', 'DART'], acrossClues: ['Desert grains', 'Region', 'Close by', 'Small pointed missile'], downClues: ['Material in an hourglass', 'Extent of a surface', 'Almost', 'Move suddenly'] },
+    { words: ['CAPE', 'AREA', 'PEAR', 'EARS'], acrossClues: ['Sleeveless shoulder cloak', 'Region', 'Bell-shaped fruit', 'Organs used for hearing'], downClues: ['Headland extending into water', 'Surface measure', 'Fruit with a narrow stem', 'Handles on a jug'] },
+    { words: ['MASS', 'AREA', 'SEAT', 'SATE'], acrossClues: ['Quantity of matter', 'Region', 'Place to sit', 'Satisfy fully'], downClues: ['Large amount', 'Extent of a surface', 'Official’s elected position', 'Fill an appetite'] },
+    { words: ['SHOW', 'HAVE', 'OVER', 'WERE'], acrossClues: ['Public performance', 'Possess', 'Finished', 'Plural past form of “be”'], downClues: ['Display to others', 'Experience or hold', 'Above and across', 'Formerly existed'] },
+    { words: ['HAND', 'AREA', 'NEXT', 'DATE'], acrossClues: ['Part at the end of an arm', 'Region', 'Immediately following', 'Calendar appointment'], downClues: ['Worker or helper', 'Measured surface', 'Nearest in order', 'Sweet fruit from a palm'] },
+    { words: ['LIST', 'INTO', 'STAY', 'TOYS'], acrossClues: ['Written series', 'Toward the inside', 'Remain', 'Children’s playthings'], downClues: ['Lean to one side', 'Expressing movement within', 'Temporary lodging', 'Plays with an idea'] },
+    { words: ['KNOW', 'NONE', 'ONCE', 'WEEK'], acrossClues: ['Understand', 'Not any', 'One time', 'Seven days'], downClues: ['Be certain of', 'Zero of a group', 'Formerly', 'A calendar’s short cycle'] },
   ],
-  5: [{
-    words: ['HEART', 'EMBER', 'ABUSE', 'RESIN', 'TREND'],
-    acrossClues: ['Organ that pumps blood', 'Glowing coal', 'Misuse or mistreatment', 'Sticky tree substance', 'General direction of change'],
-    downClues: ['Core symbol on a playing card', 'Last glowing piece of a fire', 'Treat cruelly', 'Pine secretion', 'Movement over time'],
-  }],
+  5: [
+    {
+      words: ['HEART', 'EMBER', 'ABUSE', 'RESIN', 'TREND'],
+      acrossClues: ['Organ that pumps blood', 'Glowing coal', 'Misuse or mistreatment', 'Sticky tree substance', 'General direction of change'],
+      downClues: ['Core symbol on a playing card', 'Last glowing piece of a fire', 'Treat cruelly', 'Pine secretion', 'Movement over time'],
+    },
+    {
+      words: ['GAMES', 'ALERT', 'METRO', 'ERROR', 'STORE'],
+      acrossClues: ['Contests or pastimes', 'Watchful and ready', 'Urban rail system', 'Mistake', 'Retail shop'],
+      downClues: ['Activities played for fun', 'Warning signal', 'Big-city transit', 'Incorrect result', 'Keep for later'],
+    },
+    {
+      words: ['LAMPS', 'ALERT', 'MEDIA', 'PRINT', 'STATE'],
+      acrossClues: ['Portable lights', 'Watchful and ready', 'News and entertainment outlets', 'Words reproduced in ink', 'Condition'],
+      downClues: ['Things with shades and bulbs', 'Warning signal', 'Means of mass communication', 'Put text on paper', 'Province or political territory'],
+    },
+    {
+      words: ['CAUSE', 'ALPHA', 'UPPER', 'SHEET', 'EARTH'],
+      acrossClues: ['Reason something happens', 'First Greek letter', 'Higher of two', 'Single piece of paper', 'Our planet'],
+      downClues: ['Bring about', 'Early software build', 'Toward the top', 'Flat layer of fabric', 'Soil beneath one’s boots'],
+    },
+    {
+      words: ['TRUST', 'RANCH', 'UNDER', 'SCENE', 'THREE'],
+      acrossClues: ['Firm belief in reliability', 'Large livestock farm', 'Beneath', 'Part of a dramatic work', 'Number after two'],
+      downClues: ['Rely upon', 'Western cattle property', 'Less than or below', 'Place where something happens', 'A trio’s count'],
+    },
+    {
+      words: ['CARDS', 'ALARM', 'RADIO', 'DRINK', 'SMOKE'],
+      acrossClues: ['Deck components', 'Warning device', 'Wireless receiver', 'Beverage', 'Airborne sign of fire'],
+      downClues: ['Things dealt into a hand', 'Sudden fear', 'Broadcast medium', 'Take liquid by mouth', 'Cure food over a fire'],
+    },
+    {
+      words: ['PLANT', 'LOWER', 'AWARE', 'NERVE', 'TREES'],
+      acrossClues: ['Living thing rooted in soil', 'Move downward', 'Conscious of', 'Bundle carrying body signals', 'Tall woody plants'],
+      downClues: ['Factory or workshop', 'Less elevated', 'Informed about', 'Courage under pressure', 'Forest growth'],
+    },
+    {
+      words: ['START', 'THREE', 'ARISE', 'RESET', 'TEETH'],
+      acrossClues: ['Begin', 'Number after two', 'Get up', 'Return to an initial state', 'Hard structures used for biting'],
+      downClues: ['Beginning point', 'A trio’s count', 'Come into existence', 'Set again', 'Gearwheel projections'],
+    },
+  ],
 };
 for (const [size, templates] of Object.entries(CROSSWORD_PUZZLES)) for (const template of templates) {
   if (!validateCrossword(template, Number(size))) throw new Error(`Invalid ${size}×${size} crossword template`);
@@ -3057,18 +3404,55 @@ const SEQUENCE_PUZZLES = {
     { prompt: '4, 7, 10, 13, ?', answer: 16, choices: [15, 16, 17, 19], method: 'Add three.' },
     { prompt: '81, 27, 9, 3, ?', answer: 1, choices: [0, 1, 2, 6], method: 'Divide by three.' },
     { prompt: '1, 4, 7, 10, 13, ?', answer: 16, choices: [14, 15, 16, 17], method: 'Add three.' },
+    { prompt: '5, 10, 15, 20, ?', answer: 25, choices: [22, 24, 25, 30], method: 'Add five.' },
+    { prompt: '20, 18, 16, 14, ?', answer: 12, choices: [10, 11, 12, 13], method: 'Subtract two.' },
+    { prompt: '2, 4, 6, 8, ?', answer: 10, choices: [9, 10, 11, 12], method: 'Add two.' },
+    { prompt: '3, 6, 9, 12, ?', answer: 15, choices: [14, 15, 16, 18], method: 'Add three.' },
+    { prompt: '64, 32, 16, 8, ?', answer: 4, choices: [2, 4, 6, 12], method: 'Halve each term.' },
+    { prompt: '1, 4, 9, 16, ?', answer: 25, choices: [20, 24, 25, 32], method: 'Use consecutive square numbers.' },
+    { prompt: '100, 90, 80, 70, ?', answer: 60, choices: [50, 55, 60, 65], method: 'Subtract ten.' },
   ],
   1: [
     { prompt: '2, 4, 8, 16, ?', answer: 32, choices: [24, 30, 32, 34], method: 'Double each term.' },
     { prompt: '1, 1, 2, 3, 5, ?', answer: 8, choices: [6, 7, 8, 10], method: 'Add the previous two terms.' },
     { prompt: '3, 6, 11, 18, ?', answer: 27, choices: [25, 26, 27, 29], method: 'Use successive odd gaps.' },
+    { prompt: '2, 6, 12, 20, 30, ?', answer: 42, choices: [36, 40, 42, 44], method: 'Multiply consecutive neighbours: n × (n + 1).' },
+    { prompt: '2, 3, 5, 8, 12, 17, ?', answer: 23, choices: [21, 22, 23, 24], method: 'Add one more each time.' },
+    { prompt: '5, 9, 17, 33, ?', answer: 65, choices: [49, 63, 65, 66], method: 'Double, then subtract one.' },
+    { prompt: '1, 4, 10, 19, 31, ?', answer: 46, choices: [43, 45, 46, 49], method: 'Add successive multiples of three.' },
+    { prompt: '10, 11, 13, 16, 20, ?', answer: 25, choices: [24, 25, 26, 28], method: 'Add one, then two, then three, and so on.' },
+    { prompt: '8, 13, 21, 34, ?', answer: 55, choices: [47, 52, 55, 57], method: 'Add the previous two terms.' },
+    { prompt: '1, 8, 27, 64, ?', answer: 125, choices: [81, 100, 121, 125], method: 'Use consecutive cube numbers.' },
   ],
   2: [
     { prompt: '2, 5, 4, 8, 6, 11, 8, ?', answer: 14, choices: [10, 12, 13, 14], method: 'Interleave +2 and +3 sequences.' },
     { prompt: '1, 2, 6, 15, 31, ?', answer: 56, choices: [47, 52, 56, 63], method: 'Add consecutive squares.' },
     { prompt: '3, 4, 8, 9, 18, 19, ?', answer: 38, choices: [28, 36, 38, 40], method: 'Alternate plus one and times two.' },
+    { prompt: '1, 4, 2, 8, 3, 12, 4, ?', answer: 16, choices: [14, 15, 16, 20], method: 'Interleave counting numbers with their quadruples.' },
+    { prompt: '2, 3, 6, 7, 14, 15, ?', answer: 30, choices: [16, 28, 30, 32], method: 'Alternate plus one and times two.' },
+    { prompt: '2, 6, 5, 15, 14, 42, ?', answer: 41, choices: [40, 41, 43, 126], method: 'Alternate times three and minus one.' },
+    { prompt: '4, 6, 12, 14, 28, 30, ?', answer: 60, choices: [32, 56, 58, 60], method: 'Alternate plus two and times two.' },
+    { prompt: '90, 89, 85, 76, 60, ?', answer: 35, choices: [25, 34, 35, 44], method: 'Subtract consecutive square numbers.' },
+    { prompt: '1, 3, 12, 60, 360, ?', answer: 2520, choices: [720, 1800, 2160, 2520], method: 'Multiply by three, four, five, six, then seven.' },
+    { prompt: '1, 2, 5, 12, 27, ?', answer: 58, choices: [54, 56, 58, 60], method: 'Double, then add one more each time.' },
   ],
 };
+for (const [difficulty, templates] of Object.entries(SEQUENCE_PUZZLES)) for (const template of templates) {
+  if (new Set(template.choices).size !== template.choices.length
+    || template.choices.filter(choice => choice === template.answer).length !== 1) {
+    throw new Error(`Invalid difficulty-${difficulty} sequence template: ${template.prompt}`);
+  }
+}
+
+function pickPuzzleTemplate(pool, historyKey) {
+  run.puzzleHistory ??= {};
+  const recent = run.puzzleHistory[historyKey] || [];
+  const available = pool.map((_, index) => index).filter(index => !recent.includes(index));
+  const index = randPick(available.length ? available : pool.map((_, next) => next));
+  const memory = Math.min(4, Math.max(0, pool.length - 1));
+  run.puzzleHistory[historyKey] = memory ? [...recent, index].slice(-memory) : [];
+  return pool[index];
+}
 
 function startMinesPuzzle(difficulty = 0) {
   const size = [6, 7, 8][difficulty];
@@ -3085,9 +3469,31 @@ function startMinesPuzzle(difficulty = 0) {
   puzzleFlood(opening);
 }
 
+function sudokuVariant(template, size) {
+  const [boxRows, boxCols] = sudokuShape(size);
+  const rowBands = shuffle(Array.from({ length: size / boxRows }, (_, index) => index));
+  const colStacks = shuffle(Array.from({ length: size / boxCols }, (_, index) => index));
+  const rows = rowBands.flatMap(band =>
+    shuffle(Array.from({ length: boxRows }, (_, offset) => band * boxRows + offset)));
+  const cols = colStacks.flatMap(stack =>
+    shuffle(Array.from({ length: boxCols }, (_, offset) => stack * boxCols + offset)));
+  const symbols = shuffle(Array.from({ length: size }, (_, index) => index + 1));
+  const sourceGivens = new Set(template.givens);
+  const solution = [];
+  const givens = [];
+  for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
+    const sourceIndex = rows[row] * size + cols[col];
+    const index = row * size + col;
+    solution[index] = symbols[template.solution[sourceIndex] - 1];
+    if (sourceGivens.has(sourceIndex)) givens.push(index);
+  }
+  const initial = solution.map((value, index) => givens.includes(index) ? value : 0);
+  return { solution, givens, rating: sudokuDifficulty(initial, size, boxRows, boxCols) };
+}
+
 function startSudokuPuzzle(difficulty = 0) {
   const size = [4, 6, 9][difficulty];
-  const template = randPick(SUDOKU_PUZZLES[size]);
+  const template = sudokuVariant(pickPuzzleTemplate(SUDOKU_PUZZLES[size], `sudoku-${size}`), size);
   const givenSet = new Set(template.givens);
   run.puzzle = {
     type: 'sudoku', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty], size,
@@ -3100,7 +3506,7 @@ function startSudokuPuzzle(difficulty = 0) {
 
 function startCrosswordPuzzle(difficulty = 0) {
   const size = [3, 4, 5][difficulty];
-  const template = randPick(CROSSWORD_PUZZLES[size]);
+  const template = pickPuzzleTemplate(CROSSWORD_PUZZLES[size], `crossword-${size}`);
   run.puzzle = {
     type: 'crossword', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty], size,
     solution: template.words.join('').split(''), values: Array(size * size).fill(''), words: template.words.slice(),
@@ -3173,7 +3579,7 @@ function startNonogramPuzzle(difficulty = 1) {
 }
 
 function startSequencePuzzle(difficulty = 1) {
-  const template = randPick(SEQUENCE_PUZZLES[difficulty]);
+  const template = pickPuzzleTemplate(SEQUENCE_PUZZLES[difficulty], `sequence-${difficulty}`);
   run.puzzle = {
     type: 'sequence', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty],
     ...template, choices: shuffle(template.choices), failed: false, solved: false,
@@ -3448,6 +3854,7 @@ bindRuntime({
   highestRevealedNumber, neighborsOf, numAt, toast, log, fleeCombat,
   outerRingIndices,
   enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
+  bossResonanceIntent, resolveBossResonance,
   setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
   annexTiles, addMineAt, healthState, recallArchived, riseGraves, gainLight,
   consumeUntreatedBlood, addTemporaryCard,

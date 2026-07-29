@@ -68,14 +68,20 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji, preferen
           {e.def.gated ? <> · <span className="dim">{e.def.gateNote}</span></> : null}
         </div>
       </div>
-      <div className={`intent ${e.intent ? e.intent.cls : ''}`}>{e.intent ? e.intent.label : ''}</div>
+      <div className={`intent ${e.intent ? e.intent.cls : ''}`} title={e.intent?.detail || e.intent?.label}>
+        <b>{e.intent ? e.intent.label : ''}</b>
+        {e.intent?.detail && <small>{e.intent.detail}</small>}
+      </div>
     </div>
   );
 }
 
 function EnemyToken({ e, idx, selected, onClick, emoji, preferences }) {
   if (e.hp <= 0) return null;
-  const intentIcon = <GameIcon name={e.intent?.cls === 'atk' ? 'attack' : e.intent?.cls === 'defend' ? 'defend' : 'lair'} preferences={preferences} />;
+  const intentName = e.intent?.cls === 'atk' ? 'attack'
+    : e.intent?.cls === 'defend' ? 'defend'
+      : e.intent?.cls === 'resonance' ? 'target' : 'lair';
+  const intentIcon = <GameIcon name={intentName} preferences={preferences} />;
   return <button type="button" className={`enemy-token ${selected ? 'selected' : ''}`} onClick={() => onClick(idx)}
     aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} health. ${e.intent?.label || 'No intent'}`}>
     <span className="enemy-token-art">{e.data.buried ? <GameIcon name="buried" preferences={preferences} /> : emoji}</span>
@@ -84,7 +90,7 @@ function EnemyToken({ e, idx, selected, onClick, emoji, preferences }) {
       <span key={key} className={`enemy-token-effect ${key}`} style={{ left: 3 + effectIndex * 18 }} title={`${ENEMY_EFFECTS[key]?.name}: ${ENEMY_EFFECTS[key]?.desc}`}>{ENEMY_EFFECTS[key]?.mark}{stacks}</span>
     ))}
     <span className="enemy-token-hp"><GameIcon name="health" preferences={preferences} /> {e.hp}</span>
-    <span className={`enemy-token-intent ${e.intent?.cls || ''}`} title={e.intent?.label}>{intentIcon}</span>
+    <span className={`enemy-token-intent ${e.intent?.cls || ''}`} title={e.intent?.detail || e.intent?.label}>{intentIcon}</span>
     {curTarget() === e && !e.data.buried && <span className="enemy-token-target">⌖</span>}
   </button>;
 }
@@ -109,6 +115,21 @@ const DELVER_RESOURCE_MARKS = {
   revenant: <Mark><path d="M6 21 V10 Q6 4 12 4 Q18 4 18 10 V21 Z M3 21 H21 M9 10 H15 M12 7 V14" /><path d="M8 18 Q12 15 16 18" /></Mark>,
 };
 
+const DELVER_MODIFIER_MARKS = {
+  turn: <Mark><path d="M6 8 A7 7 0 1 1 5 15 M6 8 V3 M6 8 H11" /><path d="M12 8 V13 L15 15" /></Mark>,
+  banked: <Mark><path d="M4 8 H20 V20 H4 Z M7 8 V5 H17 V8 M4 12 H20" /><circle cx="12" cy="16" r="1.5" /></Mark>,
+  heat: <Mark><path d="M12 3 Q18 9 16 14 Q15 10 12 9 Q13 13 10 16 Q8 18 12 21 Q5 20 5 14 Q5 9 12 3 Z" /></Mark>,
+  fading: <Mark><path d="M15 4 A8 8 0 1 0 20 17 A7 7 0 0 1 15 4 Z M5 5 L7 7 M3 10 H6 M6 17 L8 15" /></Mark>,
+  preserved: <Mark><rect x="5" y="10" width="14" height="11" rx="1" /><path d="M8 10 V7 A4 4 0 0 1 16 7 V10 M12 14 V18" /></Mark>,
+  ready: <Mark><circle cx="12" cy="12" r="9" /><path d="M7 12 L10 15 L17 8" /></Mark>,
+  rigged: <Mark><path d="M5 7 L15 3 L21 9 L17 19 L7 21 L3 15 Z" /><circle cx="9" cy="10" r="1" fill="currentColor" /><circle cx="15" cy="14" r="1" fill="currentColor" /></Mark>,
+  recoverable: <Mark><path d="M12 3 Q19 10 19 15 A7 7 0 0 1 5 15 Q5 10 12 3 Z" /><path d="M12 9 V18 M8 13.5 H16 M4 5 L7 5 L7 8" /></Mark>,
+  citations: <Mark><path d="M5 7 H10 V12 Q10 17 6 19 M14 7 H19 V12 Q19 17 15 19" /><path d="M6 4 H18" /></Mark>,
+  riposte: <Mark><path d="M10 4 L17 7 V12 Q17 17 10 20 Q3 17 3 12 V7 Z" /><path d="M13 14 L21 6 M16 6 H21 V11" /></Mark>,
+  runePower: <Mark><path d="M12 2 L14 9 L21 12 L14 15 L12 22 L10 15 L3 12 L10 9 Z" /><circle cx="12" cy="12" r="2" /></Mark>,
+  rise: <Mark><path d="M5 21 H19 M7 21 V13 H17 V21 M12 16 V3 M8 7 L12 3 L16 7" /></Mark>,
+};
+
 function classMechanicReadout(runState, combat, combatBoard) {
   const constructs = combatBoard.cells.filter(cell => cell.construct);
   const heatedConstructs = constructs.filter(cell => ['sentry', 'relay'].includes(cell.construct?.kind));
@@ -121,49 +142,68 @@ function classMechanicReadout(runState, combat, combatBoard) {
   const byClass = {
     sapper: {
       mechanic: 'blast chain', label: 'Blast Chain', value: Number(combat.classState.blastChain || 0),
-      detail: 'this turn',
+      detailKey: 'turn', detailLabel: 'This count resets at the start of your next turn.',
     },
     surveyor: {
       mechanic: 'insight', label: 'Insight', value: Number(combat.insight || 0),
-      detail: 'banked',
+      detailKey: 'banked', detailLabel: 'Insight is banked until a Surveyor effect spends it.',
     },
     terraformer: {
       mechanic: 'construct', label: 'Constructs', value: `${constructs.length}/3`,
-      detail: heatedConstructs.length ? `Heat ${maxHeat}/${heatCap}` : 'No Heat', current: constructs.length, max: 3,
+      detailKey: 'heat', detailValue: `${maxHeat}/${heatCap}`,
+      detailLabel: heatedConstructs.length
+        ? `The hottest active Construct has ${maxHeat} of ${heatCap} Heat.`
+        : `No active Construct has Heat; the overload threshold is ${heatCap}.`,
+      current: constructs.length, max: 3,
     },
     lamplighter: {
       mechanic: 'light', label: 'Light', value: `${Number(combat.classState.light || 0)}/10`,
-      detail: Number(combat.classState.preserveLight || 0) ? `${combat.classState.preserveLight} preserved` : 'half fades',
+      detailKey: Number(combat.classState.preserveLight || 0) ? 'preserved' : 'fading',
+      detailValue: Number(combat.classState.preserveLight || 0) || null,
+      detailLabel: Number(combat.classState.preserveLight || 0)
+        ? `${combat.classState.preserveLight} Light is protected from the next turn-start fade.`
+        : 'Half of unpreserved Light fades at the start of your turn.',
       current: Number(combat.classState.light || 0), max: 10,
     },
     gambler: {
       mechanic: 'loaded', label: 'Loaded', value: `${Number(combat.classState.loaded || 0)}/${loadedCap}`,
-      detail: Number(combat.classState.riggedWagers || 0) ? `${combat.classState.riggedWagers} rigged` : 'coin ready',
+      detailKey: Number(combat.classState.riggedWagers || 0) ? 'rigged' : 'ready',
+      detailValue: Number(combat.classState.riggedWagers || 0) || null,
+      detailLabel: Number(combat.classState.riggedWagers || 0)
+        ? `${combat.classState.riggedWagers} upcoming Wager${combat.classState.riggedWagers === 1 ? ' is' : 's are'} rigged to Heads.`
+        : 'No Wager is currently rigged; Loaded can force a future result to Heads.',
       current: Number(combat.classState.loaded || 0), max: loadedCap,
     },
     chirurgeon: {
       mechanic: 'blood', label: 'Untreated Blood', value: Number(combat.classState.untreatedBlood || 0),
-      detail: 'recoverable',
+      detailKey: 'recoverable', detailLabel: 'This much Blood remains recoverable through treatment.',
     },
     archivist: {
       mechanic: 'archive', label: 'Archive', value: combat.archive.length,
-      detail: `${Number(combat.classState.citations || 0)} Citations`,
+      detailKey: 'citations', detailValue: Number(combat.classState.citations || 0),
+      detailLabel: `${Number(combat.classState.citations || 0)} Citations are banked for Archive and Recall effects.`,
     },
     warden: {
       mechanic: 'resolve', label: 'Resolve', value: `${Number(combat.classState.resolve || 0)}/${resolveCap}`,
-      detail: 'riposte fuel', current: Number(combat.classState.resolve || 0), max: resolveCap,
+      detailKey: 'riposte', detailLabel: 'Resolve is stored fuel for Riposte effects.',
+      current: Number(combat.classState.resolve || 0), max: resolveCap,
     },
     hexwright: {
       mechanic: 'rune', label: 'Runes', value: runes.length,
-      detail: `${runePower} total power`,
+      detailKey: 'runePower', detailValue: runePower,
+      detailLabel: `Inscribed Runes have ${runePower} total power.`,
     },
     revenant: {
       mechanic: 'grave', label: 'Grave', value: combat.grave.length,
-      detail: 'ready to Rise',
+      detailKey: 'rise', detailLabel: 'Cards in the Grave are available to Rise effects.',
     },
   };
   const readout = byClass[runState.cls];
-  return readout ? { ...readout, cls: runState.cls, icon: DELVER_RESOURCE_MARKS[runState.cls] } : null;
+  return readout ? {
+    ...readout, cls: runState.cls,
+    icon: DELVER_RESOURCE_MARKS[runState.cls],
+    detailIcon: DELVER_MODIFIER_MARKS[readout.detailKey],
+  } : null;
 }
 
 function CombatCoach({ step, onStep, onFinish, onRevealCards }) {
@@ -289,11 +329,14 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
         {classMechanic && (
           <span className={`stat class-mechanic-stat ${classMechanic.cls} ${Number(classMechanic.current ?? classMechanic.value) > 0 ? 'charged' : ''}`}
             data-mechanic={classMechanic.mechanic} tabIndex="0"
-            aria-label={`${classMechanic.label}: ${classMechanic.value}. ${classMechanic.detail}`}
-            title={`${classMechanic.label}: ${classMechanic.value} · ${classMechanic.detail}`}>
+            aria-label={`${classMechanic.label}: ${classMechanic.value}. ${classMechanic.detailLabel}`}
+            title={`${classMechanic.label}: ${classMechanic.value} · ${classMechanic.detailLabel}`}>
             <i className="class-mechanic-icon" aria-hidden="true">{classMechanic.icon}</i>
             <span className="class-mechanic-main"><small>{classMechanic.label}</small><strong>{classMechanic.value}</strong></span>
-            <span className="class-mechanic-detail">{classMechanic.detail}</span>
+            <span className="class-mechanic-detail" aria-hidden="true">
+              <i className="class-mechanic-detail-icon">{classMechanic.detailIcon}</i>
+              {classMechanic.detailValue != null && <strong>{classMechanic.detailValue}</strong>}
+            </span>
             {classMechanic.max && <span className="class-mechanic-meter" aria-hidden="true">
               <i style={{ width: `${Math.min(100, Math.max(0, classMechanic.current / classMechanic.max * 100))}%` }} />
             </span>}

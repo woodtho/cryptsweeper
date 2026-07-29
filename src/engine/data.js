@@ -9,7 +9,7 @@ import {
   detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
   chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
   highestRevealedNumber, neighborsOf, outerRingIndices, numAt, toast, log, fleeCombat,
-  enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
+  enemyAttack, bossResonanceIntent, resolveBossResonance, boardAttack, layMines, fogTiles, scrambleMines,
   setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
   annexTiles, addMineAt,
 } from './runtime.js';
@@ -799,44 +799,52 @@ export const ENEMIES = {
   /* ----- bosses ----- */
   collapser: {
     name: 'The Collapser', emoji: '🕳️', hp: 95, home: 0, boss: true,
-    desc: 'Alternates between attacking for 10 damage and devouring the board’s outer ring. Hidden mines in the consumed ring detonate for half damage.',
-    next: e => e.step % 2 === 0
-      ? { kind: 'attack', cls: 'atk', n: 10, label: 'Attack 10' }
-      : { kind: 'devour', cls: 'board', label: 'DEVOUR the outer ring' },
+    desc: 'Attacks, devours the board’s outer ring, and periodically uses Resonance to test your Delver’s signature mechanic. Hidden mines in the consumed ring detonate for half damage.',
+    next: e => {
+      const s = e.step % 4;
+      if (s === 0 || s === 2) return { kind: 'attack', cls: 'atk', n: 10, label: 'Attack 10' };
+      if (s === 1) return { kind: 'devour', cls: 'board', label: 'DEVOUR the outer ring' };
+      return bossResonanceIntent(e);
+    },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
+      else if (it.kind === 'resonance') resolveBossResonance(e, it);
       else devourRing();
     },
   },
   fogfather: {
     name: 'The Fogfather', emoji: '🌁', hp: 135, home: 1, boss: true,
-    desc: 'Cycles through re-hiding 5 revealed tiles, moving 4 unverified mines, and attacking for 18 damage.',
+    desc: 'Cycles through re-hiding tiles, moving unverified mines, attacking, and a Resonance that tests your Delver’s signature mechanic.',
     next: e => {
-      const s = e.step % 3;
+      const s = e.step % 4;
       if (s === 0) return { kind: 'fog', cls: 'board', n: 5, label: 'Fog 5 tiles' };
       if (s === 1) return { kind: 'scramble', cls: 'board', n: 4, label: 'Scramble 4 mines' };
-      return { kind: 'attack', cls: 'atk', n: 18, label: 'Attack 18' };
+      if (s === 2) return { kind: 'attack', cls: 'atk', n: 18, label: 'Attack 18' };
+      return bossResonanceIntent(e);
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
       else if (it.kind === 'fog') boardAttack('The Fogfather breathes fog', () => fogTiles(it.n));
-      else boardAttack('The Fogfather scrambles mines', () => scrambleMines(it.n));
+      else if (it.kind === 'scramble') boardAttack('The Fogfather scrambles mines', () => scrambleMines(it.n));
+      else resolveBossResonance(e, it);
     },
   },
   nn99: {
     name: 'NN-99', emoji: '🛰️', hp: 220, home: 2, boss: true, gated: true,
-    desc: 'Its signal shield halves damage at the start of each turn. Each safe reveal weakens it; after 3 safe reveals or a Chord, attacks deal full damage. It deploys mines while shifting through larger phase boards.',
+    desc: 'Its signal shield weakens damage until you reveal 3 safe tiles or Chord. It deploys mines, shifts through larger phase boards, and periodically uses Resonance against your Delver’s signature mechanic.',
     gateNote: 'Signal shield: 50% damage initially; reveal 3 safe tiles or Chord for full damage',
     setup: e => { e.data.phase = 1; },
     next: e => {
-      const s = e.step % 3;
+      const s = e.step % 4;
       if (s === 0) return { kind: 'attack', cls: 'atk', n: 12, label: 'Attack 12' };
       if (s === 1) { const col = randInt(board().size); return { kind: 'lay', cls: 'board', n: 3, col, label: `Lay 3 mines (col ${col + 1})` }; }
-      return { kind: 'attack', cls: 'atk', n: 16, label: 'Attack 16' };
+      if (s === 2) return { kind: 'attack', cls: 'atk', n: 16, label: 'Attack 16' };
+      return bossResonanceIntent(e);
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
-      else boardAttack('NN-99 deploys mines', () => layMines(it.n, it.col));
+      else if (it.kind === 'lay') boardAttack('NN-99 deploys mines', () => layMines(it.n, it.col));
+      else resolveBossResonance(e, it);
     },
   },
 };

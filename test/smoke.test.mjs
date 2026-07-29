@@ -16,7 +16,8 @@ import {
   applyEnemyEffect, enemyAttack, fogTiles, effCost, BOSS_RELIC_KEYS, VEIN_BOONS,
   loseHP, gainLight, spendInsight, recallArchived, riseGraves, isTrinketEligible,
   runElapsedMs, formatRunTime, setRunTimerActive,
-  rewardPoolFor,
+  rewardPoolFor, toast, TOAST_DURATION_MS, BOSS_RESONANCE,
+  bossResonanceIntent, resolveBossResonance,
 } from '../src/engine/engine.js';
 import { CARDS, CLASSES, TRINKETS, SIGNATURE_RELICS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
@@ -90,6 +91,18 @@ T('combat started with enemies', !!cbt() && cbt().enemies.length > 0);
 T('drew 5', cbt().hand.length === 5);
 T('3 energy', cbt().energy === 3);
 T('opening cascade revealed tiles', board().cells.filter(x => x.revealed).length >= 1);
+{
+  const message = 'Notification lifecycle audit';
+  const logBefore = cbt().log.filter(line => line.includes(message)).length;
+  const firstId = toast(message, false, 'Expanded diagnostic detail.');
+  const duplicateId = toast(message, true, 'This duplicate must not be added.');
+  T('notifications remain visible longer than the old 2.6-second lifetime', TOAST_DURATION_MS >= 3800);
+  T('an active duplicate notification is coalesced until the original clears',
+    firstId === duplicateId && ui.toasts.filter(item => item.msg === message).length === 1);
+  T('every new notification enters the combat log with optional detail',
+    cbt().log.filter(line => line.includes(message)).length === logBefore + 1
+      && cbt().log.some(line => line.includes(message) && line.includes('Expanded diagnostic detail.')));
+}
 
 const safeHidden = hiddenIdx().find(i => !board().cells[i].mine);
 const insight0 = cbt().insight;
@@ -214,7 +227,7 @@ startCombat('dig');
     if (mineLair != null) {
       const hp1 = e.hp;
       detonateForCards(mineLair);
-      T('detonating a lair mine deals 10 to its owner', e.hp <= hp1 - 10);
+      T('detonating a lair mine deals up to 10 without going below zero', e.hp <= Math.max(0, hp1 - 10));
     } else console.log('skip  lair mine (none hidden in lair)');
   }
   if (R().combat && e.hp > 0) {
@@ -444,6 +457,51 @@ hitEnemy(nn, 10);
 T('NN-99 takes full damage after 3 safe reveals', nn.hp === nnHp - 23);
 nn.hp = 149; checkNNPhase(nn);
 T('NN-99 phase 2 regenerates a denser board (12+2 grid)', board().size === 14);
+
+{
+  const intents = new Map();
+  for (const cls of Object.keys(CLASSES)) {
+    newRun(cls, { daily: `resonance-intent-${cls}`, testMode: true });
+    closeCutscene();
+    startCombat('boss');
+    closeCutscene();
+    const enemy = cbt().enemies[0];
+    enemy.step = 3;
+    const intent = enemy.def.next(enemy);
+    intents.set(cls, intent);
+  }
+  T('every Delver has a documented class-reactive boss Resonance',
+    Object.keys(BOSS_RESONANCE).length === Object.keys(CLASSES).length
+      && Object.keys(CLASSES).every(cls => BOSS_RESONANCE[cls]?.desc && intents.get(cls)?.resonance === cls
+        && intents.get(cls)?.kind === 'resonance' && intents.get(cls)?.detail));
+  T('boss Resonance telegraphs distinct class-specific goals',
+    new Set([...intents.values()].map(intent => intent.label)).size === Object.keys(CLASSES).length);
+
+  newRun('sapper', { daily: 'resonance-chain-success', testMode: true });
+  closeCutscene(); startCombat('boss'); closeCutscene();
+  const chainBoss = cbt().enemies[0];
+  cbt().classState.blastChain = 2;
+  const chainHp = chainBoss.hp;
+  resolveBossResonance(chainBoss, bossResonanceIntent(chainBoss));
+  T('Sapper passes Chain Test by building a two-link Blast Chain', chainBoss.hp === chainHp - 8);
+
+  newRun('warden', { daily: 'resonance-break-success', testMode: true });
+  closeCutscene(); startCombat('boss'); closeCutscene();
+  const breakBoss = cbt().enemies[0];
+  cbt().block = 100;
+  const breakHp = breakBoss.hp, wardenHp = R().hp;
+  resolveBossResonance(breakBoss, bossResonanceIntent(breakBoss));
+  T('Warden perfect defence absorbs the three-hit Break Test and Ripostes',
+    R().hp === wardenHp && breakBoss.hp === breakHp - 10);
+
+  newRun('hexwright', { daily: 'resonance-cipher-failure', testMode: true });
+  closeCutscene(); startCombat('boss'); closeCutscene();
+  const cipherBoss = cbt().enemies[0];
+  const minesBeforeCipher = board().cells.filter(cell => cell.mine).length;
+  resolveBossResonance(cipherBoss, bossResonanceIntent(cipherBoss));
+  T('Hexwright failing Rune Cipher adds a mine to the board',
+    board().cells.filter(cell => cell.mine).length === minesBeforeCipher + 1);
+}
 
 /* 11 — construct fix regression: Sentry can be built (addConstruct exists now) */
 {

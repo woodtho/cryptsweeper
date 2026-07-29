@@ -5,8 +5,9 @@ const puzzles = [
   ['mines', '6×6 Mines'], ['mines-medium', '7×7 Mines'], ['mines-hard', '8×8 Mines'],
   ['sudoku', '4×4 Sudoku'], ['sudoku-medium', '6×6 Sudoku'], ['sudoku-hard', '9×9 Sudoku'],
   ['crossword', '3×3 Crossword'], ['crossword-medium', '4×4 Crossword'], ['crossword-hard', '5×5 Crossword'],
-  ['sequence-medium', 'Sequence'], ['sequence-hard', 'Hard sequence'],
-  ['lights-medium', '3×3 Lights Out'], ['lights-hard', '4×4 Lights Out'], ['nonogram', '5×5 Nonogram'],
+  ['sequence', 'Measured sequence'], ['sequence-medium', 'Demanding sequence'], ['sequence-hard', 'Relentless sequence'],
+  ['lights', 'Measured 3×3 Lights Out'], ['lights-medium', 'Demanding 3×3 Lights Out'], ['lights-hard', 'Relentless 4×4 Lights Out'],
+  ['nonogram', 'Measured 5×5 Nonogram'], ['nonogram-medium', 'Demanding 5×5 Nonogram'], ['nonogram-hard', 'Relentless 7×7 Nonogram'],
 ];
 
 const entry = (label, kind, value = null, tone = '') => ({ label, kind, value, tone });

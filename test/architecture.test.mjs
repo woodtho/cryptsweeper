@@ -32,7 +32,12 @@ test('battle boards expose touch inspection and basic keyboard controls',
     && board.includes("toLowerCase() === 'i'") && board.includes('data-board-tile'));
 
 const combat = source('src/ui/CombatScreen.jsx');
+const mechanicsSource = source('src/ui/mechanics.js');
 const styles = source('src/styles.css');
+const engine = source('src/engine/engine.js');
+const runtime = source('src/engine/runtime.js');
+const bossData = source('src/engine/data.js');
+const bossRules = source('src/ui/screens.jsx');
 const entrypoint = source('src/main.jsx');
 const handheldTheme = source('src/gba-theme.css');
 const cardSheetRenderer = source('src/ui/CardSheetRenderer.jsx');
@@ -41,14 +46,40 @@ test('every Delver has an obvious class-resource panel with useful secondary sta
     'chirurgeon:', 'archivist:', 'warden:', 'hexwright:', 'revenant:']
     .every(cls => combat.includes(cls))
     && combat.includes('DELVER_RESOURCE_MARKS')
+    && combat.includes('DELVER_MODIFIER_MARKS')
     && combat.includes('class-mechanic-detail')
+    && combat.includes('class-mechanic-detail-icon')
     && combat.includes('class-mechanic-meter')
-    && ['Heat ${maxHeat}/${heatCap}', 'preserved', 'rigged', 'Citations', 'total power', 'ready to Rise']
-      .every(detail => combat.includes(detail))
+    && ['turn', 'banked', 'heat', 'fading', 'preserved', 'ready', 'rigged',
+      'recoverable', 'citations', 'riposte', 'runePower', 'rise']
+      .every(modifier => combat.includes(`${modifier}: <Mark`))
+    && !combat.includes('{classMechanic.detailLabel}</span>')
+    && ['strongbox symbol', 'circular turn symbol', 'half-moon symbol', 'crooked die',
+      'mending-drop symbol', 'quotation-mark symbol', 'shield-and-arrow symbol',
+      'star-rune symbol', 'upward grave-arrow symbol', 'flame symbol']
+      .every(documentation => mechanicsSource.includes(documentation))
     && styles.includes('.class-mechanic-stat {')
     && styles.includes('grid-column: span 2;')
     && styles.includes('.class-mechanic-main small')
+    && styles.includes('.class-mechanic-detail-icon')
     && styles.includes('.class-mechanic-stat.charged'));
+test('notifications stay longer, coalesce active duplicates, and log expanded details',
+  engine.includes('TOAST_DURATION_MS = 4000')
+    && engine.includes("ui.toasts.find(item => item.msg === text)")
+    && engine.includes("expanded ? ` — ${expanded}`")
+    && styles.includes('animation: fadeout 4s forwards'));
+test('bosses periodically use documented class-reactive Resonance intents',
+  ['sapper','surveyor','terraformer','lamplighter','gambler',
+    'chirurgeon','archivist','warden','hexwright','revenant']
+    .every(cls => engine.includes(`  ${cls}: {`))
+    && engine.includes('export function bossResonanceIntent')
+    && engine.includes('export function resolveBossResonance')
+    && runtime.includes("call('bossResonanceIntent'")
+    && bossData.includes('e.step % 4')
+    && bossData.includes("it.kind === 'resonance'")
+    && combat.includes("e.intent?.cls === 'resonance'")
+    && bossRules.includes('Boss Resonance by Delver')
+    && mechanicsSource.includes("resonance: { name: 'Resonance'"));
 test('card review sheets use the live CardView and cover every Delver deck plus shared cards',
   entrypoint.includes("get('card-sheet')")
     && cardSheetRenderer.includes('<CardView')

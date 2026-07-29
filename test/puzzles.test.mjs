@@ -40,6 +40,8 @@ for (const [type, size] of [['sudoku',4], ['sudoku-medium',6], ['sudoku-hard',9]
   test(`${size}x${size} Sudoku has a valid completed solution`, isValidSudoku(p.solution, size, p.boxRows, p.boxCols, false));
   test(`${size}x${size} Sudoku givens are valid and unique`, isValidSudoku(initial, size, p.boxRows, p.boxCols, true)
     && countSudokuSolutions(initial, size, p.boxRows, p.boxCols) === 1);
+  const variants = new Set(Array.from({ length:24 }, (_, seed) => puzzleSignature(type, `sudoku-variety-${size}-${seed}`)));
+  test(`${size}x${size} Sudoku provides at least 24 distinct transformed boards`, variants.size >= 24);
 }
 fresh('sudoku-notes'); startPuzzle('sudoku-hard');
 const sudokuBlank = run.puzzle.values.findIndex((value, index) => !value && !run.puzzle.givens.includes(index));
@@ -56,20 +58,23 @@ for (const [type, size] of [['crossword',3], ['crossword-medium',4], ['crossword
   test(`${size}x${size} crossword carries distinct localized clue lists`, p.locale === 'en-CA'
     && p.acrossClues.length === size && p.downClues.length === size
     && p.acrossClues.some((clue, i) => clue !== p.downClues[i]));
+  const variants = new Set(Array.from({ length:48 }, (_, seed) => puzzleSignature(type, `crossword-variety-${size}-${seed}`)));
+  test(`${size}x${size} crossword draws from at least seven distinct word squares`, variants.size >= 7);
 }
 
 /* Procedural nonograms: generated clues match the answer and admit one solution. */
 for (const [type, size] of [['nonogram',5], ['nonogram-medium',5], ['nonogram-hard',7]]) {
-  let valid = true;
+  let valid = true; const variants = new Set();
   for (let seed = 0; seed < 30; seed++) {
     fresh(`${type}-${seed}`); startPuzzle(type); const p = run.puzzle;
     const clues = nonogramClues(p.solution, p.size);
+    variants.add(JSON.stringify([p.rowClues, p.colClues]));
     valid &&= p.size === size
       && JSON.stringify(clues.rowClues) === JSON.stringify(p.rowClues)
       && JSON.stringify(clues.colClues) === JSON.stringify(p.colClues)
       && countNonogramSolutions(p.rowClues, p.colClues, p.size) === 1;
   }
-  test(`${type} generates 30 valid unique clue sets`, valid);
+  test(`${type} generates 30 valid unique clue sets`, valid && variants.size === 30);
 }
 fresh('nonogram-input'); startPuzzle('nonogram-medium');
 toggleNonogramCell(0); toggleNonogramCell(0);
@@ -83,26 +88,29 @@ test('nonogram completion accepts either crossed or unknown empty cells', run.pu
 
 /* Lights Out: every generated board is solvable and has a measured floor. */
 for (const [type, size, floor] of [['lights',3,2], ['lights-medium',3,4], ['lights-hard',4,7]]) {
-  let valid = true;
+  let valid = true; const variants = new Set();
   for (let seed = 0; seed < 30; seed++) {
     fresh(`${type}-${seed}`); startPuzzle(type); const p = run.puzzle;
     const minimum = minimumLightsSolution(p.values, p.size);
+    variants.add(p.values.join(''));
     valid &&= p.size === size && minimum != null && minimum >= floor && p.minimumMoves === minimum;
   }
-  test(`${type} generates 30 solvable boards above its move floor`, valid);
+  const varietyFloor = type === 'lights-hard' ? 12 : 20;
+  test(`${type} generates solvable boards above its move floor with broad variety`, valid && variants.size >= varietyFloor);
 }
 
 /* Minesweeper: every procedural difficulty remains no-guess and correctly sized. */
 for (const [type, size] of [['mines',6], ['mines-medium',7], ['mines-hard',8]]) {
-  let valid = true;
+  let valid = true; const variants = new Set();
   for (let seed = 0; seed < 30; seed++) {
     fresh(`${type}-${seed}`); startPuzzle(type); const p = run.puzzle;
     const mines = new Set(p.board.cells.flatMap((cell, index) => cell.mine ? [index] : []));
+    variants.add(p.board.cells.map(cell => cell.mine ? 1 : 0).join(''));
     const opening = p.board.cells.findIndex((cell, index) => cell.revealed && !cell.mine
       && neighborsOf(index, size).every(neighbor => !p.board.cells[neighbor].mine));
     valid &&= p.board.cells.length === size * size && opening >= 0 && solveScore(mines, size, opening) >= 1;
   }
-  test(`${type} generates 30 fully provable boards`, valid);
+  test(`${type} generates 30 distinct fully provable boards`, valid && variants.size === 30);
 }
 
 const puzzleCell = mine => ({
@@ -134,7 +142,18 @@ for (const type of ['sequence', 'sequence-medium', 'sequence-hard']) {
   fresh(type); startPuzzle(type); const p = run.puzzle;
   test(`${type} offers one unambiguous answer`, new Set(p.choices).size === p.choices.length
     && p.choices.filter(choice => choice === p.answer).length === 1 && !('explanation' in p));
+  const variants = new Set(Array.from({ length:48 }, (_, seed) => puzzleSignature(type, `sequence-variety-${type}-${seed}`)));
+  test(`${type} draws from at least nine distinct patterns`, variants.size >= 9);
 }
+fresh('puzzle-rotation');
+const recentCrosswords = new Set();
+const recentSequences = new Set();
+for (let visit = 0; visit < 5; visit++) {
+  startPuzzle('crossword-hard'); recentCrosswords.add(run.puzzle.words.join('|'));
+  startPuzzle('sequence-hard'); recentSequences.add(run.puzzle.prompt);
+}
+test('authored puzzle rotation prevents immediate crossword and sequence repeats',
+  recentCrosswords.size === 5 && recentSequences.size === 5);
 
 /* Shared behavior: reproducibility, incomplete validation, persistence, and navigation. */
 for (const type of ['mines-hard','sudoku-hard','crossword-hard','sequence-hard','lights-hard','nonogram-hard']) {

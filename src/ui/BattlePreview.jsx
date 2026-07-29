@@ -1,5 +1,5 @@
-import { run, cbt, closeBattlePreview, ENEMY_MODIFIERS } from '../engine/engine.js';
-import { STRATA } from '../engine/data.js';
+import { run, cbt, closeBattlePreview, ENEMY_MODIFIERS, BOSS_RESONANCE } from '../engine/engine.js';
+import { STRATA, CLASSES } from '../engine/data.js';
 import { decorateMechanics } from './mechanics.js';
 import { enemyIcon } from './enemyIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
@@ -15,6 +15,10 @@ function Modifier({ enemy }) {
 function EnemyBrief({ enemy, index, preferences }) {
   const type = enemy.def.boss ? 'Boss' : enemy.def.elite ? 'Elite enemy' : 'Enemy';
   const lairTiles = enemy.lair?.length || 0;
+  const resonance = enemy.def.boss ? BOSS_RESONANCE[run.cls] : null;
+  const intentIcon = enemy.intent?.cls === 'atk' ? 'attack'
+    : enemy.intent?.cls === 'defend' ? 'defend'
+      : enemy.intent?.cls === 'resonance' ? 'target' : 'lair';
   return <article className="battle-preview-enemy">
     <div className="battle-preview-type"><span>{type}</span><small>Threat {index + 1}</small></div>
     <div className="battle-preview-art" aria-label={`${enemy.def.name} artwork`}>
@@ -31,9 +35,10 @@ function EnemyBrief({ enemy, index, preferences }) {
     <Modifier enemy={enemy} />
     {enemy.scale > 0 && <div className="battle-preview-impact"><b>Depth scaling</b><span>Health increased by {Math.round(enemy.scale * 45)}% for fighting below its home stratum.</span></div>}
     {enemy.def.gated && <div className="battle-preview-impact"><b>Damage gate</b><span>{enemy.def.gateNote}</span></div>}
+    {resonance && <div className="battle-preview-impact resonance"><b>{resonance.mark} {CLASSES[run.cls]?.name} Resonance</b><span>{resonance.desc}</span></div>}
     <div className={`battle-preview-intent ${enemy.intent?.cls || ''}`}>
-      <GameIcon name={enemy.intent?.cls === 'atk' ? 'attack' : enemy.intent?.cls === 'defend' ? 'defend' : 'lair'} preferences={preferences} />
-      <div><small>Opening intent</small><b>{enemy.data.buried && enemy.modifier === 'burrowing' ? 'Buried — skips its action' : enemy.intent?.label || 'Unknown'}</b></div>
+      <GameIcon name={intentIcon} preferences={preferences} />
+      <div><small>Opening intent</small><b>{enemy.data.buried && enemy.modifier === 'burrowing' ? 'Buried — skips its action' : enemy.intent?.label || 'Unknown'}</b>{enemy.intent?.detail && <span>{enemy.intent.detail}</span>}</div>
     </div>
   </article>;
 }

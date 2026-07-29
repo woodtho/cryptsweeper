@@ -36,7 +36,9 @@ includes branching maps, shops, camps, treasure, 20 fiction-first events,
 recurring Honest Puzzles, 13 regular enemies, elites, three core bosses, and
 repeating Vein bosses. Boss relics, Vein boons, enemy modifiers, event threads,
 achievements, challenge/daily runs, and per-Delver statistics extend the
-run-to-run structure.
+run-to-run structure. Every boss also cycles into a telegraphed Resonance intent
+that tests the active Delver’s signature mechanic and rewards deliberate
+counterplay.
 
 The Archive groups the indexes, achievements, Graveyard, saves, jukebox, and
 speedrun boards. The Graveyard records victories as well as deaths. Speedrun

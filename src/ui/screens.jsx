@@ -9,7 +9,7 @@ import {
   toggleLightsCell, toggleNonogramCell, toggleSudokuNoteMode, answerSequence,
   currentEventView,
   listSaves, loadRun, saveRun, deleteSave, goHome,
-  ENEMY_MODIFIERS, ENEMY_EFFECTS, VEIN_BOONS,
+  ENEMY_MODIFIERS, ENEMY_EFFECTS, BOSS_RESONANCE, VEIN_BOONS,
   formatRunTime, runElapsedMs,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
@@ -813,6 +813,9 @@ function HowToPlay() {
   const filteredEnemies = sortedEnemies.filter(([key, enemy]) => matches(key, enemy.name, enemy.desc, enemy.boss ? 'boss' : '', enemy.elite ? 'elite' : '', STRATA[enemy.home]?.name || ''));
   const filteredModifiers = Object.values(ENEMY_MODIFIERS).sort((a,b) => a.name.localeCompare(b.name)).filter(modifier => matches(modifier.name, modifier.desc));
   const filteredEffects = Object.values(ENEMY_EFFECTS).sort((a,b) => a.name.localeCompare(b.name)).filter(effect => matches(effect.name, effect.desc));
+  const filteredResonances = Object.entries(BOSS_RESONANCE)
+    .sort((a,b) => CLASSES[a[0]].name.localeCompare(CLASSES[b[0]].name))
+    .filter(([key, resonance]) => matches('boss resonance', key, CLASSES[key].name, resonance.name, resonance.desc));
   const sortedDelvers = Object.entries(CLASSES).sort((a,b) => a[1].name.localeCompare(b[1].name));
   const filteredDelvers = sortedDelvers.filter(([key,cls]) => matches(key, cls.name, cls.role, cls.passive,
     TRINKETS[cls.trinket]?.name || '', TRINKETS[cls.trinket]?.desc || '',
@@ -821,14 +824,14 @@ function HowToPlay() {
   const sectionVisible = {
     run: matches('run map strata route nodes daily challenge autosave unlock collection progression dig elite event shop treasure camp boss'),
     board: matches('board reveal number mine picks flag verified scan defuse chord detonate entomb construct sentry bulwark survey relay master builder stone choir board attack shapes excavate annex seed bury crater lair'),
-    combat: matches('combat turns targeting enemies intents energy health block lair buried gated boss attack random all cards'),
+    combat: matches('combat turns targeting enemies intents energy health block lair buried gated boss resonance attack random all cards'),
     damage: matches('damage defenses clearing health block plating mine damage instinct full clear defeat healing'),
     cards: matches('cards piles upgrades attack skill power energy discard draw exhaust rewards curse claustrophobia vertigo exhaustion night terrors paranoia'),
     economy: matches('gold rewards items trinkets gadgets camps shops removal rest smith survey train honest puzzles sudoku crossword sequence lights out nonogram'),
     delvers: filteredDelvers.length > 0 || matches('delvers classes passives starter health picks trinket deck'),
     controls: matches('touch keyboard controls tap hold long press enemy tracker back right click end turn escape'),
   };
-  const anythingVisible = Object.values(sectionVisible).some(Boolean) || filteredMechanics.length > 0 || filteredEnemies.length > 0 || filteredModifiers.length > 0 || filteredEffects.length > 0;
+  const anythingVisible = Object.values(sectionVisible).some(Boolean) || filteredMechanics.length > 0 || filteredEnemies.length > 0 || filteredModifiers.length > 0 || filteredEffects.length > 0 || filteredResonances.length > 0;
   if (tutorialOpen) return <InteractiveTutorial preferences={prefs} onClose={() => setTutorialOpen(false)} />;
   return <MechanicTerms><div className="rulebook">
     <div className="rulebook-intro">
@@ -881,6 +884,7 @@ function HowToPlay() {
         <li>Enemy intents are telegraphed. Besides attacking, enemies can gain Block, lay or move mines, fog information, prime tiles, excavate ground, devour regions, or alter the board's numbers.</li>
         <li>Each enemy owns a colored <b data-mechanic="lair">Lair</b>. Revealing a safe lair tile deals its number to the owner, detonating a lair mine deals 10, and Entombing a lair tile deals 3. Killing the owner crumbles its lair safely open.</li>
         <li>Some enemies are buried or gated and cannot be damaged until their stated condition is met. Bosses have unique rules and may change phases.</li>
+        <li>Every boss periodically uses a telegraphed <b data-mechanic="resonance">Resonance</b> intent tied to your chosen Delver. Its label gives the exact target—such as gaining Light, banking Insight, keeping Constructs cool, or Rising a Grave card. Meeting it rewards your class engine; missing it causes a modest attack, board change, or defensive gain.</li>
         <li>Enemies may enter with <b>Armoured, Burrowing, Unstable, or Cursed</b> modifiers. Your cards can apply <b data-mechanic="exposed">Exposed</b>, <b data-mechanic="jammed">Jammed</b>, and <b data-mechanic="sundered">Sundered</b> conditions—even to bosses.</li>
       </ul>
     </HowSection>
@@ -946,7 +950,7 @@ function HowToPlay() {
       </div>
     </HowSection>
 
-    <HowSection icon={<GameIcon name="target" preferences={prefs} />} title="Enemy and boss reference" open={Boolean(search)} visible={filteredEnemies.length > 0 || filteredModifiers.length > 0 || filteredEffects.length > 0}>
+    <HowSection icon={<GameIcon name="target" preferences={prefs} />} title="Enemy and boss reference" open={Boolean(search)} visible={filteredEnemies.length > 0 || filteredModifiers.length > 0 || filteredEffects.length > 0 || filteredResonances.length > 0}>
       <p className="dim">Every enemy is listed alphabetically. Read its intent pattern before choosing a target; bosses add unique rules and phase changes.</p>
       <div className="enemy-reference-grid">
         {filteredEnemies.map(([key, enemy]) => <article key={key}>
@@ -955,6 +959,7 @@ function HowToPlay() {
       </div>
       {filteredModifiers.length > 0 && <><h3 className="how-subhead">Enemy modifiers</h3><div className="glossary-grid">{filteredModifiers.map(modifier => <article key={modifier.name}><button type="button" data-mechanic={modifier.name.toLowerCase()}>{modifier.mark} {modifier.name}</button><p>{modifier.desc}</p></article>)}</div></>}
       {filteredEffects.length > 0 && <><h3 className="how-subhead">Player-inflicted conditions</h3><div className="glossary-grid">{filteredEffects.map(effect => <article key={effect.name}><button type="button" data-mechanic={effect.name.toLowerCase()}>{effect.mark} {effect.name}</button><p>{effect.desc}</p></article>)}</div></>}
+      {filteredResonances.length > 0 && <><h3 className="how-subhead">Boss Resonance by Delver</h3><div className="glossary-grid">{filteredResonances.map(([key, resonance]) => <article key={key}><button type="button" data-mechanic="resonance">{resonance.mark} {CLASSES[key].name}: {resonance.name}</button><p>{resonance.desc}</p></article>)}</div></>}
     </HowSection>
 
     <HowSection icon="?" title="Complete mechanic glossary" open={Boolean(search)} visible={filteredMechanics.length > 0}>

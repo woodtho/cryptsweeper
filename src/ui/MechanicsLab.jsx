@@ -15,7 +15,7 @@ const BOARD_KEYS = [
   'master builder','stone choir','board attack','rune','inscribe',
 ];
 const COMBAT_KEYS = [
-  'power','exhaust','exposed','jammed','sundered','blast chain','wager','untreated blood','wound','archive','file','recall',
+  'power','exhaust','resonance','exposed','jammed','sundered','blast chain','wager','untreated blood','wound','archive','file','recall',
   'riposte','grave','rise','death’s door',
 ];
 const MODIFIER_KEYS = ['armoured','burrowing','cursed','unstable'];
@@ -36,6 +36,7 @@ const MECHANIC_ICONS = {
   'blast chain':'bomb', wager:'flag', archive:'deck', file:'exhaust', recall:'deck',
   riposte:'attack', grave:'exhaust', rise:'health', 'death’s door':'health',
   exposed:'target', jammed:'relay', sundered:'attack',
+  resonance:'target',
   claustrophobia:'mines', vertigo:'picks', exhaustion:'draw', 'night terrors':'energy', paranoia:'flag',
   archivist:'exhaust', chirurgeon:'health', gambler:'flag', hexwright:'safe', lamplighter:'energy',
   revenant:'health', sapper:'bomb', surveyor:'scan', terraformer:'sentry', warden:'block',

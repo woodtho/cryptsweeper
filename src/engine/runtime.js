@@ -57,6 +57,8 @@ export const toast = (...args) => call('toast', args);
 export const log = (...args) => call('log', args);
 export const fleeCombat = (...args) => call('fleeCombat', args);
 export const enemyAttack = (...args) => call('enemyAttack', args);
+export const bossResonanceIntent = (...args) => call('bossResonanceIntent', args);
+export const resolveBossResonance = (...args) => call('resolveBossResonance', args);
 export const boardAttack = (...args) => call('boardAttack', args);
 export const layMines = (...args) => call('layMines', args);
 export const fogTiles = (...args) => call('fogTiles', args);
