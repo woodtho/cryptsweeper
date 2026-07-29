@@ -356,7 +356,7 @@ function DailyPanel({ today: initialToday }) {
 
 export function MapIconSettings({ preferences, onPreferenceChange }) {
   const styles = mapIconStyles(preferences);
-  const styleKey = styles[preferences.mapIconStyle] ? preferences.mapIconStyle : 'main';
+  const styleKey = styles[preferences.mapIconStyle] ? preferences.mapIconStyle : 'marks';
   const style = styles[styleKey];
   const isMixer = styleKey === 'mixer';
   const isMarks = Object.values(style.icons).every(isMarkToken);
@@ -426,7 +426,7 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
 
 export function EnemyIconSettings({ preferences, onPreferenceChange }) {
   const styles = getEnemyIconStyles(preferences);
-  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'main';
+  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'marks';
   const previewKeys = ['grubber', 'ossuary', 'nn99'];
   const mix = preferences.enemyIconMix || {};
   const styleKeys = Object.keys(styles).filter(key => key !== 'mixer').sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : 0);
@@ -857,7 +857,7 @@ function HowToPlay() {
         <li>Tap a hidden tile to <b data-mechanic="reveal">Reveal</b> it. A number counts mines in its eight neighboring spaces. A revealed zero cascades through connected safe tiles.</li>
         <li>Manual digs spend one <b data-mechanic="picks">Pick</b>; a whole cascade still costs one. Picks refill to your Max Picks each turn. Card actions normally do not spend Picks.</li>
         <li>Long-press a hidden tile on touch—or right-click with a mouse—to place a free <b data-mechanic="flag">Flag</b>. A normal flag is only your guess; a verified flag is guaranteed correct.</li>
-        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. In battles, <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent flag count matches. Honest Puzzle Minesweeper instead lets you tap the revealed number directly. The flags must be on the correct mines; wrong flags expose and detonate the unmarked mines. Basic battle Chord cards cost 0 Energy.</li>
+        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. In battles, <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent mines are accounted for by flags or <b data-mechanic="entomb">Entombed</b> tiles. Honest Puzzle Minesweeper instead lets you tap the revealed number directly. The flags and Entombs must cover actual mines; a wrong one exposes and detonates an unmarked mine. Basic battle Chord cards cost 0 Energy.</li>
         <li><b data-mechanic="detonate">Detonate</b> deliberately triggers and removes a mine. Controlled card detonations attack enemies safely unless the card says you take damage.</li>
         <li><b data-mechanic="entomb">Entomb</b> permanently seals a tile and counts it as resolved. A <b data-mechanic="construct">Construct</b> is built on an empty revealed tile and persists until destroyed; you can maintain up to 3.</li>
         <li>After you press End Turn, Constructs trigger before enemies act: a <b data-mechanic="sentry">Sentry</b> attacks, a <b data-mechanic="bulwark">Bulwark</b> grants Plating and Block, and a <b data-mechanic="survey relay">Survey Relay</b> Scans and grants Block. One Construct can destroy itself to cancel an enemy <b data-mechanic="board attack">Board Attack</b>.</li>
@@ -899,7 +899,7 @@ function HowToPlay() {
         <li>Press <b>Show Cards</b> to open your hand. A card's gem is its Energy cost; dim cards are unaffordable or currently unplayable.</li>
         <li><b>Attack</b> cards deal damage, <b>Skill</b> cards provide utility or defense, and <b data-mechanic="power">Power</b> cards create a combat-long effect.</li>
         <li>Played cards normally enter the discard pile. When the draw pile empties, discard is shuffled into a new draw pile. <b data-mechanic="exhaust">Exhausted</b> cards stay out for the rest of combat.</li>
-        <li>Card rewards may be skipped. Upgrading a card improves its green-highlighted values; upgraded cards show a <b>+</b>. Removal permanently thins the run's deck and becomes more expensive each time.</li>
+        <li>Card rewards may be skipped. A card can be upgraded twice: the first upgrade improves its green-highlighted values (shown as <b>+</b>); the second hones it, keeping the upgrade and costing <b>1 less Energy</b> (shown as <b>++</b>). Removal permanently thins the run's deck and becomes more expensive each time.</li>
         <li>Curses are unplayable cards with persistent penalties: <b data-mechanic="claustrophobia">Claustrophobia</b> adds mines, <b data-mechanic="vertigo">Vertigo</b> removes Picks, <b data-mechanic="exhaustion">Exhaustion</b> reduces draw, <b data-mechanic="night terrors">Night Terrors</b> drains opening Energy, and <b data-mechanic="paranoia">Paranoia</b> plants false flags. Removal permanently clears a curse from the run.</li>
       </ul>
     </HowSection>
@@ -970,7 +970,7 @@ const NODE_TYPE_LABELS = [
 ];
 function mapIcons(prefs) {
   const styles = mapIconStyles(prefs);
-  const styleKey = styles[prefs?.mapIconStyle] ? prefs.mapIconStyle : 'main';
+  const styleKey = styles[prefs?.mapIconStyle] ? prefs.mapIconStyle : 'marks';
   const icons = { ...styles[styleKey].icons };
   if (styleKey === 'mixer') {
     for (const [type] of NODE_TYPE_LABELS) {
@@ -1166,7 +1166,7 @@ export function RewardScreen() {
         {!r.cardTaken ? (
           <>
             <p>Choose a card (or skip):</p>
-            <div className="cardpick">
+            <div className="cardpick card-select-grid">
               {r.cards.map((cd, i) => (
                 <CardView key={i} card={{ id: i, key: cd.key, up: cd.up }} onClick={() => takeRewardCard(i)} />
               ))}

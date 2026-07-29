@@ -117,7 +117,7 @@ const LEGACY_ART = {
 };
 
 function selection(key, prefs) {
-  let style = prefs?.interfaceIconStyle || prefs?.mapIconStyle || 'main';
+  let style = prefs?.interfaceIconStyle || prefs?.mapIconStyle || 'marks';
   if (style === 'mixer') {
     const choice = prefs?.interfaceIconMix?.[key];
     style = choice?.style || 'emoji';

@@ -176,6 +176,24 @@ if (mine2 != null) {
   T('an inaccurate card Chord does not satisfy chord mechanics', failedChord.attempted && !failedChord.ok && cbt().chordedThisTurn === false);
 }
 
+/* 6.4 — Entombed neighbors count like flags when resolving a Chord. */
+{
+  const b2 = board();
+  const center = b2.cells.findIndex((cell, i) => !cell.void
+    && neighborsOf(i, b2.size).filter(j => !b2.cells[j].void).length >= 2);
+  const adjacent = neighborsOf(center, b2.size).filter(j => !b2.cells[j].void);
+  const [entombedMine] = adjacent;
+  Object.assign(b2.cells[center], { revealed: true, entombed: false, mine: false, flag: 0 });
+  for (const j of adjacent) {
+    Object.assign(b2.cells[j], { revealed: false, entombed: false, crater: false, mine: false, flag: 0, scan: null });
+  }
+  Object.assign(b2.cells[entombedMine], { entombed: true, mine: true });
+  cbt().chordedThisTurn = false;
+  const entombChord = chordAt(center);
+  T('an Entombed mine satisfies one adjacent Chord count',
+    entombChord.ok && entombChord.detonations === 0 && cbt().chordedThisTurn === true);
+}
+
 /* 6.5 — lairs: solving damages enemies; killing solves the board */
 if (R().combat) fleeCombat();
 startCombat('dig');
@@ -445,16 +463,22 @@ startCombat('dig');
   T('Scaffold annexes pre-scanned safe tiles',
     board().cells.filter(x => !x.void).length === playable1 + 3
     && board().cells.filter(x => !x.void && x.scan === 'safe' && !x.mine).length >= 3);
-  const ring = outerRingIndices(board());
-  const ringMine = ring.find(i => !board().cells[i].entombed);
-  for (const i of ring) if (!board().cells[i].entombed) board().cells[i].revealed = false;
-  board().cells[ringMine].mine = true;
+  const landslideBoard = board();
+  const ring = outerRingIndices(landslideBoard);
+  const ringMine = ring.find(i => !landslideBoard.cells[i].entombed);
+  for (const i of ring) if (!landslideBoard.cells[i].entombed) landslideBoard.cells[i].revealed = false;
+  landslideBoard.cells[ringMine].mine = true;
+  const landslideTiles = ring.filter(i => !landslideBoard.cells[i].entombed).length;
+  cc.enemies[0].block = 0;
   const enemyHpBeforeSlide = cc.enemies[0].hp;
+  const logBeforeSlide = cc.log.length;
   CARDS.landslide.play(0);
-  T('Landslide uses the visible shaped-board perimeter, removes its mines, and deals damage',
-    ring.length > 0 && ring.every(i => !board().cells[i].void)
-    && !board().cells[ringMine].mine && board().cells[ringMine].revealed
-    && cc.enemies[0].hp < enemyHpBeforeSlide);
+  const landslideLog = cc.log.slice(logBeforeSlide);
+  T('Landslide uses the visible shaped-board perimeter, removes its mines, deals full stated damage, and reports the result',
+    ring.length > 0 && ring.every(i => !landslideBoard.cells[i].void)
+    && !landslideBoard.cells[ringMine].mine && landslideBoard.cells[ringMine].revealed
+    && cc.enemies[0].hp <= enemyHpBeforeSlide - landslideTiles * 4
+    && landslideLog.some(entry => entry.includes(`Landslide clears ${landslideTiles} outer-ring`)));
 
   const classPicks = basePicksFor(R().cls);
   T('turn starts with the selected Delver\'s picks', cc.picks === classPicks);
@@ -735,7 +759,7 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
       && tutorialSource.includes('Target revealed 1 with Resonant Tap')
       && tutorialSource.includes('8 Block + 2 Plating absorb Attack 10'));
   T('Mechanics Lab covers every glossary mechanic plus every enemy modifier in five interactive sessions',
-    Object.keys(MECHANICS).length === 55
+    Object.keys(MECHANICS).length === 56
       && Object.keys(MECHANICS).every(key => mechanicsLabSource.includes(`'${key}'`))
       && Object.keys(ENEMY_MODIFIERS).length === 4
       && mechanicsLabSource.includes('Object.entries(ENEMY_MODIFIERS)')

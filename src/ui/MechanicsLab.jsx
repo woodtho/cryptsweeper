@@ -8,7 +8,7 @@ import { MechanicTerms } from './MechanicTerms.jsx';
 const RESOURCE_KEYS = ['health','gold','deck','mines','turn','block','plating','insight','picks','max picks','energy','vein'];
 const BOARD_KEYS = [
   'reveal','detonate','scan','defuse','chord','entomb','flag','verified flag','full clear',
-  'instinct','mine damage','lair','construct','sentry','bulwark','survey relay',
+  'instinct','mine damage','lair','construct','sentry','bulwark','survey relay','heat',
   'master builder','stone choir','board attack',
 ];
 const COMBAT_KEYS = ['power','exhaust','exposed','jammed','sundered'];
@@ -22,7 +22,7 @@ const MECHANIC_ICONS = {
   reveal:'safe', detonate:'bomb', scan:'scan', defuse:'services', chord:'target', entomb:'buried',
   block:'block', plating:'plating', insight:'insight', picks:'picks', 'max picks':'picks', energy:'energy',
   flag:'flag', 'verified flag':'flag', 'full clear':'victory', instinct:'instinct', 'mine damage':'bomb',
-  lair:'lair', construct:'sentry', sentry:'sentry', bulwark:'bulwark', 'survey relay':'relay',
+  lair:'lair', construct:'sentry', sentry:'sentry', bulwark:'bulwark', 'survey relay':'relay', heat:'energy',
   'master builder':'sentry', 'stone choir':'relay', 'board attack':'crater',
   power:'energy', exhaust:'exhaust',
   exposed:'target', jammed:'relay', sundered:'attack',

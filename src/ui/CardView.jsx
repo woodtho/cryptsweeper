@@ -28,7 +28,8 @@ function targetLabel(def) {
 export function CardView({ card, onClick, inCombat = false, selected = false, dim = false }) {
   const def = CARDS[card.key];
   const selection = targetLabel(def);
-  const cost = def.cost == null ? null : (inCombat ? effCost(card) : def.cost[card.up ? 1 : 0]);
+  const cost = def.cost == null ? null
+    : (inCombat ? effCost(card) : Math.max(0, def.cost[card.up ? 1 : 0] - ((card.up || 0) >= 2 ? 1 : 0)));
   const rar = def.rarity === 'special' ? (def.type === 'Curse' ? 'curse' : '') : def.rarity;
   const rarLabel = def.type === 'Curse' ? 'curse' : def.rarity;
   const segments = RARITY_SEGMENTS[def.rarity] ?? 1;
@@ -44,9 +45,9 @@ export function CardView({ card, onClick, inCombat = false, selected = false, di
         <span className="chip ctype">{def.type}</span>
         {def.hits ? <span className={`chip chit hm-${def.hits}`}>{HIT_LABELS[def.hits]}</span> : null}
       </div>
-      <div className="cname">{def.name}{card.up ? <span className="upg">+</span> : null}</div>
+      <div className="cname">{def.name}{card.up ? <span className="upg">{card.up >= 2 ? '++' : '+'}</span> : null}</div>
       <div className="cid">{def.cls || 'neutral'}</div>
-      <div className="rules"><span className="rrun" dangerouslySetInnerHTML={{ __html: decorateMechanics(def.text(card.up)) }} /></div>
+      <div className="rules"><span className="rrun" dangerouslySetInnerHTML={{ __html: decorateMechanics(def.text(card.up || 0)) }} /></div>
       {selection ? <div className="targetline">{selection}</div> : null}
       <div className="cbar">
         <span className="segs">{[0, 1, 2].map(i => <i key={i} className={i < segments ? 'on' : ''} />)}</span>

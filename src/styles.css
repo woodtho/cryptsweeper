@@ -5,20 +5,20 @@
 
 :root {
   /* palette */
-  --abyss-0: #06070a;
-  --abyss-1: #0b0d11;
-  --stone-1: #12151b;
-  --stone-2: #191d25;
-  --stone-3: #222733;
-  --etch:    #2b3140;
-  --etch-hi: #3f485c;
-  --bone:    #cfc9b8;
-  --bone-dim:#847f71;
+  --abyss-0: #080604;
+  --abyss-1: #120d08;
+  --stone-1: #221910;
+  --stone-2: #2c2114;
+  --stone-3: #3a2c1a;
+  --etch:    #4a3626;
+  --etch-hi: #6e5238;
+  --bone:    #ece3c8;
+  --bone-dim:#b3a483;
   --blood:   #b3372c;
   --blood-hi:#e0503f;
-  --candle:  #c9973b;
-  --moss:    #5aa072;
-  --hexp:    #8f76d6;
+  --candle:  #f2c63e;
+  --moss:    #6a9a4a;
+  --hexp:    #9b7ce0;
 
   /* legacy token names used by components (inline var() refs) */
   --ground: var(--abyss-1);
@@ -29,19 +29,20 @@
   --ink-dim: var(--bone-dim);
   --flag: var(--blood-hi);
   --gold: var(--candle);
-  --n1: #6c96e8;
+  --n1: #4aa6f0;
   --n2: var(--moss);
   --n3: var(--blood-hi);
   --n4: var(--hexp);
-  --tile-hi: #333b4b;
-  --tile-lo: #07090d;
-  --tile-face: var(--stone-3);
-  --open-face: #0e1116;
+  --tile-hi: #a8865c;
+  --tile-lo: #4a3422;
+  --tile-face: #7a5c3a;
+  --open-face: #241c14;
 
-  /* type */
-  --display: Bahnschrift, "Bahnschrift Condensed", Futura, "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
-  --mono: Consolas, "Cascadia Mono", "JetBrains Mono", "SF Mono", Menlo, monospace;
-  --flavor: Georgia, "Times New Roman", serif;
+  /* type — pixel-retro */
+  --display: "Silkscreen", monospace;
+  --mono: "Silkscreen", monospace;
+  --flavor: "Silkscreen", monospace;
+  --logo: "Press Start 2P", "Silkscreen", monospace;
 
   --tile: 40px;
   --app-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
@@ -84,10 +85,14 @@ html { color-scheme: dark; overflow-x: clip; }
   /* Never let this face claim ordinary letters, digits, punctuation, or spaces. */
   unicode-range: U+1F000-1FAFF, U+2600-27BF, U+2300-23FF, U+2B00-2BFF, U+FE0F, U+200D;
 }
+/* Bundled pixel fonts (OFL): Silkscreen for UI text, Press Start 2P for the logo. */
+@font-face { font-family: "Silkscreen"; src: url("./assets/fonts/Silkscreen-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Silkscreen"; src: url("./assets/fonts/Silkscreen-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Press Start 2P"; src: url("./assets/fonts/PressStart2P-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
 html.emoji-noto {
-  --display: Bahnschrift, "Bahnschrift Condensed", Futura, "Avenir Next", "Segoe UI", "Trebuchet MS", Roboto, "Noto Sans", "Noto Color Emoji Local", sans-serif;
-  --mono: Consolas, "Cascadia Mono", "JetBrains Mono", "SF Mono", Menlo, "Roboto Mono", "Noto Sans Mono", "Noto Color Emoji Local", monospace;
-  --flavor: Georgia, "Times New Roman", "Noto Serif", "Noto Color Emoji Local", serif;
+  --display: "Silkscreen", "Noto Color Emoji Local", monospace;
+  --mono: "Silkscreen", "Noto Color Emoji Local", monospace;
+  --flavor: "Silkscreen", "Noto Color Emoji Local", monospace;
 }
 html.emoji-noto .mapicon.emoji,
 html.emoji-noto .emoji-style span,
@@ -96,17 +101,22 @@ html.emoji-noto .emoji-slot input {
 }
 body {
   background:
-    radial-gradient(ellipse 120% 80% at 50% 12%, #11141a 0%, var(--abyss-1) 48%, var(--abyss-0) 100%);
+    radial-gradient(ellipse 120% 80% at 50% 12%, #241a10 0%, var(--abyss-1) 48%, var(--abyss-0) 100%);
   background-attachment: fixed;
   color: var(--bone);
-  font-family: var(--display);
-  font-size: 15.5px;
-  letter-spacing: .015em;
-  line-height: 1.5;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: .01em;
+  line-height: 1.55;
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
+  /* pixel-crisp rendering */
+  -webkit-font-smoothing: none;
+  font-smooth: never;
 }
+/* keep raster art and icons hard-edged */
+img, svg, canvas { image-rendering: pixelated; }
 /* faint diagonal striations — old pick-marks in the stone */
 body::before {
   content: '';
@@ -202,14 +212,15 @@ button { font-family: var(--display); cursor: pointer; color: inherit; }
 
 /* ================= headers / type ================= */
 h1.logo {
-  font-family: var(--display);
-  font-weight: 700;
-  letter-spacing: .16em;
-  font-size: clamp(30px, 6.4vw, 58px);
-  margin: 0 0 2px;
-  line-height: 1.02;
+  font-family: var(--logo);
+  font-weight: 400;
+  letter-spacing: .04em;
+  font-size: clamp(20px, 4.6vw, 38px);
+  margin: 2px 0 6px;
+  line-height: 1.28;
   text-transform: uppercase;
   text-wrap: balance;
+  text-shadow: 3px 3px 0 var(--abyss-0), 4px 4px 0 rgba(179, 55, 44, .5);
 }
 h1.logo .flag {
   color: var(--blood-hi);
@@ -993,12 +1004,10 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
 
 /* ---- the board: a stone frame ---- */
 .board {
-  display: grid; gap: 3px; padding: 12px;
-  background: linear-gradient(160deg, #171b22, #0e1116 70%);
-  border: 1px solid var(--etch);
-  outline: 1px solid var(--abyss-0);
-  outline-offset: -5px;
-  box-shadow: inset 0 0 26px rgba(0, 0, 0, .55), 0 4px 18px rgba(0, 0, 0, .45);
+  display: grid; gap: 3px; padding: 9px;
+  background: #241a10;
+  border: 0;
+  box-shadow: 0 0 0 3px var(--abyss-0), inset 3px 3px 0 #4a3826, inset -3px -3px 0 #0c0804;
   width: max-content; max-width: 100%;
   overflow-x: auto;
   grid-template-columns: repeat(var(--bsize), var(--tile));
@@ -1008,25 +1017,22 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
 .tile {
   width: var(--tile); height: var(--tile);
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-weight: 700; font-size: calc(var(--tile) * .48);
+  font-family: var(--mono); font-weight: 700; font-size: calc(var(--tile) * .46);
   position: relative; user-select: none; cursor: pointer;
   touch-action: manipulation;
-  background:
-    linear-gradient(135deg, var(--tile-hi) 0%, var(--tile-face) 34%, var(--tile-face) 62%, #171b23 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(207, 201, 184, .09),
-    inset -1px -1px 0 rgba(0, 0, 0, .65);
+  background: var(--tile-face);
+  box-shadow: inset 3px 3px 0 var(--tile-hi), inset -3px -3px 0 var(--tile-lo);
 }
 /* stone is not uniform: faint tone drift across the field */
 .tile:nth-child(3n)  { filter: brightness(1.045); }
 .tile:nth-child(7n)  { filter: brightness(.955); }
 .tile:nth-child(11n) { filter: brightness(1.02); }
 .tile:hover:not(.open):not(.void):not(.entombed) {
-  background: linear-gradient(135deg, #3d4658 0%, #2a3140 40%, #232935 100%);
+  background: #916e46;
 }
 .tile.open {
-  background: radial-gradient(140% 140% at 30% 25%, #12161d 0%, var(--open-face) 70%);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .7), inset 0 0 0 1px rgba(43, 49, 64, .8);
+  background: var(--open-face);
+  box-shadow: inset 3px 3px 0 #0c0804, inset -2px -2px 0 #3a2c1e;
   cursor: default;
   filter: none;
 }
@@ -1037,14 +1043,14 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
   pointer-events: none;
 }
 .tile.entombed {
-  background: repeating-linear-gradient(45deg, #35301f 0 4px, #2a2618 4px 8px);
-  box-shadow: inset 0 0 0 1px #4c4530, inset 0 2px 4px rgba(0,0,0,.55);
-  color: #8d8468; cursor: default; filter: none;
+  background: repeating-linear-gradient(45deg, #4a3a1f 0 4px, #362a16 4px 8px);
+  box-shadow: inset 2px 2px 0 #6e5a30, inset -2px -2px 0 #241a0e;
+  color: #d8c890; cursor: default; filter: none;
 }
 .tile.crater {
   color: var(--blood-hi);
-  background: radial-gradient(90% 90% at 50% 55%, #1c0b09 0%, #0d0f14 75%);
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(179, 55, 44, .35);
+  background: #3a1410;
+  box-shadow: inset 3px 3px 0 #200404, inset -2px -2px 0 #7a2018;
 }
 .tile .scanmark {
   position: absolute; top: 1px; right: 2px;
@@ -1086,7 +1092,21 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
   filter: brightness(1.35);
 }
 .tile.nopicks { cursor: not-allowed; }
-.tile.nopicks:hover { background: linear-gradient(135deg, var(--tile-hi) 0%, var(--tile-face) 34%, var(--tile-face) 62%, #171b23 100%); }
+.tile.nopicks:hover { background: var(--tile-face); }
+
+/* ---- Survey Relay: heat gauge + radius field ---- */
+.relay-range-mark { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: rgba(201, 151, 59, .09); box-shadow: inset 0 0 0 1px rgba(201, 151, 59, .16); }
+.relay-range-mark.overlap { background: rgba(224, 80, 63, .17); box-shadow: inset 0 0 0 1px rgba(224, 80, 63, .4); }
+.relay-heat { position: absolute; left: 0; right: 0; bottom: 2px; z-index: 3;
+  display: flex; gap: 2px; justify-content: center; pointer-events: none; }
+.relay-heat i { width: 5px; height: 4px; background: #241a10; box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .55); }
+.relay-heat i.on { background: var(--candle); box-shadow: 0 0 3px var(--candle); }
+.tile.relay-hot .relay-heat i.on { background: var(--blood-hi); box-shadow: 0 0 4px var(--blood-hi); }
+.tile.relay-hot { outline: 2px solid var(--blood-hi); outline-offset: -2px; animation: relaypulse 1s ease-in-out infinite; }
+.tile.relay-offline { filter: grayscale(.55) brightness(.72); }
+@keyframes relaypulse { 0%, 100% { outline-color: rgba(224, 80, 63, .4); } 50% { outline-color: rgba(224, 80, 63, 1); } }
+@media (prefers-reduced-motion: reduce) { .tile.relay-hot { animation: none; } }
 .tile .scanmark.safe { background: var(--moss); }
 .tile .scanmark.mine { background: var(--blood-hi); filter: drop-shadow(0 0 3px var(--blood-hi)); }
 .tile.flag { color: var(--blood-hi); }
@@ -1699,17 +1719,18 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
 .hand { align-items: flex-end; padding-top: 10px; }
 .handslot {
   position: relative;
+  z-index: var(--hand-order, 1);
   transform: rotate(var(--rot, 0deg)) translateY(var(--dip, 0px));
   transform-origin: 50% 130%;
   transition: transform .16s ease;
 }
 .handslot:hover {
   transform: rotate(0deg) translateY(-14px);
-  z-index: 6;
+  z-index: 100;
 }
 .handslot.selected {
   transform: rotate(0deg) translateY(-14px);
-  z-index: 7;
+  z-index: 110;
 }
 /* cards are dealt from the draw pile, staggered */
 .handslot.deal { animation: dealin .34s cubic-bezier(.2, .9, .3, 1.25) backwards; }
@@ -2071,6 +2092,16 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
     justify-self: stretch; width: 100%; height: 28px;
     min-width: 0; padding: 2px 3px; white-space: nowrap;
   }
+  .combat-topbar .hpbar {
+    grid-column: span 2;
+    overflow: hidden;
+  }
+  .combat-topbar .critical-label {
+    min-width: 0;
+    margin-left: 3px;
+    font-size: 7px;
+    letter-spacing: .05em;
+  }
   .combat-topbar .stat-label { display: none; }
   .combat-topbar .game-icon { flex: 0 0 auto; }
   .topbar .stat b { font-size: 13.5px; }
@@ -2102,10 +2133,19 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
     margin: 12px -8px 0; padding: 8px 8px calc(8px + var(--app-safe-bottom));
     background: linear-gradient(transparent, var(--abyss-0) 14%);
   }
-  .hand-drawer.open { max-height: min(58vh, 560px); overflow-y: auto; background: var(--abyss-0); border-top: 1px solid var(--etch); }
-  .combat-primary-actions { position: sticky; top: 0; z-index: 2; background: var(--abyss-0); padding: 4px 0 7px; }
+  .hand-drawer.open {
+    display: flex; flex-direction: column;
+    max-height: min(58vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+    isolation: isolate; background: var(--abyss-0); border-top: 1px solid var(--etch);
+  }
+  .combat-primary-actions {
+    position: sticky; bottom: 0; z-index: 30; isolation: isolate;
+    background: var(--abyss-0); padding: 7px 0 4px;
+    box-shadow: 0 -8px 10px -10px rgba(0, 0, 0, .95);
+  }
   .handzone {
-    position: static; margin: 0; padding: 0;
+    position: relative; z-index: 1; order: -1; isolation: isolate;
+    margin: 0 0 6px; padding: 0; overflow: hidden;
   }
   .hand {
     flex-wrap: nowrap; overflow-x: auto;
@@ -2114,12 +2154,28 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
     scrollbar-width: thin;
   }
   .card { width: 146px; min-height: 192px; }
+  .card-select-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+  .card-select-grid > .card {
+    width: 100%;
+    min-width: 0;
+  }
+  .card-select-grid > .card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
   .card:hover { transform: none; }
   .card.selected { transform: translateY(-4px); }
   /* The touch tray keeps its compact straight resting layout. Deal and flying
      card keyframes still provide the same lifecycle motion as larger screens. */
   .handslot, .handslot:hover, .handslot.selected { transform: none; }
+  .handslot, .handslot:hover { z-index: var(--hand-order, 1); }
+  .handslot.selected { z-index: 110; }
   .handslot { flex: none; }
+  .cardghost { z-index: 19; }
   .sndbtn {
     top: auto;
     bottom: calc(12px + var(--app-safe-bottom));
@@ -2193,6 +2249,7 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
   .cutscene-mark { width: 82px; height: 82px; }
   .cutscene-mark span { font-size: 32px; }
   html.compact-cards .card { width: 132px; min-height: 178px; }
+  html.compact-cards .card-select-grid > .card { width: 100%; }
   html.compact-cards .card .rules { font-size: 11.5px; }
   html.compact-cards .shop-card-feature > .card { width: min(220px, 72vw); min-height: 270px; }
   html.compact-cards .shop-card-feature > .card .rules { font-size: 12.5px; }

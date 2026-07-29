@@ -133,8 +133,8 @@ try {
     await screenshot(path.join(dir, '01-home.png'));
 
     await clickText('New run');
-    await waitForSelector('.classcard:not([disabled])');
-    await evaluate(`document.querySelector('.classcard:not([disabled])').click()`);
+    await waitForSelector('.classcard:not(.locked) .delver-select:not([disabled])');
+    await evaluate(`document.querySelector('.classcard:not(.locked) .delver-select:not([disabled])').click()`);
     await delay(900);
     if (form.all) await screenshot(path.join(dir, '02-opening-cutscene.png'));
     if (await evaluate(`Boolean(document.querySelector('.cutscene-skip'))`)) await clickText('Skip');
@@ -156,7 +156,7 @@ try {
 
       await reloadHome();
       await clickText('New run');
-      await waitForSelector('.classcard:not([disabled])');
+      await waitForSelector('.classcard:not(.locked) .delver-select:not([disabled])');
       await screenshot(path.join(dir, '08-choose-delver.png'));
     }
   }
@@ -165,3 +165,8 @@ try {
   chrome.kill();
   vite.kill();
 }
+
+// Chrome and the Windows npm shim can retain idle child handles after every
+// screenshot has been written. This point is reached only after a successful
+// capture, so exit explicitly instead of leaving the asset job hanging.
+process.exit(0);

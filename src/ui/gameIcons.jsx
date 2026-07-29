@@ -83,7 +83,7 @@ function resolveToken(token, prefs = null) {
   return typeof token === 'string' && token.startsWith('svg:') ? MARKS[token.slice(4)] || '?' : token;
 }
 
-export function interfaceIconForStyle(name, styleKey = 'main', prefs = null) {
+export function interfaceIconForStyle(name, styleKey = 'marks', prefs = null) {
   const custom = customSetIcon(styleKey, 'interface', name, prefs);
   if (custom) return resolveToken(custom, prefs);
   styleKey = customSetBase(styleKey, prefs, styleKey);
@@ -106,7 +106,7 @@ export function interfaceIconForStyle(name, styleKey = 'main', prefs = null) {
 }
 
 export function interfaceIcon(name, prefs = loadPreferences()) {
-  let style = prefs?.interfaceIconStyle || 'main';
+  let style = prefs?.interfaceIconStyle || 'marks';
   if (style === 'mixer') {
     const choice = prefs?.interfaceIconMix?.[name];
     style = getArtStyleKeys(prefs).includes(choice?.style) ? choice.style : 'emoji';

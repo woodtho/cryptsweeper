@@ -128,7 +128,13 @@ export const MECHANIC_EXAMPLES = {
     card: 'Survey Relay',
     setup: 'A Survey Relay that grants 2 Block is active while hidden tiles remain.',
     action: 'You press End Turn.',
-    result: 'Before enemies act, it Scans one random hidden tile and then grants 2 Block.',
+    result: 'Before enemies act, it Scans one random hidden tile within radius 2 and then grants 2 Block.',
+  },
+  heat: {
+    card: 'Survey Relay',
+    setup: 'You build two Survey Relays two tiles apart, inside each other’s radius.',
+    action: 'Each turn both run, and because a Relay shares its radius, each gains 2 Heat instead of 1.',
+    result: 'Within two turns they hit max Heat and overload — skipping their Scan and Block and venting Heat into each other. Spread farther apart, each Relay cools and stays reliable.',
   },
   'master builder': {
     card: 'Sentry',

@@ -375,14 +375,20 @@ export const CARDS = {
   entombcard: {
     name: 'Entomb', type: 'Skill', rarity: 'starter', cls: 'terraformer', cost: [1, 1],
     targets: ['hidden'],
-    text: u => `${kwG('Entomb')} the chosen hidden tile. It can no longer detonate and counts as resolved for Full Clear.${u ? ' Gain 3 Block.' : ''}`,
-    play: (u, tg) => { entombTile(tg[0]); if (u) gainBlock(3); },
+    text: u => `${kwG('Entomb')} the chosen hidden tile — it can no longer detonate and counts as resolved for Full Clear. If it was mined, gain ${u ? 7 : 5} ${kwG('Plating')}; if safe, ${kwS('Scan')} ${2 + u} random hidden neighbors.${u ? ' Gain 3 Block.' : ''}`,
+    play: (u, tg) => {
+      const i = tg[0], wasMine = board().cells[i].mine;
+      entombTile(i);
+      if (wasMine) gainPlating(u ? 7 : 5);
+      else shuffle(neighborsOf(i, board().size).filter(j => isHiddenUsable(j))).slice(0, 2 + u).forEach(scanTile);
+      if (u) gainBlock(3);
+    },
   },
   sentry: {
     name: 'Sentry', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1], hits: 'random',
     targets: ['open'],
     can: hasConstructRoom, canMsg: 'Construct limit reached (3).',
-    text: u => `Build a Sentry Construct on an empty revealed tile. Trigger — after End Turn, before enemies act: deal ${u ? 7 : 5} damage to a random enemy.`,
+    text: u => `Build a Sentry Construct on an empty revealed tile. Each turn it deals ${u ? 7 : 5} damage to a random enemy. Builds Heat.`,
     play: (u, tg) => addConstruct(tg[0], 'sentry', { dmg: u ? 7 : 5 }),
   },
   faultline: {
@@ -418,31 +424,46 @@ export const CARDS = {
     name: 'Bulwark', type: 'Skill', rarity: 'uncommon', cls: 'terraformer', cost: [2, 2],
     targets: ['open'],
     can: hasConstructRoom, canMsg: 'Construct limit reached (3).',
-    text: u => `Build a Bulwark Construct on an empty revealed tile. Trigger — after End Turn, before enemies act: gain ${u ? 2 : 1} ${kwG('Plating')} and ${u ? 4 : 3} Block. Stone Choir does not repeat it.`,
+    text: u => `Build a Bulwark Construct on an empty revealed tile. Each turn it grants ${u ? 2 : 1} ${kwG('Plating')} and ${u ? 4 : 3} Block — no Heat.`,
     play: (u, tg) => addConstruct(tg[0], 'bulwark', { plating: u ? 2 : 1, block: u ? 4 : 3 }),
   },
   landslide: {
     name: 'Landslide', type: 'Attack', rarity: 'rare', cls: 'terraformer', cost: [3, 3], hits: 'all',
     targets: [],
-    text: u => `Reveal every hidden tile in the outer ring, safely removing its mines. Deal ${u ? 5 : 4} damage to all enemies for each tile revealed this way.`,
+    can: () => outerRingIndices(board()).some(i => isHiddenUsable(i)),
+    canMsg: 'The outer ring has no hidden tiles left.',
+    text: u => `Reveal every hidden tile in the outer ring, safely removing its mines. Deal ${u ? 5 : 4} damage to all enemies for each tile that was hidden when played.`,
     play: u => {
-      const b = board(); let n = 0;
-      for (const i of outerRingIndices(b)) {
-        if (board() !== b) break; // board re-sealed mid-slide
-        const cell = b.cells[i];
-        if (cell.revealed || cell.entombed) continue;
-        if (cell.mine) { cell.mine = false; cell.flag = 0; log('A mine crumbles away in the landslide.'); }
-        revealTile(i, 'card-safe'); n++;
+      const b = board();
+      const ring = outerRingIndices(b).filter(i => !b.cells[i].revealed && !b.cells[i].entombed);
+      if (!ring.length) {
+        log('🌋 Landslide finds no hidden outer-ring tiles.');
+        toast('The outer ring is already clear.', true);
+        return;
       }
-      if (!n) toast('The outer ring is already clear.', true);
-      hitAll(atk((u ? 5 : 4) * n));
+      const mines = ring.filter(i => b.cells[i].mine).length;
+      const damage = (u ? 5 : 4) * ring.length;
+      /* Remove every perimeter mine before revealing. That lets cascades travel
+         through the whole effect without causing later ring tiles to be
+         omitted from the damage promised by the card. */
+      for (const i of ring) {
+        if (b.cells[i].mine) b.cells[i].mine = false;
+        b.cells[i].flag = 0;
+      }
+      log(`🌋 Landslide clears ${ring.length} outer-ring tile${ring.length === 1 ? '' : 's'}, crushes ${mines} mine${mines === 1 ? '' : 's'}, and deals ${damage} to all enemies.`);
+      toast(`Landslide: ${ring.length} tiles · ${damage} damage`);
+      for (const i of ring) {
+        if (!cbt() || board() !== b) break; // combat ended or Full Clear re-sealed the board
+        if (!b.cells[i].revealed && !b.cells[i].entombed) revealTile(i, 'card-safe');
+      }
+      if (cbt()) hitAll(atk(damage));
     },
   },
   surveyrelay: {
     name: 'Survey Relay', type: 'Skill', rarity: 'common', cls: 'terraformer', cost: [1, 1],
     targets: ['open'],
     can: hasConstructRoom, canMsg: 'Construct limit reached (3).',
-    text: u => `Build a Survey Relay Construct on an empty revealed tile. Trigger — after End Turn, before enemies act: ${kwS('Scan')} 1 random hidden tile, then gain ${u ? 4 : 2} Block.`,
+    text: u => `Build a Survey Relay Construct on an empty revealed tile. Each turn it draws 1 Energy, ${kwS('Scan')}s a hidden tile in radius 2, and grants ${u ? 4 : 2} Block. Builds Heat.`,
     play: (u, tg) => addConstruct(tg[0], 'relay', { block: u ? 4 : 2 }),
   },
   stonechoir: {
@@ -505,7 +526,7 @@ export const CARDS = {
 const EXPANSION_NAMES = {
   sapper: ['Breach Tax','Copper Fuse','Aftershock Ledger','Red Wire','Blast Radius','Powder Trail'],
   surveyor: ['Contour Logic','Bearing Check','Blue Pencil','Proof by Dust','Sightline','True North','Margin Note'],
-  terraformer: ['Load Stone','Deep Footing','Mason’s Bet','Arch Support','Cut and Fill','Bedrock','Counterweight','Vault Plan'],
+  terraformer: ['Load Stone','Deep Footing','Mason’s Bet','Arch Support','Cut and Fill','Bedrock','Cairn','Vault Plan'],
   lamplighter: ['First Spark','Wick Trim','Glass Dawn','Coal Memory','Bright Pocket','Flare Step','Lantern Sweep','Sunless Noon','Glowline','Beacon Tax','Candle Choir','Flashpan','Warm Route','Burning Map','Prism Break','Daybreak','Star Chamber','White Flame','Last Light'],
   gambler: ['Open Wager','House Edge','Bone Token','Tell','Double Down','Cold Deck','Marked Corner','Side Pot','Dead Man’s Hand','Lucky Seven','Cut the Deck','Snake Eyes','Raise','Bluff','Cash Out','All In','The Long Odds','Loaded Table','Final Bet'],
   chirurgeon: ['Clean Cut','Field Dressing','Triage Line','Red Thread','Splint','Bitter Tonic','Pulse Check','Pressure','Spare Blood','Stitchwork','Shock Ward','Second Opinion','Bonesaw Logic','Cauterize','Recovery Position','Miracle Dose','Anatomy Lesson','No Scar','Operating Theatre'],
@@ -557,6 +578,12 @@ for (const [cls, names] of Object.entries(EXPANSION_NAMES)) {
 }
 
 Object.assign(CARDS, {
+  /* Payoff for the Terraformer's Entomb archetype — overrides the generic
+     factory slot exp_terraformer_6 (was "Counterweight"). Scales with sealed tiles. */
+  exp_terraformer_6: { name:'Cairn',type:'Attack',rarity:'common',cls:'terraformer',cost:[1,1],hits:'all',targets:[],
+    can:()=>board().cells.some(cell=>cell.entombed),canMsg:'No entombed tiles.',
+    text:u=>`Deal ${u?6:4} damage to all enemies for each entombed tile.`,
+    play:u=>hitAll(atk((u?6:4)*board().cells.filter(cell=>cell.entombed).length)) },
   resonanttap: { name:'Resonant Tap',type:'Skill',rarity:'common',cls:'neutral',cost:[0,0],targets:['number'],exhaust:true,text:u=>`${kwR('Chord')} the chosen revealed number. If successful, draw 1 card.${u?' Gain 1 Insight.':''} Exhaust.`,play:(u,t)=>{const r=chordAt(t[0]);if(!r.ok){toast(r.reason||'The flags do not prove this Chord.',true);return;}drawCards(1);if(u)gainInsight(1);} },
   stonechorus: { name:'Stone Chorus',type:'Skill',rarity:'uncommon',cls:'neutral',cost:[0,0],targets:['number'],exhaust:true,text:u=>`${kwR('Chord')} the chosen revealed number. If successful, gain ${u?8:5} Block. Exhaust.`,play:(u,t)=>{const r=chordAt(t[0]);if(!r.ok){toast(r.reason||'The flags do not prove this Chord.',true);return;}gainBlock(u?8:5);} },
   steadyhand: { name:'Steady Hand',type:'Skill',rarity:'common',cls:'neutral',cost:[1,0],targets:[],text:u=>`Gain ${u?7:4} Block and ${u?3:2} picks.`,play:u=>{gainBlock(u?7:4);gainPicks(u?3:2);} },

@@ -305,6 +305,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
                 style={{
                   '--rot': `${(i - center) * 2}deg`,
                   '--dip': `${Math.abs(i - center) * 4}px`,
+                  '--hand-order': i + 1,
                   animationDelay: isNew ? `${i * 60}ms` : undefined,
                 }}
                 onMouseEnter={() => setHoverHits(def.hits || null)}

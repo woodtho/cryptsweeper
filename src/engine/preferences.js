@@ -1,4 +1,5 @@
 const KEY = 'cryptsweeper.settings.v1';
+const DELVER_ICON_DEFAULT_VERSION = 1;
 const DEFAULTS = {
   reducedMotion: false,
   highContrast: false,
@@ -9,21 +10,40 @@ const DEFAULTS = {
   showCombatHints: true,
   showBattleBriefings: true,
   enemyEmojis: {},
-  enemyIconStyle: 'main',
-  mapIconStyle: 'main',
+  enemyIconStyle: 'marks',
+  mapIconStyle: 'marks',
   mapEmojis: {},
   mapMarks: {},
   mapIconMix: {},
   enemyIconMix: {},
-  interfaceIconStyle: 'main',
+  interfaceIconStyle: 'marks',
   interfaceIconMix: {},
   customIconSets: {},
   notoEmoji: true,
+  pixelAssetVersion: 2,
+  delverIconDefaultVersion: DELVER_ICON_DEFAULT_VERSION,
 };
 
 export function loadPreferences() {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+    const stored = JSON.parse(localStorage.getItem(KEY) || '{}');
+    let migrated = false;
+    if ((stored.pixelAssetVersion || 0) < 2) {
+      if (!stored.enemyIconStyle || stored.enemyIconStyle === 'main') stored.enemyIconStyle = 'pixel';
+      if (!stored.mapIconStyle || stored.mapIconStyle === 'main') stored.mapIconStyle = 'pixel';
+      if (!stored.interfaceIconStyle || stored.interfaceIconStyle === 'main') stored.interfaceIconStyle = 'pixel';
+      stored.pixelAssetVersion = 2;
+      migrated = true;
+    }
+    if ((stored.delverIconDefaultVersion || 0) < DELVER_ICON_DEFAULT_VERSION) {
+      if (!stored.enemyIconStyle || stored.enemyIconStyle === 'pixel') stored.enemyIconStyle = 'marks';
+      if (!stored.mapIconStyle || stored.mapIconStyle === 'pixel') stored.mapIconStyle = 'marks';
+      if (!stored.interfaceIconStyle || stored.interfaceIconStyle === 'pixel') stored.interfaceIconStyle = 'marks';
+      stored.delverIconDefaultVersion = DELVER_ICON_DEFAULT_VERSION;
+      migrated = true;
+    }
+    if (migrated) localStorage.setItem(KEY, JSON.stringify({ ...DEFAULTS, ...stored }));
+    return { ...DEFAULTS, ...stored };
   } catch {
     return { ...DEFAULTS };
   }

@@ -47,15 +47,15 @@ covered in the [NPC doc](npc-art.md); the shop plate is the Rat Merchant portrai
 
 | Scene id(s) | Title | Mark | Plate asset | Type |
 |---|---|---|---|---|
-| `opening` | The Mouth of the Undermine | DESCEND | `cutscenes/opening.webp` | Environment |
-| `camp` | A Candle in the Dark | RESPITE | `cutscenes/camp.webp` | Environment |
-| `descent-1` | The Sunk Archives | STRATUM II | `cutscenes/sunk-archives.webp` | Environment |
-| `descent-2` | The Clockwork Depths | STRATUM III | `cutscenes/clockwork-depths.webp` | Environment |
-| `finale` | The Seam Is Silent | FOR NOW | `cutscenes/finale.webp` | Environment |
-| `shop` | The Rat Merchant | — | `npcs/rat-merchant.webp` | NPC → see NPC doc |
-| `boss-intro-0` / `-aftermath-0` | The Collapser | BOSS AHEAD / DEFEATED | `cutscenes/collapser.webp` | Boss → see NPC doc |
-| `boss-intro-1` / `-aftermath-1` | The Fogfather | BOSS AHEAD / DEFEATED | `cutscenes/fogfather.webp` | Boss → see NPC doc |
-| `boss-intro-2` / `-aftermath-2` | NN-99 | BOSS AHEAD / DEFEATED | `cutscenes/nn99.webp` | Boss → see NPC doc |
+| `opening` | The Mouth of the Undermine | DESCEND | `cutscenes/opening-pixel-coarse.webp` | Environment |
+| `camp` | A Candle in the Dark | RESPITE | `cutscenes/camp-pixel-coarse.webp` | Environment |
+| `descent-1` | The Sunk Archives | STRATUM II | `cutscenes/sunk-archives-pixel-coarse.webp` | Environment |
+| `descent-2` | The Clockwork Depths | STRATUM III | `cutscenes/clockwork-depths-pixel-coarse.webp` | Environment |
+| `finale` | The Seam Is Silent | FOR NOW | `cutscenes/finale-pixel-coarse.webp` | Environment |
+| `shop` | The Rat Merchant | — | `npcs/rat-merchant-pixel-coarse.webp` | NPC → see NPC doc |
+| `boss-intro-0` / `-aftermath-0` | The Collapser | BOSS AHEAD / DEFEATED | `cutscenes/collapser-pixel-coarse.webp` | Boss → see NPC doc |
+| `boss-intro-1` / `-aftermath-1` | The Fogfather | BOSS AHEAD / DEFEATED | `cutscenes/fogfather-pixel-coarse.webp` | Boss → see NPC doc |
+| `boss-intro-2` / `-aftermath-2` | NN-99 | BOSS AHEAD / DEFEATED | `cutscenes/nn99-pixel-coarse.webp` | Boss → see NPC doc |
 
 > One plate serves both a boss's intro and aftermath scene, so it must read as ominous but
 > not mid-explosion — the "defeated" beat reuses the same image with different dialogue.
@@ -97,7 +97,8 @@ not a triumphant sunrise. *Ends the run on "not the bottom, just the end of this
 
 ## 4. Adding a new cutscene
 
-1. Paint a **16:9 plate** to the §1 safe-zone rules; export WebP (q~82, < 150 KB) into
+1. Build a **160×90 logical 16:9 plate** to the §1 safe-zone rules, limit it
+   to 24 colours, and nearest-neighbour scale 6× to a lossless WebP in
    `src/assets/cutscenes/`.
 2. Import it in `src/ui/Cutscene.jsx` and add a branch to `getScene(id)` with `title`,
    `art`, a `markLabel`/`iconName` (or `enemyKey` for a boss), `finalLabel`, and the
@@ -110,6 +111,6 @@ not a triumphant sunrise. *Ends the run on "not the bottom, just the end of this
 ## 5. Consistency note
 
 All plates are viewed back-to-back across a run, so they must feel like **one descent**:
-the same painterly hand, the warm-key/cool-depth split, and a legible progression of palette
+the same pixel-cluster scale, warm-key/cool-depth split, and legible progression of palette
 by stratum — earthen crypt → moss-green fog → brass-and-red machine → dead-dark finale.
 Lay them in run order and check the journey reads at a glance.

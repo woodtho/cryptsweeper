@@ -416,6 +416,7 @@ export function toast(msg, bad = false) {
 function invalidCardFeedback(card, message) {
   sfx('invalid'); haptic('invalid');
   ui.invalidCard = { seq: (ui.invalidCard?.seq || 0) + 1, cardId: card?.id ?? null, message };
+  log(`⚠ ${message}`);
   toast(message, true);
 }
 function deckChanged(kind, label) {
@@ -1045,14 +1046,16 @@ export function chordAt(i) {
   const n = numAt(i);
   const adjacent = neighborsOf(i, b.size);
   const flagged = adjacent.filter(j => b.cells[j].flag && isHiddenUsable(j));
+  const entombed = adjacent.filter(j => b.cells[j].entombed && !b.cells[j].void);
+  const accounted = [...flagged, ...entombed];
   if (n === 0) return { ok: false, attempted: false, detonations: 0, reason: 'Only numbered tiles can be chorded.' };
-  if (flagged.length !== n) {
-    return { ok: false, attempted: false, detonations: 0, reason: `This ${n} needs exactly ${n} adjacent flag${n === 1 ? '' : 's'}.` };
+  if (accounted.length !== n) {
+    return { ok: false, attempted: false, detonations: 0, reason: `This ${n} needs exactly ${n} adjacent mine${n === 1 ? '' : 's'} accounted for by flags or Entombed tiles.` };
   }
   if (!adjacent.some(j => isHiddenUsable(j) && !b.cells[j].flag)) {
     return { ok: false, attempted: false, detonations: 0, reason: 'This number has no unopened neighbors left to Chord.' };
   }
-  const correct = flagged.every(j => b.cells[j].mine);
+  const correct = accounted.every(j => b.cells[j].mine);
   const before = c.minesDetonated;
   for (const j of adjacent) {
     if (board() !== b) break; // board collapsed & re-sealed mid-chord
@@ -1091,6 +1094,49 @@ export function verifyFlag(i) {
 }
 
 export const MAX_CONSTRUCTS = 3;
+export const RELAY_RADIUS = 2;    // Chebyshev reach for a Relay's scan and its heat/interference field
+export const RELAY_HEAT_MAX = 3;  // Heat at which a Relay overloads
+
+/* Constructs that run hot — a Sentry or Survey Relay. Bulwark stays cool. */
+export const HEAT_CONSTRUCTS = new Set(['sentry', 'relay']);
+const CONSTRUCT_NAMES = { sentry: 'Sentry', bulwark: 'Bulwark', relay: 'Survey Relay' };
+/* Chebyshev distance between two board indices. */
+function cheb(size, a, b) {
+  return Math.max(Math.abs(Math.floor(a / size) - Math.floor(b / size)), Math.abs((a % size) - (b % size)));
+}
+/* Other heat-bearing Constructs inside i's radius (the interference field). */
+function heatConstructsNear(b, i) {
+  const out = [];
+  for (let j = 0; j < b.cells.length; j++) {
+    if (j !== i && HEAT_CONSTRUCTS.has(b.cells[j].construct?.kind) && cheb(b.size, i, j) <= RELAY_RADIUS) out.push(j);
+  }
+  return out;
+}
+/* End-of-turn Heat step for a Sentry/Relay. Heat rises +1, plus 1 for every other
+   heat-Construct sharing its radius; a lone Construct cools. Returns true if it
+   overloaded — it then skips its trigger and vents Heat into nearby Constructs. */
+function constructOverheats(i, con, b) {
+  const near = heatConstructsNear(b, i);
+  con.heat = (con.heat || 0) + 1 + near.length;
+  if (con.heat >= RELAY_HEAT_MAX) {
+    con.heat = 0;
+    for (const j of near) { const o = b.cells[j].construct; if (o) o.heat = (o.heat || 0) + 1; }
+    log(`⌁ ${CONSTRUCT_NAMES[con.kind]} overloads — it vents Heat into nearby Constructs.`);
+    return true;
+  }
+  if (!near.length) con.heat = Math.max(0, con.heat - 2);
+  return false;
+}
+/* A powered, cool Survey Relay's output: scan a hidden tile within radius, then grant Block. */
+function relayScan(i, con, b) {
+  const targets = [];
+  for (let j = 0; j < b.cells.length; j++) {
+    if (isHiddenUsable(j) && !b.cells[j].flag && cheb(b.size, i, j) <= RELAY_RADIUS) targets.push(j);
+  }
+  if (targets.length) scanTile(randPick(targets));
+  gainBlock(con.block);
+  log('⌁ Survey Relay reads the stone.');
+}
 
 export function addConstruct(i, kind, opts = {}) {
   const cell = board().cells[i];
@@ -1785,6 +1831,20 @@ function startTurn() {
   c.energy = c.maxEnergy;
   if (c.turn === 1) c.energy = Math.max(PERSISTENT_CURSES.nightterrors.minimum, c.energy + persistentCurseTotal('firstTurnEnergy'));
   c.picks = c.maxPicks;
+  /* Survey Relays draw power: each active relay costs 1 Energy at turn start. A
+     relay that can't be powered goes offline for the turn (no Scan/Block) but
+     stays on the board and runs again once energy is available. */
+  const relayCells = board().cells.filter(cell => cell.construct?.kind === 'relay');
+  if (relayCells.length) {
+    let powered = 0;
+    for (const cell of relayCells) {
+      if (c.energy > 0) { c.energy--; cell.construct.powered = true; powered++; }
+      else cell.construct.powered = false;
+    }
+    if (powered) log(`⌁ Relay upkeep draws ${powered} Energy.`);
+    const offline = relayCells.length - powered;
+    if (offline) log(`⌁ ${offline} Relay${offline === 1 ? '' : 's'} offline — not enough power.`);
+  }
   c.revealedThisTurn = 0; c.sumThisTurn = 0; c.chordedThisTurn = false;
   c.powers.sixthUsed = false;
   c.classState.passiveUsed = false;
@@ -1866,16 +1926,15 @@ export function endTurn() {
   for (let i = 0; i < b.cells.length; i++) {
     const con = b.cells[i].construct;
     if (!con || c.over) continue;
+    if (HEAT_CONSTRUCTS.has(con.kind)) {
+      if (con.powered === false) continue;            // Relay offline — no upkeep Energy this turn
+      if (constructOverheats(i, con, b)) continue;     // overheated — skip its trigger entirely
+    }
     const repeats = c.powers.stonechoir && con.kind !== 'bulwark' ? 2 : 1;
     for (let n = 0; n < repeats && !c.over; n++) {
       if (con.kind === 'sentry') { log('🗼 Sentry fires.'); hitRandom(con.dmg); }
       else if (con.kind === 'bulwark') { gainPlating(con.plating); gainBlock(con.block); }
-      else if (con.kind === 'relay') {
-        const target = randPick(hiddenIdx());
-        if (target != null) scanTile(target);
-        gainBlock(con.block);
-        log('⌁ Survey Relay reads the stone.');
-      }
+      else if (con.kind === 'relay') relayScan(i, con, b);
     }
   }
   for (const e of c.enemies) {
@@ -1917,6 +1976,7 @@ export function effCost(card) {
   const def = CARDS[card.key];
   if (def.cost == null) return null;
   let cost = def.cost[card.up ? 1 : 0];
+  if ((card.up || 0) >= 2) cost = Math.max(0, cost - 1); // level 2 "Honed": upgraded effect, −1 Energy
   if (card.key === 'entombcard' && hasT('keystone') && !cbt().keystoneUsed) cost = 0;
   if (hasT('protocolcoil') && !cbt().protocolCoilUsed) cost = Math.max(0, cost - 1 - relicLevel('protocolcoil'));
   if (hasT('dowsingrod') && (cbt().dowsingScanUses || 0) < 1 + relicLevel('dowsingrod') && isScanCard(card)) cost = 0;
@@ -1935,7 +1995,7 @@ export function clickHandCard(handIdx) {
   if (def.unplayable) { invalidCardFeedback(card, `${def.name} is a ${def.type} and cannot be played.`); return; }
   const cost = effCost(card);
   if (cost > c.energy) { invalidCardFeedback(card, `${def.name} needs ${cost} Energy; you have ${c.energy}.`); return; }
-  if (def.can && !def.can(card.up)) { invalidCardFeedback(card, def.canMsg || `${def.name}'s condition is not currently met.`); return; }
+  if (def.can && !def.can(card.up || 0)) { invalidCardFeedback(card, def.canMsg || `${def.name}'s condition is not currently met.`); return; }
   if (def.targets.length) {
     ui.targeting = { handIdx, specs: def.targets, picked: [], optional: !!def.optionalTargets };
     notify();
@@ -1988,7 +2048,7 @@ function resolveCard(handIdx, picked) {
   c.energy -= cost;
   c.hand.splice(handIdx, 1);
   sfx('play');
-  def.play(card.up, picked);
+  def.play(card.up || 0, picked); // real tier (0/1/2); cards read it as a boolean, level-scaling cards use the number
   if (!c.over) {
     if (def.type === 'Power') c.powersPlayed.push(card);
     else if (def.exhaust) {
@@ -2187,10 +2247,10 @@ export function takeVeinBoon(key) {
     run.maxHp += 8;
     run.hp = Math.min(run.maxHp, run.hp + 8);
   } else if (key === 'reforge') {
-    const targets = shuffle(run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null)).slice(0, 2);
+    const targets = shuffle(run.deck.filter(card => (card.up || 0) < 2 && CARDS[card.key]?.cost != null)).slice(0, 2);
     if (!targets.length) run.gold += 100;
     for (const card of targets) {
-      card.up = 1;
+      card.up = Math.min(2, (card.up || 0) + 1);
       run.upgrades = (run.upgrades || 0) + 1;
       deckChanged('upgrade', `${CARDS[card.key].name} was reforged`);
     }
@@ -2313,15 +2373,16 @@ export function campTrainPicks() {
   ui.screen = 'map'; notify();
 }
 export function campUpgrade() {
-  const upgradable = run.deck.filter(c => !c.up && CARDS[c.key].cost != null);
+  const upgradable = run.deck.filter(c => (c.up || 0) < 2 && CARDS[c.key].cost != null);
   if (!upgradable.length) { toast('Nothing to upgrade.', true); return; }
   openModal({ kind: 'upgrade' });
 }
 export function doUpgrade(deckIdx) {
-  run.deck[deckIdx].up = 1;
+  run.deck[deckIdx].up = Math.min(2, (run.deck[deckIdx].up || 0) + 1);
   run.upgrades = (run.upgrades || 0) + 1;
   ui.modal = null;
-  toast(`${CARDS[run.deck[deckIdx].key].name}+ !`);
+  const upTag = run.deck[deckIdx].up >= 2 ? '++' : '+';
+  toast(`${CARDS[run.deck[deckIdx].key].name}${upTag} !`);
   deckChanged('upgrade', `${CARDS[run.deck[deckIdx].key].name} was upgraded`);
   if (ui.screen === 'puzzle' && run.puzzle) run.puzzle.active = false;
   if (ui.screen === 'camp' || ui.screen === 'puzzle') ui.screen = 'map';
@@ -2533,10 +2594,10 @@ function applyEventEffect(effect = {}) {
     lines.push(`Gain ${effect.pickBonus} maximum Pick per turn for this run.`);
   }
   if (effect.upgrade) {
-    const eligible = run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null);
+    const eligible = run.deck.filter(card => (card.up || 0) < 2 && CARDS[card.key]?.cost != null);
     const card = randPick(eligible);
     if (card) {
-      card.up = 1; run.upgrades = (run.upgrades || 0) + 1;
+      card.up = Math.min(2, (card.up || 0) + 1); run.upgrades = (run.upgrades || 0) + 1;
       lines.push(`Upgrade ${CARDS[card.key].name}.`);
       deckChanged('upgrade', `${CARDS[card.key].name} was upgraded`);
     } else {

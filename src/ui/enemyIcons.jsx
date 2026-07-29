@@ -251,7 +251,7 @@ export function resolveEnemyIcon(icon, prefs = null) {
    first (emoji text or an 'svg:' mark token), then the chosen style, then
    the enemy's own emoji from data. */
 export function enemyIcon(key, def, prefs) {
-  let styleKey = prefs?.enemyIconStyle || 'main';
+  let styleKey = prefs?.enemyIconStyle || 'marks';
   if (styleKey === 'mixer') {
     const choice = prefs?.enemyIconMix?.[key];
     styleKey = choice?.style && choice.style !== 'mixer' ? choice.style : 'classic';

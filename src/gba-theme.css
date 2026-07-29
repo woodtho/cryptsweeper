@@ -383,6 +383,10 @@ input[type="range"] {
   transition: transform 60ms steps(1, end), background 60ms steps(1, end);
 }
 
+.home-action.compact {
+  padding: 12px 16px 12px 38px;
+}
+
 .home-action::before {
   content: "▶";
   position: absolute;
@@ -1184,5 +1188,708 @@ input[type="range"] {
 
   .mapwrap {
     margin-inline: 0;
+  }
+}
+
+/* ---------- 16-bit undercrypt pass ----------
+ *
+ * Push the handheld skin toward an environmental action-RPG screen: damp
+ * masonry, oxidised brass, black iron, cold subterranean water, and sharp
+ * red player feedback. Everything remains CSS and original project artwork.
+ */
+
+:root {
+  --abyss-0: #050807;
+  --abyss-1: #090e0d;
+  --stone-1: #182421;
+  --stone-2: #28362c;
+  --stone-3: #4d5739;
+  --etch: #050706;
+  --etch-hi: #9aa06a;
+  --bone: #e4dda7;
+  --bone-dim: #aaa77b;
+  --blood: #8f2630;
+  --blood-hi: #e6404e;
+  --candle: #e1b942;
+  --moss: #71a94a;
+  --hexp: #b56a9a;
+
+  --ground: var(--abyss-1);
+  --panel: var(--stone-1);
+  --panel-2: var(--stone-2);
+  --line: var(--etch);
+  --ink: var(--bone);
+  --ink-dim: var(--bone-dim);
+  --flag: var(--blood-hi);
+  --gold: var(--candle);
+  --n1: #69b9c3;
+  --n2: #7fbd58;
+  --n3: #e85445;
+  --n4: #c878a3;
+  --tile-hi: #a6a976;
+  --tile-lo: #111713;
+  --tile-face: #59633a;
+  --open-face: #9b9f79;
+
+  --gba-outline: #040706;
+  --gba-shadow: #020403;
+  --gba-blue: #39452e;
+  --gba-blue-hi: #a5a96b;
+  --gba-screen: #b9b98a;
+  --gba-screen-ink: #18201b;
+  --gba-cyan: #63d7c5;
+  --gba-pink: #e6404e;
+  --gba-yellow: #e1b942;
+  --gba-green: #71b454;
+  --gba-white: #f0e9b8;
+
+  --crypt-brick-dark: #321d18;
+  --crypt-brick: #633526;
+  --crypt-brick-hi: #9a5434;
+  --crypt-iron: #18201d;
+  --crypt-olive: #59633a;
+  --crypt-olive-hi: #9ea65f;
+  --crypt-water: #17494d;
+  --crypt-water-hi: #3b8581;
+}
+
+html {
+  background: var(--abyss-0);
+}
+
+body {
+  background-color: #070b0a;
+  background-image:
+    linear-gradient(rgba(3, 7, 6, .72), rgba(3, 7, 6, .72)),
+    repeating-linear-gradient(0deg, transparent 0 13px, #1c2925 13px 15px),
+    repeating-linear-gradient(90deg, #17221f 0 28px, #0e1715 28px 30px);
+  background-position: 0 0, 0 0, 0 0;
+  background-size: auto;
+}
+
+body::before {
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 3px, rgba(0, 0, 0, .18) 3px 4px),
+    repeating-linear-gradient(90deg, transparent 0 2px, rgba(117, 177, 158, .025) 2px 3px);
+  opacity: .85;
+}
+
+body::after {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .8), transparent 9% 91%, rgba(0, 0, 0, .8)),
+    linear-gradient(transparent 75%, rgba(4, 13, 13, .7));
+}
+
+#app {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(71, 151, 143, .18), transparent 33%),
+    linear-gradient(rgba(7, 12, 11, .94), rgba(4, 8, 7, .98));
+  border-color: #020403;
+  box-shadow:
+    inset 3px 0 0 #35443a,
+    inset -3px 0 0 #35443a,
+    0 0 0 4px #020403;
+}
+
+::-webkit-scrollbar-track {
+  background: #070b0a;
+  border-color: #35443a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--crypt-olive);
+  border-color: var(--gba-outline);
+}
+
+button,
+.mapnode,
+.tile,
+.card,
+.enemy-token,
+.game-icon,
+img,
+svg {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-icon svg,
+.mapicon svg,
+.stat svg,
+.btn svg {
+  filter:
+    drop-shadow(1px 0 0 var(--gba-outline))
+    drop-shadow(-1px 0 0 var(--gba-outline))
+    drop-shadow(0 1px 0 var(--gba-outline))
+    drop-shadow(0 -1px 0 var(--gba-outline));
+}
+
+.atlas-icon {
+  image-rendering: pixelated;
+}
+
+/* Riveted, olive-framed game windows over brick-and-stone interiors. */
+.topbar,
+.card,
+.enemy,
+.screenpanel,
+.modal,
+.choice,
+.classcard,
+.btn,
+.gadget,
+.intent,
+.hint,
+.log,
+.toast,
+.seg,
+.price {
+  border-color: var(--gba-outline);
+  box-shadow:
+    inset 2px 2px 0 var(--crypt-olive-hi),
+    inset -2px -2px 0 #202719,
+    4px 4px 0 var(--gba-shadow);
+}
+
+.screenpanel,
+.modal {
+  background:
+    linear-gradient(rgba(14, 26, 23, .88), rgba(11, 18, 17, .94)),
+    repeating-linear-gradient(0deg, transparent 0 15px, #080d0c 15px 17px),
+    repeating-linear-gradient(90deg, var(--crypt-brick) 0 29px, #261712 29px 31px);
+  background-size: auto, auto, 62px 100%;
+}
+
+.screenpanel::after,
+.modal::after {
+  border-color: rgba(158, 166, 95, .42);
+  box-shadow:
+    0 0 0 2px rgba(4, 7, 6, .7),
+    inset 0 0 18px rgba(36, 118, 111, .08);
+}
+
+h1.logo {
+  color: #f3ecbb;
+  text-shadow:
+    -1px -1px 0 #040706,
+    1px -1px 0 #040706,
+    -1px 1px 0 #040706,
+    1px 1px 0 #040706,
+    3px 3px 0 #6f2028;
+}
+
+h1.logo .flag {
+  color: var(--gba-pink);
+}
+
+.eyebrow {
+  color: var(--gba-cyan);
+}
+
+.eyebrow::before,
+.eyebrow::after {
+  color: var(--crypt-olive-hi);
+}
+
+.btn {
+  background:
+    linear-gradient(90deg, rgba(232, 220, 151, .08), transparent 35%),
+    #475333;
+}
+
+.btn:hover:not(:disabled),
+.btn:focus-visible {
+  background: #697344;
+  border-color: var(--gba-yellow);
+}
+
+.btn:active:not(:disabled) {
+  box-shadow: inset 2px 2px 0 #1e2618;
+}
+
+.btn.primary {
+  background:
+    linear-gradient(90deg, rgba(255, 213, 176, .12), transparent 42%),
+    #a62b36;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #d83b45;
+}
+
+.btn.danger {
+  background: #671e27;
+}
+
+input,
+select,
+textarea {
+  background: #b9b98a !important;
+  box-shadow: inset 2px 2px 0 #777b58, inset -2px -2px 0 #e5dfab !important;
+}
+
+/* A moonlit aqueduct/title panel, built only from hard-edged gradients. */
+.home-hero {
+  overflow: hidden;
+  border-color: var(--gba-outline);
+  background:
+    radial-gradient(circle at 17% 17%, #c9f2ca 0 7px, #79c5aa 8px 10px, transparent 11px),
+    linear-gradient(175deg, transparent 0 38%, #10211f 39% 45%, transparent 46%),
+    repeating-linear-gradient(0deg, transparent 0 13px, #111b18 13px 15px),
+    repeating-linear-gradient(90deg, rgba(54, 125, 123, .8) 0 16px, rgba(23, 73, 77, .9) 16px 32px),
+    #09100f;
+  background-size: auto, auto, auto, auto 32%;
+  background-position: 0 0, 0 0, 0 0, 0 100%;
+  background-repeat: no-repeat, no-repeat, repeat, repeat-x;
+  box-shadow:
+    inset 3px 3px 0 var(--crypt-olive-hi),
+    inset -3px -3px 0 #151b12,
+    6px 6px 0 var(--gba-shadow);
+}
+
+.home-hero::before {
+  content: "UNDERCRYPT // DESCENT FILE";
+  background: #050807;
+  color: var(--gba-cyan);
+  border: 1px solid #4c5a39;
+}
+
+.home-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 18px;
+  background:
+    linear-gradient(#737944 0 3px, #111713 3px 6px, #9aa05b 6px 8px, #26301e 8px 100%),
+    repeating-linear-gradient(90deg, transparent 0 20px, #050706 20px 23px);
+  border-top: 3px solid var(--gba-outline);
+  pointer-events: none;
+}
+
+.home-action {
+  border-color: var(--gba-outline);
+  background:
+    linear-gradient(90deg, rgba(62, 133, 129, .14), transparent 42%),
+    #35422f;
+  box-shadow:
+    inset 2px 2px 0 #87905a,
+    inset -2px -2px 0 #171e14,
+    4px 4px 0 var(--gba-shadow);
+}
+
+.home-action:hover,
+.home-action:focus-visible {
+  background:
+    linear-gradient(90deg, rgba(99, 215, 197, .15), transparent 45%),
+    #55613a;
+}
+
+.home-action.primary,
+.home-action.daily,
+.challenge-home.unplayed {
+  box-shadow:
+    inset 6px 0 0 var(--gba-pink),
+    inset 2px 2px 0 #87905a,
+    inset -2px -2px 0 #171e14,
+    4px 4px 0 var(--gba-shadow);
+}
+
+.home-action small {
+  color: #bdba8a;
+}
+
+/* The HUD now resembles the compact black/olive strip in the reference. */
+.topbar-shell,
+.combat-topbar-shell {
+  background: #050807;
+  border-bottom: 3px solid #2d3829;
+}
+
+.topbar {
+  background:
+    repeating-linear-gradient(90deg, rgba(118, 128, 72, .08) 0 2px, transparent 2px 12px),
+    #222c23;
+}
+
+.topbar-menu-row {
+  border-bottom-color: #080c0a;
+  background: #0c1210;
+}
+
+.run-timer,
+.header-pile,
+.stat,
+.seg {
+  background: #080d0c;
+  box-shadow: inset 1px 1px 0 #566146;
+}
+
+.run-timer,
+.gold,
+.shop-purse b {
+  color: var(--gba-yellow);
+}
+
+.classsig {
+  background: #0a100e;
+}
+
+.trinket {
+  background: #4c5837;
+  box-shadow: inset 1px 1px 0 #9ca667, 2px 2px 0 var(--gba-shadow);
+}
+
+/* Damp tunnels and brass tracks replace the blue map field. */
+.mapwrap {
+  border-color: var(--gba-outline);
+  background:
+    radial-gradient(circle at 18% 30%, rgba(70, 152, 141, .18), transparent 18%),
+    radial-gradient(circle at 76% 62%, rgba(70, 152, 141, .12), transparent 24%),
+    repeating-linear-gradient(0deg, transparent 0 17px, rgba(3, 7, 6, .8) 17px 19px),
+    repeating-linear-gradient(90deg, #16211e 0 37px, #0d1513 37px 39px);
+  box-shadow: inset 2px 2px 0 #536044, 4px 4px 0 var(--gba-shadow);
+}
+
+.mapline {
+  stroke: var(--crypt-olive-hi);
+}
+
+.mapnode,
+.mapnode.boss {
+  background: #465337;
+  box-shadow: inset 2px 2px 0 #a6ac6c, 3px 3px 0 var(--gba-shadow);
+}
+
+.mapnode.reachable {
+  background: #667347;
+  box-shadow:
+    inset 2px 2px 0 #d0cd8b,
+    0 0 0 2px var(--gba-cyan),
+    4px 4px 0 var(--gba-shadow);
+}
+
+.mapnode.current {
+  background: var(--gba-pink);
+}
+
+.maplegend {
+  background: #0a110f;
+}
+
+/* Closed cells read as brickwork; opened cells as damp numbered stone. */
+.board {
+  border-color: var(--gba-outline);
+  outline-color: #707a50;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 17px, #050807 17px 19px),
+    #18231f;
+  box-shadow:
+    inset 3px 3px 0 #515d42,
+    inset -3px -3px 0 #030504,
+    5px 5px 0 var(--gba-shadow);
+}
+
+.tile {
+  border-color: #a06645 #281712 #281712 #a06645;
+  background:
+    linear-gradient(rgba(255, 202, 119, .04), rgba(0, 0, 0, .12)),
+    var(--crypt-brick);
+}
+
+.tile:nth-child(even):not(.open):not(.void):not(.entombed) {
+  background-color: #70402c;
+}
+
+.tile:hover:not(.open):not(.void):not(.entombed),
+.tile.targetable {
+  border-color: var(--gba-cyan);
+  background: #8b4b31;
+  outline-color: #d7e0a4;
+}
+
+.tile.open {
+  border-color: #46554d #aab49c #aab49c #46554d;
+  background:
+    linear-gradient(135deg, rgba(75, 151, 142, .12), transparent 55%),
+    #7d8980;
+  color: #0b1513;
+}
+
+.tile.entombed {
+  border-color: #a99b57 #332c18 #332c18 #a99b57;
+  background: repeating-linear-gradient(45deg, #7b743e 0 4px, #53532e 4px 8px);
+}
+
+.tile.crater {
+  border-color: #17090a #6f2530 #6f2530 #17090a;
+  background:
+    linear-gradient(45deg, transparent 40%, #e3444e 40% 60%, transparent 60%),
+    #1e0c0e;
+}
+
+.numc1 { color: #0b4e6a; }
+.numc2 { color: #205f2b; }
+.numc3 { color: #9b1f2a; }
+.numc4 { color: #5f285d; }
+.numc5,
+.numc6,
+.numc7,
+.numc8 { color: #553316; }
+
+/* Sprite-like combat frames: black silhouettes, hot selection, cyan status. */
+.enemy-token {
+  background:
+    linear-gradient(135deg, rgba(82, 159, 148, .13), transparent 48%),
+    #1d2a25;
+  box-shadow: inset 2px 2px 0 #66734f, 3px 3px 0 var(--gba-shadow);
+}
+
+.enemy-token.selected,
+.enemy-token:focus {
+  border-color: var(--gba-pink);
+  box-shadow:
+    inset 2px 2px 0 #b7b875,
+    0 0 0 2px var(--gba-yellow),
+    3px 3px 0 var(--gba-shadow);
+}
+
+.enemy {
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .12) 0 2px, transparent 2px 5px),
+    #263329;
+}
+
+.enemy .hpline {
+  background: #050706;
+}
+
+.enemy .hpfill {
+  background: repeating-linear-gradient(90deg, #e6404e 0 7px, #9d2932 7px 8px);
+}
+
+.enemy .intent {
+  background: #0d1512;
+  box-shadow: inset 1px 1px 0 #58644b, 2px 2px 0 var(--gba-shadow);
+}
+
+.hand-drawer.open,
+.combat-primary-actions {
+  background: #050907;
+}
+
+.hand-toggle {
+  background: #6e4b27;
+}
+
+.end-turn {
+  background: #a62b36;
+}
+
+.card {
+  background:
+    linear-gradient(135deg, rgba(67, 137, 128, .11), transparent 45%),
+    #26342a;
+  box-shadow:
+    inset 2px 2px 0 #768058,
+    inset -2px -2px 0 #121912,
+    4px 4px 0 var(--gba-shadow);
+}
+
+.card .cstrip {
+  background: #111a16;
+}
+
+.card .chip {
+  background: #4d5939;
+}
+
+.card .rules {
+  background:
+    repeating-linear-gradient(0deg, rgba(68, 61, 28, .035) 0 1px, transparent 1px 4px),
+    #c2bf8a;
+  color: #172019;
+  box-shadow: inset 2px 2px 0 #e7dda4, inset -2px -2px 0 #777750;
+}
+
+.card .rules .mechanic-term,
+.card .rules .kw {
+  color: #762739;
+  text-decoration-color: #762739;
+}
+
+.card .targetline {
+  color: #c7c590;
+}
+
+.card .cbar {
+  border-top-color: #566044;
+}
+
+.card:hover,
+.card.selected {
+  border-color: var(--gba-pink);
+  box-shadow:
+    inset 2px 2px 0 #b3b774,
+    inset -2px -2px 0 #121912,
+    5px 5px 0 var(--gba-shadow);
+}
+
+.classcard,
+.index-entry,
+.enemy-reference-grid article,
+.achievement-grid article,
+.challenge-grid article,
+.setting-row,
+.save-row,
+.shop-merchant,
+.shop-shelf-panel,
+.shop-item-detail,
+.shop-service,
+.how-section,
+.mechanic-drill-head,
+.battle-story,
+.tutorial-stage {
+  background:
+    linear-gradient(90deg, rgba(58, 128, 119, .08), transparent 45%),
+    #222f28;
+  box-shadow: inset 2px 2px 0 #64714e, 3px 3px 0 var(--gba-shadow);
+}
+
+.delver-art,
+.shop-merchant-art,
+.full-art-frame,
+.cutscene-visual {
+  background:
+    linear-gradient(180deg, #102522 0 57%, #1e4e50 58% 72%, #0a100e 73%);
+}
+
+.classcard .passive,
+.tutorial-correction {
+  background: #101712;
+}
+
+.shop-shelves button,
+.shop-item-token,
+.shop-card-tabs button,
+.choice {
+  background: #34412e;
+  box-shadow: inset 2px 2px 0 #7d8758, 3px 3px 0 var(--gba-shadow);
+}
+
+.shop-shelves button.active,
+.shop-item-token.selected,
+.shop-card-tabs button.active {
+  background: #56623b;
+  border-color: var(--gba-cyan);
+}
+
+.modalback,
+.game-menu-overlay,
+.cutscene-overlay,
+.battle-preview-overlay,
+.full-art-overlay {
+  background: rgba(2, 5, 4, .92);
+}
+
+.battle-preview-overlay {
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 82, 73, .12) 0 2px, transparent 2px 16px),
+    rgba(2, 5, 4, .97);
+}
+
+.battle-preview-screen > header {
+  background: #2e3b2c;
+  box-shadow: inset 2px 2px 0 #80895a, 4px 4px 0 var(--gba-shadow);
+}
+
+.battle-preview-board span,
+.battle-preview-intent {
+  background: #0a110e;
+}
+
+.battle-preview-enemy {
+  background:
+    linear-gradient(180deg, rgba(37, 100, 96, .24), transparent 54%),
+    repeating-linear-gradient(0deg, transparent 0 15px, #0b120f 15px 17px),
+    #233127;
+  box-shadow: inset 2px 2px 0 #748057, 5px 5px 0 var(--gba-shadow);
+}
+
+.battle-preview-art {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(73, 160, 147, .19), transparent 42%),
+    #09110f;
+  box-shadow: inset 2px 2px 0 #44543f;
+}
+
+.battle-preview-modifier {
+  background: #4b2938;
+  box-shadow: inset 2px 2px 0 #996078;
+}
+
+.battle-preview-impact {
+  background: #101a16;
+}
+
+.mechanic-tooltip,
+.combat-coach,
+.test-tour,
+.deck-change,
+.achievement-unlock {
+  background: #29382d;
+  box-shadow: inset 2px 2px 0 #75805a, 5px 5px 0 var(--gba-shadow);
+}
+
+.cutscene {
+  background: #0d1815;
+  box-shadow: inset 3px 3px 0 #526046, 7px 7px 0 var(--gba-shadow);
+}
+
+.cutscene-dialogue {
+  background: #263329;
+}
+
+.log {
+  background: #080e0c;
+}
+
+.toast {
+  background: #46543a;
+}
+
+.toast.bad {
+  background: #7e2630;
+}
+
+@media (max-width: 700px) {
+  .home-hero {
+    box-shadow:
+      inset 3px 3px 0 var(--crypt-olive-hi),
+      inset -3px -3px 0 #151b12,
+      4px 4px 0 var(--gba-shadow);
+  }
+
+  .hand-drawer {
+    background: linear-gradient(transparent, #040706 14%);
+  }
+
+  .hand-drawer.open,
+  .combat-primary-actions,
+  .shop-footer {
+    background: #040706;
+  }
+
+  .card {
+    box-shadow:
+      inset 2px 2px 0 #768058,
+      inset -2px -2px 0 #121912,
+      3px 3px 0 var(--gba-shadow);
+  }
+
+  .screenpanel,
+  .modal {
+    box-shadow:
+      inset 2px 2px 0 #64714e,
+      inset -2px -2px 0 #101712,
+      3px 3px 0 var(--gba-shadow);
   }
 }

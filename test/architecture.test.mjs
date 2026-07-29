@@ -36,20 +36,53 @@ const entrypoint = source('src/main.jsx');
 const handheldTheme = source('src/gba-theme.css');
 test('mobile hands retain their compact look with deal and flying-card animations',
   combat.includes("if (showHand)") && combat.includes("selected ? 'selected' : ''")
+    && combat.includes("'--hand-order': i + 1")
     && styles.includes('.handslot.selected') && styles.includes('.handslot.deal')
     && styles.includes('.cardghost.played') && styles.includes('.cardghost.discard')
     && styles.includes('.handslot, .handslot:hover, .handslot.selected { transform: none; }')
-    && styles.includes('.card.selected { transform: translateY(-4px); }'));
+    && styles.includes('.card.selected { transform: translateY(-4px); }')
+    && styles.includes('.handslot, .handslot:hover { z-index: var(--hand-order, 1); }')
+    && styles.includes('.cardghost { z-index: 19; }')
+    && styles.includes('position: sticky; bottom: 0; z-index: 30; isolation: isolate;')
+    && styles.includes('position: relative; z-index: 1; order: -1; isolation: isolate;'));
+test('mobile card selections fill two-column rows and span an unpaired final card',
+  styles.includes('.card-select-grid > .card:last-child:nth-child(odd)')
+    && styles.includes('grid-template-columns: repeat(2, minmax(0, 1fr))')
+    && source('src/ui/screens.jsx').includes('className="cardpick card-select-grid"')
+    && (source('src/ui/ModalHost.jsx').match(/className="cardpick card-select-grid"/g) || []).length === 2);
 test('the original handheld pixel skin loads after the base theme and covers core game surfaces',
   entrypoint.indexOf("import './styles.css'") < entrypoint.indexOf("import './gba-theme.css'")
     && handheldTheme.includes('--gba-screen:')
     && handheldTheme.includes('.home-action::before')
+    && handheldTheme.includes('.home-action.compact {\n  padding: 12px 16px 12px 38px;')
     && handheldTheme.includes('.mapnode.reachable')
     && handheldTheme.includes('.tile.open')
     && handheldTheme.includes('.enemy-token')
     && handheldTheme.includes('.card .rules')
     && handheldTheme.includes('@media (max-width: 700px)')
     && handheldTheme.includes('uses no Nintendo logos'));
+
+const portraits = source('src/ui/portraits.js');
+const cutsceneArt = source('src/ui/cutsceneArt.js');
+const atlasSets = source('src/ui/atlasSets.js');
+const preferences = source('src/engine/preferences.js');
+const pixelDelvers = readdirSync(new URL('../src/assets/delvers/', import.meta.url))
+  .filter(name => name.endsWith('-pixel-coarse.webp'));
+const pixelCutscenes = readdirSync(new URL('../src/assets/cutscenes/', import.meta.url))
+  .filter(name => name.endsWith('-pixel-coarse.webp'));
+test('every runtime illustration category uses the coarse pixel-art masters',
+  pixelDelvers.length === 10 && pixelCutscenes.length === 8
+    && (portraits.match(/-pixel-coarse\.webp/g) || []).length === 11
+    && (cutsceneArt.match(/-pixel-coarse\.webp/g) || []).length === 8
+    && atlasSets.includes("'pixel-icons-coarse.webp'"));
+test('Delver marks and bestiary artwork are the coordinated default icon family',
+  preferences.includes("enemyIconStyle: 'marks'")
+    && preferences.includes("mapIconStyle: 'marks'")
+    && preferences.includes("interfaceIconStyle: 'marks'")
+    && preferences.includes('delverIconDefaultVersion: DELVER_ICON_DEFAULT_VERSION')
+    && preferences.includes("stored.enemyIconStyle === 'pixel'")
+    && preferences.includes("stored.mapIconStyle === 'pixel'")
+    && preferences.includes("stored.interfaceIconStyle === 'pixel'"));
 
 const tutorial = source('src/ui/InteractiveTutorial.jsx');
 test('Mechanics Lab unlocks progressively after the guided tutorial',
@@ -73,13 +106,14 @@ test('the shop card pager counts only unsold cards',
   screens.includes('const availableCardIndices =') && screens.includes('const remainingCards = availableCardIndices.length')
     && screens.includes('`${selectedCardPosition + 1} / ${remainingCards}`')
     && screens.includes('setSelectedCard(next)'));
-test('Construct cards state placement and trigger timing, with every related term defined',
+test('Construct cards state placement, with slim text and trigger timing/terms defined in the glossary',
   ['Sentry Construct on an empty revealed tile', 'Bulwark Construct on an empty revealed tile',
-    'Survey Relay Construct on an empty revealed tile', 'after End Turn, before enemies act',
+    'Survey Relay Construct on an empty revealed tile',
     'Count your active Constructs', 'for each active Construct']
     .every(text => cardData.includes(text))
+    && mechanicRules.includes('before enemies act')  // timing moved off the cards into the glossary
     && ['construct:', 'sentry:', 'bulwark:', "'survey relay':", "'master builder':",
-      "'stone choir':", "'board attack':"].every(text => mechanicRules.includes(text))
+      "'stone choir':", "'board attack':", 'heat:'].every(text => mechanicRules.includes(text))
     && screens.includes('data-mechanic="board attack"'));
 
 const music = source('src/engine/music.js');
