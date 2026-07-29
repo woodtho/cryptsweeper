@@ -14,7 +14,7 @@ import { CardView } from './CardView.jsx';
 import { GameIcon, IconText } from './gameIcons.jsx';
 
 const SPEC_TEXT = {
-  hidden: 'a hidden tile', open: 'a revealed tile', number: 'a revealed number',
+  hidden: 'a hidden tile', open: 'an empty safe revealed tile', number: 'a revealed number',
   row: 'a row', anytile: 'any tile',
 };
 
@@ -95,6 +95,22 @@ const COMBAT_COACH_STEPS = [
   { selector:'.end-turn', title:'Commit the turn', copy:'Check every enemy intent, then End Turn. Surviving enemies act before Energy, Picks, and your next hand refresh.' },
 ];
 
+function classMechanicReadout(runState, combat, combatBoard) {
+  const byClass = {
+    sapper: ['blast chain', '✹', Number(combat.classState.blastChain || 0), 'Blast Chain'],
+    surveyor: ['insight', '◇', combat.insight, 'Insight'],
+    terraformer: ['construct', '⌂', combatBoard.cells.filter(cell => cell.construct).length, 'Constructs'],
+    lamplighter: ['light', '✦', Number(combat.classState.light || 0), 'Light'],
+    gambler: ['loaded', '●', `${Number(combat.classState.loaded || 0)}/${Number(combat.classState.loadedCap || 3)}`, 'Loaded'],
+    chirurgeon: ['blood', '♥', Number(combat.classState.untreatedBlood || 0), 'Untreated Blood'],
+    archivist: ['archive', '▤', `${combat.archive.length}/${Number(combat.classState.citations || 0)}`, 'Archive / Citations'],
+    warden: ['resolve', '◆', Number(combat.classState.resolve || 0), 'Resolve'],
+    hexwright: ['rune', '⌘', combatBoard.cells.filter(cell => cell.rune).length, 'Runes'],
+    revenant: ['grave', '†', combat.grave.length, 'Grave'],
+  };
+  return byClass[runState.cls] || null;
+}
+
 function CombatCoach({ step, onStep, onFinish, onRevealCards }) {
   const entry = COMBAT_COACH_STEPS[step];
   useEffect(() => {
@@ -167,6 +183,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
   const minesLeft = b.cells.filter(x => x.mine && !x.void).length;
   const flags = b.cells.filter(x => x.flag && !x.revealed && !x.void).length;
   const safeLeft = b.cells.filter(x => !x.mine && !x.void && !x.revealed && !x.entombed).length;
+  const classMechanic = classMechanicReadout(run, c, b);
   const t = ui.targeting;
   const spec = t ? t.specs[t.picked.length] : null;
   /* which enemies would the active (targeting or hovered) card hit? */
@@ -214,8 +231,11 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
       <TopBar>
         <span className="stat" data-mechanic="block"><GameIcon name="block" preferences={preferences} /> <b>{c.block}</b></span>
         <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}><GameIcon name="plating" preferences={preferences} /> <b>{c.plating}</b></span>
-        {(run.cls === 'surveyor' || c.insight > 0) && (
-          <span className="stat" data-mechanic="insight" aria-label={`${c.insight} Insight`} title="Insight" style={{ color: 'var(--n2)' }}><GameIcon name="insight" preferences={preferences} /> <b>{c.insight}</b><span className="stat-label"> Insight</span></span>
+        {classMechanic && (
+          <span className="stat class-mechanic-stat" data-mechanic={classMechanic[0]}
+            aria-label={`${classMechanic[2]} ${classMechanic[3]}`} title={classMechanic[3]} style={{ color: 'var(--n2)' }}>
+            <i aria-hidden="true">{classMechanic[1]}</i> <b>{classMechanic[2]}</b><span className="stat-label"> {classMechanic[3]}</span>
+          </span>
         )}
         <span className="seg" data-mechanic="mines" tabIndex="0" title="hidden mines − flags"><GameIcon name="mines" preferences={preferences} /> {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
         <span className="seg" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}><GameIcon name="safe" preferences={preferences} /> {String(safeLeft).padStart(2, '0')}</span>

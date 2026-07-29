@@ -3,22 +3,22 @@ import {
   run, ui, cbt, board,
   genBoard, solveScore, neighborsOf, outerRingIndices, numAt, hiddenIdx, isHiddenUsable,
   newRun, reachableNodes, startCombat, revealTile, openSafe, chordAt, endTurn,
-  takeRewardCard, takeBossTrinket, takeVeinBoon, finishReward, genShop, buyShopCard,
+  takeRewardCard, takeBossTrinket, takeVeinBoon, finishReward, genShop, buyShopCard, buyShopTrinket,
   startPuzzle, puzzleClick, devourRing, hitEnemy, checkNNPhase,
   detonateForCards, fleeCombat,
   SHAPES, annexTiles, addMineAt, clickTile, basePicksFor,
   saveRun, listSaves, loadRun, deleteSave, goHome,
-  scanTile, addConstruct, gainPlating, MAX_CONSTRUCTS, MAX_PLATING,
+  scanTile, addConstruct, tileEligible, gainPlating, MAX_CONSTRUCTS, MAX_PLATING,
   campTrainPicks, closeCutscene, closeBattlePreview, closeModal,
   EVENT_CATALOG, eventChoice, currentEventView, startSpecificEvent, setLogicPuzzleCell, checkLogicPuzzle, testLaunch,
   toggleLightsCell, toggleNonogramCell, answerSequence,
   clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS, ENEMY_EFFECTS,
   applyEnemyEffect, enemyAttack, fogTiles, effCost, BOSS_RELIC_KEYS, VEIN_BOONS,
-  loseHP,
+  loseHP, gainLight, spendInsight, recallArchived, riseGraves, isTrinketEligible,
   runElapsedMs, formatRunTime, setRunTimerActive,
   rewardPoolFor,
 } from '../src/engine/engine.js';
-import { CARDS, CLASSES, TRINKETS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
+import { CARDS, CLASSES, TRINKETS, SIGNATURE_RELICS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import {
@@ -268,6 +268,23 @@ R().gold = 999;
 const deckPreShop = R().deck.length;
 buyShopCard(0);
 T('shop card purchase adds to deck', R().deck.length === deckPreShop + 1 && R().shop.cards[0].sold);
+/* 8b — Vein black market: marked-up prices, richer stock, upgradeable goods */
+{
+  newRun('sapper', { daily: 'black-market' });
+  R().stratum = 3; R().veinSegments = 4;
+  genShop();
+  T('Vein shop is a Black Market with an extra card and trinket shelf',
+    R().shop.blackMarket === true && R().shop.cards.length === 6 && R().shop.trinkets.length <= 3);
+  T('Black Market marks prices up above the base common range', Math.min(...R().shop.cards.map(c => c.price)) > 60);
+  T('Black Market cards carry an upgrade tier (0 or 1)', R().shop.cards.every(c => c.up === 0 || c.up === 1));
+  const upgradedOffer = R().shop.cards.find(c => c.up === 1);
+  if (upgradedOffer) {
+    const idx = R().shop.cards.indexOf(upgradedOffer); R().gold = 9999;
+    const before = R().deck.length; buyShopCard(idx);
+    T('a pre-upgraded Black Market card enters the deck already upgraded',
+      R().deck.length === before + 1 && R().deck[R().deck.length - 1].up === 1);
+  } else console.log('skip  (this seed rolled no pre-upgraded card)');
+}
 
 /* 9 — puzzle event */
 startPuzzle();
@@ -430,10 +447,21 @@ T('NN-99 phase 2 regenerates a denser board (12+2 grid)', board().size === 14);
 
 /* 11 — construct fix regression: Sentry can be built (addConstruct exists now) */
 {
-  const open = board().cells.findIndex(c => c.revealed && !c.construct && !c.void);
+  const mined = board().cells.findIndex(c => c.mine && !c.void && !c.construct);
+  if (mined >= 0) {
+    const wasRevealed = board().cells[mined].revealed;
+    board().cells[mined].revealed = true; // exercise the defensive engine guard
+    T('a revealed mine is never an eligible Construct site',
+      !tileEligible(mined, 'open', []) && addConstruct(mined, 'sentry', { dmg: 5 }) === false);
+    board().cells[mined].revealed = wasRevealed;
+  }
+  const open = board().cells.findIndex((c, i) => !c.mine && !c.void && !c.construct && numAt(i) > 0);
   if (open >= 0) {
+    board().cells[open].revealed = true;
+    const numberBefore = numAt(open);
     addConstruct(open, 'sentry', { dmg: 5 });
-    T('addConstruct builds a Sentry on a revealed tile', board().cells[open].construct?.kind === 'sentry');
+    T('addConstruct builds on a safe numbered tile without changing its number',
+      board().cells[open].construct?.kind === 'sentry' && numAt(open) === numberBefore);
     nn.hp = 70; checkNNPhase(nn);
     T('Constructs survive NN-99 board shifts instead of silently expiring',
       board().cells.filter(cell => cell.construct?.kind === 'sentry').length === 1);
@@ -574,10 +602,10 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   T('clearing today counts as on the day', loadDailyRecords()[today].onTime === true);
 }
 
-/* 15 — Delver identities: unique decks, passives, and expanded pools */
+/* 15 — Delver identities: unique decks, passives, and authored pools */
 {
-  T('each Delver has an expanded reward pool', ['sapper', 'surveyor', 'terraformer'].every(cls =>
-    Object.values(CARDS).filter(card => card.cls === cls && ['common', 'uncommon', 'rare'].includes(card.rarity)).length >= 10));
+  T('the original Delvers retain at least ten authored class cards', ['sapper', 'surveyor', 'terraformer'].every(cls =>
+    Object.values(CARDS).filter(card => card.cls === cls && ['starter', 'common', 'uncommon', 'rare'].includes(card.rarity)).length >= 10));
 
   newRun('sapper');
   T('Sapper starter deck is specialized', R().deck.filter(c => c.key === 'shortfuse').length === 2 && R().deck.some(c => c.key === 'seedcharge'));
@@ -599,7 +627,7 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
   addConstruct(openTiles[1], 'bulwark', { plating: 1, block: 3 });
   addConstruct(openTiles[2], 'relay', { block: 2 });
   T('Terraformer Master Builder grants temporary Block only once per turn',
-    cbt().block === block0 + 4 && cbt().plating === plating0
+    cbt().block === block0 + 6 && cbt().plating === plating0
     && board().cells.filter(cell => cell.construct).length === MAX_CONSTRUCTS);
   T('Terraformer cannot exceed three active Constructs',
     addConstruct(openTiles[3], 'sentry', { dmg: 5 }) === false
@@ -621,12 +649,36 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     CLASSES[cls].deck.length === 10
     && CLASSES[cls].deck.every(key => CARDS[key])
     && TRINKETS[CLASSES[cls].trinket]?.tier === 'starter'));
+  T('every Delver has exactly one class-locked signature relic', classKeys.every(cls => {
+    const key = SIGNATURE_RELICS[cls];
+    return key && TRINKETS[key]?.cls === cls && ['uncommon', 'rare'].includes(TRINKETS[key]?.tier)
+      && Object.values(SIGNATURE_RELICS).filter(candidate => candidate === key).length === 1;
+  }) && Object.keys(SIGNATURE_RELICS).length === classKeys.length);
+  T('signature relics are available only to their matching Delver',
+    classKeys.every((cls, index) => isTrinketEligible(SIGNATURE_RELICS[cls], cls)
+      && !isTrinketEligible(SIGNATURE_RELICS[classKeys[(index + 1) % classKeys.length]], cls)));
+  T('each shop guarantees its unowned Delver signature relic and class-valid trinkets', classKeys.every(cls => {
+    newRun(cls, { daily:`signature-shop-${cls}` });
+    genShop();
+    return R().shop.trinkets.some(item => item.key === SIGNATURE_RELICS[cls] && item.signature)
+      && R().shop.trinkets.every(item => isTrinketEligible(item.key, cls));
+  }));
+  newRun('sapper', { daily:'signature-shop-purchase' });
+  genShop();
+  const signatureShopIndex = R().shop.trinkets.findIndex(item => item.key === SIGNATURE_RELICS.sapper);
+  R().gold = 999;
+  buyShopTrinket(signatureShopIndex);
+  genShop();
+  T('the guaranteed shop slot returns to the normal pool after purchase',
+    R().trinkets.includes(SIGNATURE_RELICS.sapper)
+      && !R().shop.trinkets.some(item => item.key === SIGNATURE_RELICS.sapper));
   T('every Delver has guaranteed zero-Energy Chord access in the starter deck', classKeys.every(cls =>
     CLASSES[cls].deck.includes('resonanttap')));
-  T('every Delver reward pool is explicit, compact, and class-valid', classKeys.every(cls => {
-    const pool = rewardPoolFor(cls);
-    return pool.length >= 20 && pool.length <= 28
-      && pool.every(key => CARDS[key] && [cls, 'neutral'].includes(CARDS[key].cls));
+  T('every Delver reward pool is explicit, compact, unique, and class-valid', classKeys.every(cls => {
+    const pool = CLASSES[cls].rewardPool;
+    return pool.length >= 10 && pool.length <= 12
+      && new Set(pool).size === pool.length
+      && pool.every(key => CARDS[key]?.cls === cls);
   }));
   const expectedBasePicks = {
     sapper: 3, surveyor: 5, terraformer: 4, lamplighter: 4, gambler: 4,
@@ -640,17 +692,24 @@ console.log(`info  no-guess solver: avg provable-solvable fraction on shaped 10/
     startCombat('dig');
     return cbt().picks === expectedBasePicks[cls] && cbt().maxPicks === expectedBasePicks[cls];
   }));
-T('catalog is curated down to exactly 213 uniquely named cards', Object.keys(CARDS).length === 213
-    && new Set(Object.values(CARDS).map(card => card.name)).size === 213);
+  T('catalog contains at least 100 authored class cards, a compact neutral set, and no duplicate names',
+    classKeys.every(cls => Object.values(CARDS).filter(card => card.cls === cls).length >= 10)
+    && Object.values(CARDS).filter(card => card.cls === 'neutral').length === 14
+    && new Set(Object.values(CARDS).map(card => card.name)).size === Object.keys(CARDS).length);
+  T('every playable card has meaningful base, +, and ++ rules', Object.values(CARDS)
+    .filter(card => card.cls != null)
+    .every(card => card.cost?.length === 3
+      && new Set([0, 1, 2].map(level => `${card.cost[level]}:${card.text(level)}`)).size === 3));
+  T('every Delver signature points to a live card in its own deck',
+    classKeys.every(cls => CARDS[CLASSES[cls].sig]?.cls === cls && CLASSES[cls].deck.includes(CLASSES[cls].sig)));
 T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   ['chordcard','resonanttap','stonechorus'].every(key => CARDS[key].cost[0] === 0 && CARDS[key].cost[1] === 0
     && CARDS[key].targets.includes('number')));
-  T('four healing cards cover distinct recovery roles without flooding rewards',
-    ['bandage','lastlight','gravemoss']
-      .every(key => CARDS[key]?.cls === 'neutral' && CARDS[key].exhaust && CARDS[key].can)
-      && CARDS.bedrockshelter?.cls === 'terraformer' && CARDS.bedrockshelter.exhaust && CARDS.bedrockshelter.can
-      && ['mendingsalts','stonepoultice','triagekit','secondwind'].every(key => !CARDS[key])
-      && rewardPoolFor('terraformer').includes('bedrockshelter'));
+  T('generic healing is limited to Bandage while class healing serves class engines',
+    CARDS.bandage?.cls === 'neutral' && CARDS.bandage.exhaust && CARDS.bandage.can
+      && ['lastlight','gravemoss','mendingsalts','stonepoultice','triagekit','secondwind'].every(key => CARDS[key]?.cls !== 'neutral')
+      && CARDS.bedrockshelter?.cls === 'terraformer' && CARDS.bedrockshelter.exhaust
+      && CARDS.cauterize?.cls === 'chirurgeon' && CARDS.cauterize.exhaust);
   newRun('sapper', { daily:'healing-card' }); R().hp -= 20; startCombat('dig');
   const beforeBandage = R().hp; CARDS.bandage.play(0);
   T('Bandage restores persistent run HP without exceeding maximum HP', R().hp === beforeBandage + 4 && R().hp <= R().maxHp);
@@ -669,11 +728,15 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   conditionBoss.effects.jammed = 1; R().hp = R().maxHp;
   const hpBeforeJam = R().hp; enemyAttack(conditionBoss, 10);
   T('Jammed reduces a boss direct attack by 40% and consumes a stack', hpBeforeJam - R().hp === 6 && conditionBoss.effects.jammed === 0);
-  T('four neutral condition cards all target enemies and advertise boss support',
-    ['faultline','signaljam','sunderingchalk','gravebind'].every(key => CARDS[key].hits === 'target' && CARDS[key].text(0).includes('boss')));
-  T('every Delver retains a focused 19-card class pool', classKeys.every(cls =>
-    Object.values(CARDS).filter(card => card.cls === cls).length === 19));
-  T('retired procedural expansion cards are absent', !Object.keys(CARDS).some(key => key.startsWith('x500_')));
+  T('four neutral condition cards all target enemies and use boss-compatible conditions',
+    ['faultline','signaljam','sunderingchalk','gravebind'].every(key =>
+      CARDS[key].hits === 'target' && CARDS[key].targets.length === 0));
+  T('every Delver has a focused hand-authored class pool', classKeys.every(cls => {
+    const cards = Object.values(CARDS).filter(card => card.cls === cls);
+    return cards.length >= 10 && cards.length <= 12 && cards.every(card => typeof card.play === 'function');
+  }));
+  T('retired procedural expansion cards are absent',
+    !Object.keys(CARDS).some(key => key.startsWith('x500_') || key.startsWith('exp_')));
 
   resetProgressionForTests();
   let progress = loadProgression();
@@ -683,6 +746,256 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   const winningRun = { stratum: 2, gold: 0, upgrades: 0, safeReveals: 0, fullClears: 0, combat: null, winRecorded: false };
   progress = recordProgress(winningRun, 'victory');
   T('a recorded win unlocks the Revenant once', isDelverUnlocked('revenant', progress) && progress.wins === 1 && winningRun.winRecorded);
+}
+
+/* 16b — each rebuilt Delver engine has a live mechanical loop */
+{
+  newRun('sapper'); startCombat('dig');
+  cbt().enemies.forEach(enemy => {
+    enemy.hp += 100; enemy.maxHp += 100; enemy.block = 0; enemy.data.buried = false;
+  });
+  let mines = hiddenIdx().filter(i => board().cells[i].mine).slice(0, 2);
+  mines.forEach(detonateForCards);
+  T('Sapper controlled detonations build a Blast Chain',
+    cbt().classState.blastChain === mines.length && mines.length === 2);
+
+  newRun('lamplighter'); startCombat('dig');
+  cbt().enemies.forEach(enemy => {
+    enemy.hp += 100; enemy.maxHp += 100; enemy.block = 0; enemy.data.buried = false;
+  });
+  const lightBefore = cbt().classState.light;
+  const flareHp = cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  const lightGained = gainLight(4);
+  CARDS.flare.play(0);
+  const flareDamage = flareHp - cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  T('Lamplighter stores cascade Light and spends it on a scaling Flare',
+    lightGained > 0 && cbt().classState.light === Math.min(10, lightBefore + 4) - 3
+      && flareDamage >= 12);
+
+  newRun('gambler'); startCombat('dig');
+  const honestMine = hiddenIdx().find(i => board().cells[i].mine && !board().cells[i].flag);
+  toggleFlag(honestMine);
+  T('Gambler earns Loaded from a correct manual flag',
+    honestMine != null && cbt().classState.loaded === 1);
+
+  newRun('chirurgeon'); startCombat('dig');
+  cbt().enemies[0].hp += 100; cbt().enemies[0].maxHp += 100;
+  const surgicalHp = R().hp;
+  CARDS.cleancut.play(0);
+  T('Chirurgeon converts Health into Blood and Triage defense',
+    R().hp === surgicalHp - 5 && cbt().classState.bloodSpent === 5
+      && cbt().classState.bloodSpentThisTurn === 5 && cbt().classState.untreatedBlood === 5
+      && cbt().block >= 5);
+  const triageSafe = hiddenIdx().find(i => !board().cells[i].mine);
+  const triageHp = R().hp;
+  revealTile(triageSafe, 'card-safe');
+  T('Chirurgeon Triage closes 1 Untreated Blood after a safe reveal',
+    R().hp === triageHp + 1 && cbt().classState.untreatedBlood === 4
+      && cbt().classState.triageRecoveryUsed);
+  const threadHp = R().hp;
+  CARDS.redthread.play(0);
+  T('Red Thread consumes a wound instead of healing the same Blood twice',
+    R().hp === threadHp + 2 && cbt().classState.untreatedBlood === 1);
+
+  R().hp = R().maxHp - 10;
+  cbt().classState.untreatedBlood = 0;
+  const dressingSafe = hiddenIdx().find(i => !board().cells[i].mine);
+  const dressingHp = R().hp;
+  CARDS.fielddressing.play(0, [dressingSafe]);
+  T('Field Dressing refunds its Blood cost without farming unwounded Health',
+    R().hp === dressingHp && board().cells[dressingSafe].revealed
+      && cbt().classState.untreatedBlood === 0);
+  cbt().classState.untreatedBlood = 3;
+  R().hp -= 3;
+  const treatmentSafe = hiddenIdx().find(i => !board().cells[i].mine);
+  const treatmentHp = R().hp;
+  CARDS.fielddressing.play(0, [treatmentSafe]);
+  T('Field Dressing treats older wounds after a safe Scan',
+    R().hp === treatmentHp + 2 && cbt().classState.untreatedBlood === 0);
+  T('Cauterize is guaranteed in the Chirurgeon starter deck',
+    CLASSES.chirurgeon.deck.includes('cauterize') && CLASSES.chirurgeon.deck.length === 10);
+
+  cbt().powers.operatingTheatre = { uses:1, healing:1 };
+  cbt().classState.operatingUses = 0;
+  cbt().block = 0;
+  R().hp = R().maxHp;
+  enemyAttack(cbt().enemies[0], 2);
+  const usesAfterEnemyDamage = cbt().classState.operatingUses;
+  CARDS.cleancut.play(0);
+  T('Operating Theatre triggers only from Blood payments',
+    usesAfterEnemyDamage === 0 && cbt().classState.operatingUses === 1);
+
+  cbt().classState.untreatedBlood = 3;
+  cbt().classState.triageLineRecovery = 0;
+  cbt().classState.triageLineHealing = 0;
+  cbt().block = 100;
+  R().hp = R().maxHp - 10;
+  CARDS.triageline.play(0);
+  cbt().enemies.forEach(enemy => { enemy.intent = { kind:'attack', n:0 }; });
+  const lineHp = R().hp;
+  endTurn();
+  T('Triage Line turns unused Block into bounded end-turn treatment',
+    R().hp === lineHp + 1 && cbt().classState.untreatedBlood === 1);
+
+  R().hp = R().maxHp - 20;
+  cbt().classState.untreatedBlood = 4;
+  cbt().enemies.forEach(enemy => { enemy.data.buried = false; enemy.data.modifierBuried = false; });
+  const transfusionEnemy = cbt().enemies.find(enemy => enemy.hp > 0);
+  transfusionEnemy.hp += 100;
+  transfusionEnemy.maxHp += 100;
+  cbt().targetIdx = cbt().enemies.indexOf(transfusionEnemy);
+  transfusionEnemy.effects.exposed = 1;
+  const transfusionHp = R().hp;
+  CARDS.transfusion.play(0);
+  T('Transfusion lifesteals from a conditioned enemy and closes wounds',
+    R().hp === transfusionHp + 2 && cbt().classState.untreatedBlood === 2);
+  R().hp = Math.floor(R().maxHp * 0.35);
+  const surgeryHp = R().hp;
+  const woundsBefore = cbt().discard.filter(card => card.key === 'wound').length;
+  CARDS.emergencysurgery.play(0);
+  T('Emergency Surgery heals immediately and adds temporary Wounds',
+    R().hp === Math.min(R().maxHp, surgeryHp + 6)
+      && cbt().discard.filter(card => card.key === 'wound').length === woundsBefore + 2);
+
+  newRun('archivist'); startCombat('dig');
+  cbt().draw = []; cbt().hand = [{ key:'footnote', up:0 }];
+  clickHandCard(0);
+  const filed = cbt().archive.length === 1 && cbt().archive[0].key === 'footnote';
+  recallArchived(1, 1);
+  T('Archivist Files cards into the Archive and Recalls them upgraded',
+    filed && cbt().archive.length === 0 && cbt().hand.some(card => card.key === 'footnote' && card.up === 1));
+
+  newRun('warden'); startCombat('dig');
+  cbt().block = 10;
+  enemyAttack(cbt().enemies[0], 10);
+  T('Warden turns absorbed attacks into Resolve',
+    cbt().block === 0 && cbt().classState.resolve > 0);
+
+  newRun('hexwright'); startCombat('dig');
+  let clue = board().cells.findIndex((cell, i) => cell.revealed && !cell.mine && numAt(i) > 0);
+  if (clue < 0) {
+    clue = hiddenIdx().find(i => !board().cells[i].mine && numAt(i) > 0);
+    revealTile(clue, 'card-safe');
+  }
+  const truthfulClue = numAt(clue);
+  cbt().enemies[0].hp += 100; cbt().enemies[0].maxHp += 100;
+  CARDS.chalkthree.play(0, [clue]);
+  T('Hexwright Inscribes a mutable Rune without changing the truthful clue',
+    clue >= 0 && board().cells[clue].rune?.value === truthfulClue && numAt(clue) === truthfulClue);
+
+  newRun('revenant'); startCombat('dig');
+  cbt().enemies[0].hp += 100; cbt().enemies[0].maxHp += 100;
+  cbt().hand = [{ key:'gravestep', up:0 }];
+  clickHandCard(0);
+  const buried = cbt().grave.length === 1 && cbt().grave[0].key === 'gravestep';
+  riseGraves(1);
+  T('Revenant cards enter the Grave and Rise once upgraded',
+    buried && cbt().grave.length === 0
+      && cbt().hand.some(card => card.key === 'gravestep' && card.up === 1 && card.risen));
+}
+
+/* 16c — class-locked signature relics hook each Delver's real engine */
+{
+  newRun('sapper'); R().trinkets.push('daisychain'); startCombat('dig');
+  cbt().enemies.forEach(enemy => { enemy.hp += 100; enemy.maxHp += 100; enemy.block = 0; enemy.data.buried = false; });
+  const chainMine = hiddenIdx().find(i => board().cells[i].mine);
+  detonateForCards(chainMine);
+  T('Daisy Chain damages a random enemy when a Blast Chain link is created',
+    cbt().classState.blastChain === 1 && cbt().log.some(entry => String(entry).includes('Daisy Chain')));
+
+  newRun('surveyor'); R().trinkets.push('bottomlessledger'); startCombat('dig');
+  const ledgerSpent = spendInsight();
+  T('Bottomless Ledger starts with 3 Insight and retains 1 after an all-Insight spend',
+    ledgerSpent === 3 && cbt().insight === 1);
+
+  newRun('terraformer'); R().trinkets.push('coolantcell'); startCombat('dig');
+  const constructSites = board().cells.map((cell, i) => !cell.void && !cell.mine ? i : -1).filter(i => i >= 0);
+  let coolantPair = null;
+  for (const a of constructSites) {
+    const b = constructSites.find(candidate => candidate !== a
+      && Math.max(Math.abs(Math.floor(a / board().size) - Math.floor(candidate / board().size)),
+        Math.abs((a % board().size) - (candidate % board().size))) <= 2);
+    if (b != null) { coolantPair = [a, b]; break; }
+  }
+  coolantPair.forEach(i => { if (!board().cells[i].revealed) revealTile(i, 'card-safe'); });
+  addConstruct(coolantPair[0], 'relay', { block:0 });
+  addConstruct(coolantPair[1], 'relay', { block:0 });
+  cbt().enemies = [];
+  endTurn();
+  T('Coolant Cell reduces clustered Construct Heat generation by 1',
+    coolantPair.every(i => board().cells[i].construct?.heat === 1));
+
+  newRun('lamplighter'); R().trinkets.push('everburningwick'); startCombat('dig');
+  gainLight(8);
+  cbt().enemies = [];
+  endTurn();
+  T('Everburning Wick prevents Light fading at turn start', cbt().classState.light === 8);
+
+  newRun('gambler'); R().trinkets.push('twoheadedcoin'); startCombat('dig');
+  const wagerEnemy = cbt().enemies[0];
+  wagerEnemy.hp += 100; wagerEnemy.maxHp += 100; wagerEnemy.block = 0; wagerEnemy.data.buried = false;
+  const wagerHp = wagerEnemy.hp;
+  CARDS.openwager.play(0);
+  for (const mine of hiddenIdx().filter(i => board().cells[i].mine && !board().cells[i].flag).slice(0, 4)) toggleFlag(mine);
+  T('Two-Headed Coin guarantees the first Wager and raises the Loaded cap to 4',
+    wagerHp - wagerEnemy.hp === 14 && cbt().classState.twoHeadedCoinUsed
+      && cbt().classState.loadedCap === 4 && cbt().classState.loaded === 4);
+
+  newRun('chirurgeon'); R().trinkets.push('leechkit'); startCombat('dig');
+  cbt().enemies[0].hp += 100; cbt().enemies[0].maxHp += 100;
+  cbt().block = 0;
+  CARDS.cleancut.play(0);
+  T('Leech Kit grants Block equal to Blood paid in addition to Triage',
+    cbt().block === 10 && cbt().classState.bloodSpentThisTurn === 5);
+
+  newRun('archivist'); R().trinkets.push('masterindex'); startCombat('dig');
+  cbt().archive = [{ key:'footnote', up:0 }];
+  cbt().hand = [];
+  recallArchived(1, 0);
+  T('Master Index upgrades every recalled card for the current combat',
+    cbt().hand.length === 1 && cbt().hand[0].key === 'footnote' && cbt().hand[0].up === 1);
+
+  newRun('warden'); R().trinkets.push('spikedaegis'); startCombat('dig');
+  const aegisEnemy = cbt().enemies[0];
+  aegisEnemy.hp += 100; aegisEnemy.maxHp += 100; aegisEnemy.block = 0; aegisEnemy.data.buried = false;
+  cbt().block = 10;
+  const aegisHp = aegisEnemy.hp;
+  enemyAttack(aegisEnemy, 10);
+  T('Spiked Aegis retaliates after a positive enemy attack is fully absorbed',
+    aegisHp - aegisEnemy.hp === 4 && R().hp === R().maxHp);
+
+  newRun('hexwright'); R().trinkets.push('cinderbrand'); startCombat('dig');
+  cbt().enemies.forEach(enemy => { enemy.hp += 100; enemy.maxHp += 100; enemy.block = 0; enemy.data.buried = false; });
+  let runeClue = board().cells.findIndex((cell, i) => cell.revealed && !cell.mine && numAt(i) > 0);
+  if (runeClue < 0) {
+    runeClue = hiddenIdx().find(i => !board().cells[i].mine && numAt(i) > 0);
+    revealTile(runeClue, 'card-safe');
+  }
+  const cinderBefore = cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  const runeValue = numAt(runeClue);
+  CARDS.chalkthree.play(0, [runeClue]);
+  const cinderDamage = cinderBefore - cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  T('Cinderbrand adds a Rune-inscription hit while preserving Chalk Three damage',
+    cinderDamage === runeValue * 6 + 1);
+  const lairTiles = new Set(cbt().enemies.flatMap(enemy => enemy.lair || []));
+  const hotTile = hiddenIdx().find(i => !lairTiles.has(i) && !board().cells[i].mine
+    && neighborsOf(i, board().size).filter(j => !board().cells[j].void).length >= 3);
+  const hotNeighbors = neighborsOf(hotTile, board().size).filter(i => !board().cells[i].void);
+  hotNeighbors.forEach((i, index) => { board().cells[i].mine = index < 3; });
+  const hotBefore = cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  const hotTargets = cbt().enemies.filter(enemy => enemy.hp > 0 && !enemy.data.buried).length;
+  revealTile(hotTile, 'card-safe');
+  T('Cinderbrand doubles Hot Number from 2 to 4 damage to every enemy',
+    hotBefore - cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0) === hotTargets * 4);
+
+  newRun('revenant'); R().trinkets.push('secondshroud'); startCombat('dig');
+  const shroudEnemy = cbt().enemies[0];
+  shroudEnemy.hp += 100; shroudEnemy.maxHp += 100; shroudEnemy.block = 0; shroudEnemy.data.buried = false;
+  R().hp = Math.floor(R().maxHp * 0.36);
+  const shroudHp = shroudEnemy.hp;
+  CARDS.notomorrow.play(0);
+  T('Second Shroud raises Death’s Door to 40% maximum Health',
+    cbt().classState.deathsDoorThreshold === 0.4 && shroudHp - shroudEnemy.hp === 25);
 }
 
 /* 17 — bot uses JSON-sized state and advances exactly one public game action */
@@ -704,19 +1017,20 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   startCombat('dig');
   const lampBasePicks = basePicksFor('lamplighter');
   const picks0 = cbt().picks;
-  CARDS.exp_lamplighter_7.play(0);
+  CARDS.wicktrim.play(2);
   T('class base pick economy and cards grant temporary picks',
-    picks0 === lampBasePicks && cbt().maxPicks === lampBasePicks && cbt().picks === lampBasePicks + 1);
+    picks0 === lampBasePicks && cbt().maxPicks === lampBasePicks
+      && cbt().classState.light === 4 && cbt().classState.preserveLight === 6);
 
   CARDS.lanternloan.play(1);
   T('an upgraded card can raise current and max picks for combat',
-    cbt().picks === lampBasePicks + 3 && cbt().maxPicks === lampBasePicks + 1);
+    cbt().picks === lampBasePicks + 2 && cbt().maxPicks === lampBasePicks + 1);
   cbt().enemies[0].hp += 100;
   cbt().enemies[0].maxHp += 100;
   const enemyHp = cbt().enemies[0].hp;
   CARDS.hardlesson.play(0);
   T('pick-spending attacks consume current picks for impact',
-    cbt().picks === lampBasePicks && cbt().enemies[0].hp === enemyHp - 18);
+    cbt().picks === lampBasePicks && cbt().enemies[0].hp === enemyHp - 12);
   CARDS.emergencyexit.play(0);
   T('trade-off cards can lower max picks in exchange for defense',
     cbt().maxPicks === lampBasePicks && cbt().picks === lampBasePicks && cbt().plating >= 12);
@@ -759,7 +1073,7 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
       && tutorialSource.includes('Target revealed 1 with Resonant Tap')
       && tutorialSource.includes('8 Block + 2 Plating absorb Attack 10'));
   T('Mechanics Lab covers every glossary mechanic plus every enemy modifier in five interactive sessions',
-    Object.keys(MECHANICS).length === 56
+    Object.keys(MECHANICS).length >= 72
       && Object.keys(MECHANICS).every(key => mechanicsLabSource.includes(`'${key}'`))
       && Object.keys(ENEMY_MODIFIERS).length === 4
       && mechanicsLabSource.includes('Object.entries(ENEMY_MODIFIERS)')

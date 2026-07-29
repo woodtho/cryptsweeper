@@ -1,7 +1,7 @@
 import { CLASSES } from '../engine/data.js';
 import { newRun } from '../engine/engine.js';
 import { runContinuous } from './gameBot.js';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -45,14 +45,26 @@ for (const cls of classes) {
   );
 }
 
+const output = arg('output');
+let mergedReport = report;
+if (requested?.length && output && existsSync(output)) {
+  try {
+    const previous = JSON.parse(readFileSync(output, 'utf8'));
+    const updated = new Map(report.map(row => [row.class, row]));
+    mergedReport = Object.keys(CLASSES)
+      .map(cls => updated.get(cls) || previous.report?.find(row => row.class === cls))
+      .filter(Boolean);
+  } catch {
+    // A missing or malformed prior report should not prevent focused simulation.
+  }
+}
 const payload = {
   generatedAt: new Date().toISOString(),
   methodology: 'Class-aware card priorities; oracle reads mines, honest uses only revealed and scanned information.',
   oracleRunsPerClass: runs,
   honestRunsPerClass: honestRuns,
-  report,
+  report: mergedReport,
 };
 const json = `${JSON.stringify(payload, null, 2)}\n`;
-const output = arg('output');
 if (output) writeFileSync(output, json);
 process.stdout.write(json);

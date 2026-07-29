@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   run, ui, cbt, board, numAt, neighborsOf, aliveEnemies, tileEligible,
-  clickTile, toggleFlag, puzzleClick, puzzleToggleFlag, LAIR_COLORS, RELAY_HEAT_MAX, RELAY_RADIUS, HEAT_CONSTRUCTS,
+  clickTile, toggleFlag, puzzleClick, puzzleToggleFlag, LAIR_COLORS, constructHeatMax, RELAY_RADIUS, HEAT_CONSTRUCTS,
 } from '../engine/engine.js';
 import { loadPreferences } from '../engine/preferences.js';
 import { enemyIcon } from './enemyIcons.jsx';
@@ -46,8 +46,15 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
   const cls = ['tile'];
   const title = [];
   let content = '';
+  let constructNumber = 0;
+  let runeValue = null;
   if (cell.void) {
     return <div className="tile void" />;
+  }
+  if (mode !== 'puzzle' && cell.revealed && cell.rune) {
+    runeValue = Number(cell.rune.value || 0);
+    cls.push('runed');
+    title.push(`Hexwright Rune value: ${runeValue}. The true clue remains ${num}.`);
   }
   if (cell.entombed) { cls.push('entombed'); content = '▦'; title.push('Entombed — resolved for Full Clear and counts like a flag for Chord'); }
   else if (cell.revealed) {
@@ -58,11 +65,16 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
       const icons = { sentry: interfaceIcon('sentry', prefs), bulwark: interfaceIcon('bulwark', prefs), relay: interfaceIcon('relay', prefs) };
       const labels = { sentry: 'Sentry — fires at end of turn', bulwark: 'Bulwark — Plating + Block at end of turn', relay: 'Survey Relay — scans and grants Block at end of turn' };
       content = icons[cell.construct.kind] || '◆'; title.push(labels[cell.construct.kind] || 'Construct');
+      if (num > 0) {
+        constructNumber = num;
+        title.push(`Number beneath Construct: ${num}`);
+      }
       if (HEAT_CONSTRUCTS.has(cell.construct.kind)) {
         const heat = cell.construct.heat || 0;
+        const heatMax = constructHeatMax();
         if (cell.construct.kind === 'relay' && cell.construct.powered === false) { cls.push('relay-offline'); title.push('Relay OFFLINE — no Energy to run this turn'); }
-        if (heat >= RELAY_HEAT_MAX - 1) cls.push('relay-hot');
-        title.push(`Heat ${heat}/${RELAY_HEAT_MAX}`);
+        if (heat >= heatMax - 1) cls.push('relay-hot');
+        title.push(`Heat ${heat}/${heatMax}`);
       }
     }
     else if (num > 0) {
@@ -139,7 +151,7 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
     const ri = Math.floor(i / b.size), ci = i % b.size;
     for (let j = 0; j < b.cells.length; j++) {
       if (HEAT_CONSTRUCTS.has(b.cells[j].construct?.kind)
-        && Math.max(Math.abs(ri - Math.floor(j / b.size)), Math.abs(ci - (j % b.size))) <= RELAY_RADIUS) relayCover++;
+        && Math.max(Math.abs(ri - Math.floor(j / b.size)), Math.abs(ci - (j % b.size))) <= (b.cells[j].construct.radius || RELAY_RADIUS)) relayCover++;
     }
     if (relayCover >= 2) title.push('Construct interference — Constructs here overheat each other');
     else if (relayCover === 1) title.push('Within a Construct’s heat field');
@@ -203,8 +215,10 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
       {relayCover ? <span className={`relay-range-mark${relayCover >= 2 ? ' overlap' : ''}`} aria-hidden="true" /> : null}
       {lairGhost ? <span className="lairghost">{lairGhost}</span> : null}
       {content}
+      {constructNumber > 0 ? <span className={`construct-number numc${constructNumber}`} aria-hidden="true">{constructNumber}</span> : null}
+      {runeValue != null ? <span className="rune-value" aria-label={`Rune ${runeValue}`}>⌘{runeValue}</span> : null}
       {cell.revealed && HEAT_CONSTRUCTS.has(cell.construct?.kind)
-        ? <span className="relay-heat" aria-hidden="true">{Array.from({ length: RELAY_HEAT_MAX }, (_, k) =>
+        ? <span className="relay-heat" aria-hidden="true">{Array.from({ length: constructHeatMax() }, (_, k) =>
             <i key={k} className={k < (cell.construct.heat || 0) ? 'on' : ''} />)}</span> : null}
       {!cell.revealed && !cell.entombed && cell.scan
         ? <span className={`scanmark ${cell.scan}`}>{interfaceIcon(cell.scan === 'mine' ? 'bomb' : 'safe', prefs)}</span> : null}

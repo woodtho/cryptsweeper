@@ -28,8 +28,11 @@ function targetLabel(def) {
 export function CardView({ card, onClick, inCombat = false, selected = false, dim = false }) {
   const def = CARDS[card.key];
   const selection = targetLabel(def);
+  const level = Math.max(0, Math.min(2, Number(card.up || 0)));
   const cost = def.cost == null ? null
-    : (inCombat ? effCost(card) : Math.max(0, def.cost[card.up ? 1 : 0] - ((card.up || 0) >= 2 ? 1 : 0)));
+    : (inCombat ? effCost(card) : (def.cost.length >= 3
+      ? def.cost[level]
+      : Math.max(0, def.cost[level ? 1 : 0] - (level >= 2 ? 1 : 0))));
   const rar = def.rarity === 'special' ? (def.type === 'Curse' ? 'curse' : '') : def.rarity;
   const rarLabel = def.type === 'Curse' ? 'curse' : def.rarity;
   const segments = RARITY_SEGMENTS[def.rarity] ?? 1;

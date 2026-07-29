@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
-import { CARDS, CLASSES, ENEMIES, GADGETS, STRATA, TRINKETS } from '../engine/data.js';
+import { CARDS, CLASSES, ENEMIES, GADGETS, SIGNATURE_RELICS, STRATA, TRINKETS } from '../engine/data.js';
 import { loadCollection } from '../engine/collection.js';
 import { isDelverUnlocked, loadProgression, UNLOCKS } from '../engine/progression.js';
 import { decorateMechanics } from './mechanics.js';
 import { enemyIcon } from './enemyIcons.jsx';
 import { itemVector } from './themedIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
-import { delverPortrait } from './portraits.js';
+import { delverFullPortrait, delverPortrait } from './portraits.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
+import { CardView } from './CardView.jsx';
 import { ENEMY_MODIFIERS, ENEMY_EFFECTS } from '../engine/engine.js';
 
 function Totals({ found, total, noun, suffix = 'discovered' }) {
@@ -26,10 +27,24 @@ function IndexEmpty({ kind }) {
   return <div className="index-empty"><b>No matching {kind}</b><small>Try another name, type, class, or mechanic.</small></div>;
 }
 
+function DelverDeck({ cardKeys, tier, label, note }) {
+  return <section className="delver-deck-group" aria-label={label}>
+    <header><div><b>{label}</b><small>{note}</small></div><span>{cardKeys.length} cards</span></header>
+    <div className="delver-deck-row">
+      {cardKeys.map((cardKey, index) => <CardView
+        key={`${cardKey}:${index}`}
+        card={{ key: cardKey, up: tier }}
+      />)}
+    </div>
+  </section>;
+}
+
 export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
   const collection = useMemo(loadCollection, [kind]);
   const [fullArt, setFullArt] = useState(null);
   const [query, setQuery] = useState('');
+  const [expandedDelver, setExpandedDelver] = useState(null);
+  const [deckTier, setDeckTier] = useState(0);
   const search = query.trim().toLocaleLowerCase();
   const named = entries => entries.slice().sort((a,b) => a[1].name.localeCompare(b[1].name));
   const includes = (...values) => !search || values.join(' ').toLocaleLowerCase().includes(search);
@@ -51,11 +66,13 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
           const winRate = completed ? Math.round((wins / completed) * 100) : 0;
           const deepest = stat.deepestStratum || 0;
           const portrait = delverPortrait(key);
-          return <article className={`delver-index-entry ${unlocked ? '' : 'locked'}`} key={key}>
-            <button type="button" className="delver-index-art" onClick={() => setFullArt({ src: portrait, title: def.name })}
-              aria-haspopup="dialog" aria-label={`View full artwork for ${def.name}`}>
-              <img src={portrait} alt={`${def.name} portrait`} />
-              <span className="art-expand-hint">Full art</span>
+          const expanded = expandedDelver === key;
+          const signatureRelic = TRINKETS[SIGNATURE_RELICS[key]];
+          return <article className={`delver-index-entry ${unlocked ? '' : 'locked'} ${expanded ? 'expanded' : ''}`} key={key}>
+            <button type="button" className="delver-index-art" onClick={() => setFullArt({ src: delverFullPortrait(key), title: def.name })}
+              aria-haspopup="dialog" aria-label={`View full-resolution artwork for ${def.name}`}>
+              <img src={portrait} loading="lazy" alt={`${def.name} portrait`} />
+              <span className="art-expand-hint">Full art · HD</span>
             </button>
             <div className="delver-index-copy">
               <div className="delver-index-title"><div><b>{def.name}</b><small>{def.role}</small></div><i>{unlocked ? 'Unlocked' : 'Locked'}</i></div>
@@ -74,7 +91,33 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
                 <span><small>Best score</small><b>{stat.bestScore || 0}</b></span>
                 <span><small>Base picks</small><b>{def.picks}</b></span>
               </div>
+              {signatureRelic && <div className="delver-rule-trinket">
+                <span>{itemVector(SIGNATURE_RELICS[key], preferences)}</span>
+                <p><small>Class-locked signature relic</small><b>{signatureRelic.name}</b>{signatureRelic.desc}</p>
+              </div>}
+              <button type="button" className="delver-deck-toggle"
+                aria-expanded={expanded} aria-controls={`delver-decks-${key}`}
+                onClick={() => {
+                  setExpandedDelver(expanded ? null : key);
+                  if (!expanded) setDeckTier(0);
+                }}>
+                <span>{expanded ? 'Hide card decks' : 'View card decks'}</span><b aria-hidden="true">{expanded ? '−' : '+'}</b>
+              </button>
             </div>
+            {expanded && <div className="delver-index-decks" id={`delver-decks-${key}`}>
+              <header className="delver-decks-head">
+                <div><b>{def.name} card archive</b><p dangerouslySetInnerHTML={{ __html: decorateMechanics(def.blurb) }} /></div>
+                <div className="delver-deck-tier" role="group" aria-label="Preview card upgrade level">
+                  <small>Preview level</small>
+                  {[0, 1, 2].map(tier => <button type="button" key={tier} className={deckTier === tier ? 'selected' : ''}
+                    aria-pressed={deckTier === tier} onClick={() => setDeckTier(tier)}>{tier === 0 ? 'Base' : tier === 1 ? '+' : '++'}</button>)}
+                </div>
+              </header>
+              <DelverDeck cardKeys={def.deck} tier={deckTier} label="Starting deck"
+                note="The exact ten cards carried into a new descent; duplicate cards are shown." />
+              <DelverDeck cardKeys={def.rewardPool} tier={deckTier} label="Curated reward pool"
+                note="Class cards that can normally be offered after battle." />
+            </div>}
           </article>;
         })}
       </div>
@@ -154,7 +197,8 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
     ...Object.entries(TRINKETS).map(([key, def]) => [`trinket:${key}`, def, 'Trinket']),
     ...Object.entries(GADGETS).map(([key, def]) => [`gadget:${key}`, def, 'Gadget']),
   ]);
-  const entries = allEntries.filter(([key,def,type]) => !search || (collection.items[key]?.discovered && includes(def.name, def.desc, def.tier || '', type)));
+  const entries = allEntries.filter(([key,def,type]) => !search || (collection.items[key]?.discovered
+    && includes(def.name, def.desc, def.tier || '', def.cls ? CLASSES[def.cls]?.name || def.cls : '', type)));
   const found = allEntries.filter(([key]) => collection.items[key]?.discovered).length;
   return <div className="index-page">
     <Totals found={found} total={allEntries.length} noun="items" />
@@ -167,7 +211,7 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
         return <article className="index-entry" key={key}>
           <button type="button" className="index-icon index-icon-button" onClick={() => setFullArt({ content: icon, title: def.name })}
             aria-haspopup="dialog" aria-label={`Zoom artwork for ${def.name}`}>{icon}</button>
-          <div className="index-copy"><b>{def.name}</b><small>{type}{def.tier ? ` · ${def.tier}` : ''}</small><p dangerouslySetInnerHTML={{ __html: decorateMechanics(def.desc) }} /><span>Seen {stat.seen || stat.obtained || 0} · Obtained {stat.obtained || 0}</span></div>
+          <div className="index-copy"><b>{def.name}</b><small>{type}{def.tier ? ` · ${def.tier}` : ''}{def.cls ? ` · ${CLASSES[def.cls]?.name || def.cls} only` : ''}</small><p dangerouslySetInnerHTML={{ __html: decorateMechanics(def.desc) }} /><span>Seen {stat.seen || stat.obtained || 0} · Obtained {stat.obtained || 0}</span></div>
         </article>;
       })}
     </div>
