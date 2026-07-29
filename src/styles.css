@@ -873,7 +873,104 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
   .controls-card { border-left: 0; border-top: 1px solid var(--etch); padding: 18px 0 0; }
 }
 .topbar .stat b { font-size: 15px; }
-.class-mechanic-stat > i { color: var(--candle); font: normal 700 14px/1 var(--display); }
+.class-mechanic-stat {
+  --resource-accent: var(--candle);
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 28px auto minmax(52px, 1fr);
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 174px;
+  min-height: 38px;
+  padding: 4px 9px 6px !important;
+  overflow: hidden;
+  border: 2px solid var(--resource-accent) !important;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--resource-accent) 22%, #080d0c), #080d0c 62%) !important;
+  box-shadow:
+    inset 2px 2px 0 color-mix(in srgb, var(--resource-accent) 42%, transparent),
+    0 0 9px color-mix(in srgb, var(--resource-accent) 24%, transparent) !important;
+  color: var(--bone) !important;
+  cursor: help;
+}
+.class-mechanic-stat.sapper { --resource-accent: #ff5a4f; }
+.class-mechanic-stat.surveyor { --resource-accent: #68c9e8; }
+.class-mechanic-stat.terraformer { --resource-accent: #8ebd62; }
+.class-mechanic-stat.lamplighter { --resource-accent: #ffc84a; }
+.class-mechanic-stat.gambler { --resource-accent: #c88be4; }
+.class-mechanic-stat.chirurgeon { --resource-accent: #ef786e; }
+.class-mechanic-stat.archivist { --resource-accent: #8faee9; }
+.class-mechanic-stat.warden { --resource-accent: #c2ccd9; }
+.class-mechanic-stat.hexwright { --resource-accent: #df73eb; }
+.class-mechanic-stat.revenant { --resource-accent: #75d6b7; }
+.class-mechanic-icon {
+  grid-row: 1 / span 2;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  color: var(--resource-accent);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--resource-accent) 60%, transparent));
+}
+.class-mechanic-icon svg { width: 100%; height: 100%; }
+.class-mechanic-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+}
+.class-mechanic-main small {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--resource-accent);
+  font: 700 7px/1 var(--mono);
+  letter-spacing: .08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.class-mechanic-main strong {
+  margin-top: 3px;
+  color: #fff;
+  font: 700 17px/.9 var(--display);
+  letter-spacing: .04em;
+  text-shadow: 1px 1px 0 #000;
+}
+.class-mechanic-detail {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  padding: 3px 5px;
+  border: 1px solid color-mix(in srgb, var(--resource-accent) 55%, var(--etch));
+  background: rgba(0, 0, 0, .38);
+  color: var(--bone-dim);
+  font: 700 7px/1.15 var(--mono);
+  letter-spacing: .04em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.class-mechanic-meter {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, .7);
+}
+.class-mechanic-meter > i {
+  display: block;
+  height: 100%;
+  background: var(--resource-accent);
+  box-shadow: 0 0 6px var(--resource-accent);
+  transition: width .2s ease;
+}
+.class-mechanic-stat.charged .class-mechanic-icon {
+  animation: resourcecharged 1.8s steps(2, end) infinite;
+}
+@keyframes resourcecharged {
+  50% { filter: drop-shadow(0 0 7px var(--resource-accent)); transform: scale(1.08); }
+}
 .hpbar { color: var(--blood-hi); }
 .hpbar.critical { animation: criticalpulse 1.15s ease-in-out infinite; }
 .critical-label { margin-left: 5px; color: #ff7668; font: 700 8px/1 var(--mono); letter-spacing: .12em; }
@@ -2145,6 +2242,19 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
     font-size: 7px;
     letter-spacing: .05em;
   }
+  .combat-topbar .class-mechanic-stat {
+    grid-column: span 2;
+    display: grid !important;
+    grid-template-columns: 24px minmax(48px, auto) minmax(46px, 1fr);
+    gap: 2px 5px;
+    width: 100%;
+    height: 28px;
+    padding: 2px 5px 4px !important;
+  }
+  .combat-topbar .class-mechanic-icon { width: 23px; height: 23px; }
+  .combat-topbar .class-mechanic-main small { font-size: 6px; letter-spacing: .04em; }
+  .combat-topbar .class-mechanic-main strong { margin-top: 2px; font-size: 13px; }
+  .combat-topbar .class-mechanic-detail { padding: 2px 3px; font-size: 5.5px; line-height: 1.1; }
   .combat-topbar .stat-label { display: none; }
   .combat-topbar .game-icon { flex: 0 0 auto; }
   .topbar .stat b { font-size: 13.5px; }

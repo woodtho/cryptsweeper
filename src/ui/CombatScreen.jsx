@@ -12,6 +12,7 @@ import { itemVector } from './themedIcons.jsx';
 import { BoardView } from './BoardView.jsx';
 import { CardView } from './CardView.jsx';
 import { GameIcon, IconText } from './gameIcons.jsx';
+import { Mark } from './mapIcons.jsx';
 
 const SPEC_TEXT = {
   hidden: 'a hidden tile', open: 'an empty safe revealed tile', number: 'a revealed number',
@@ -95,20 +96,74 @@ const COMBAT_COACH_STEPS = [
   { selector:'.end-turn', title:'Commit the turn', copy:'Check every enemy intent, then End Turn. Surviving enemies act before Energy, Picks, and your next hand refresh.' },
 ];
 
+const DELVER_RESOURCE_MARKS = {
+  sapper: <Mark><path d="M8 8 L5 5 Q3 3 5 2 Q7 1 9 3 L12 6 M16 16 L19 19 Q21 21 19 22 Q17 23 15 21 L12 18 M8 16 L16 8" /><path d="M12 2 V6 M10 4 H14 M12 18 V22 M10 20 H14" /></Mark>,
+  surveyor: <Mark><path d="M3 12 Q12 4 21 12 Q12 20 3 12 Z" /><circle cx="12" cy="12" r="3" /><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" /></Mark>,
+  terraformer: <Mark><path d="M3 20 V10 L7 7 L11 10 L15 6 L21 10 V20 M3 15 H21 M8 20 V14 M16 20 V13" /><path d="M12 3 V7 M10 5 H14" /></Mark>,
+  lamplighter: <Mark><path d="M8 8 H16 L18 11 V18 H6 V11 Z M9 8 V5 H15 V8 M9 21 H15" /><path d="M12 10 Q15 13 12 16 Q9 14 12 10 Z" /></Mark>,
+  gambler: <Mark><circle cx="12" cy="12" r="9" /><path d="M8 7 H14 Q18 8 15 12 Q12 15 16 18 M8 17 L16 7" /><circle cx="7" cy="12" r=".8" fill="currentColor" /></Mark>,
+  chirurgeon: <Mark><path d="M12 2 Q19 10 19 15 A7 7 0 0 1 5 15 Q5 10 12 2 Z" /><path d="M12 9 V18 M8 13.5 H16" /></Mark>,
+  archivist: <Mark><path d="M4 5 H20 V20 H4 Z M7 2 H17 V5 M4 10 H20 M8 14 H16 M8 17 H14" /><path d="M16 12 V19" /></Mark>,
+  warden: <Mark><path d="M12 3 L20 6 V11 Q20 17 12 21 Q4 17 4 11 V6 Z" /><path d="M12 7 L16 12 L12 17 L8 12 Z" /></Mark>,
+  hexwright: <Mark><circle cx="12" cy="12" r="9" /><path d="M7 17 L10 7 L14 17 L17 7 M8 13 H16" /><circle cx="12" cy="12" r="1" fill="currentColor" /></Mark>,
+  revenant: <Mark><path d="M6 21 V10 Q6 4 12 4 Q18 4 18 10 V21 Z M3 21 H21 M9 10 H15 M12 7 V14" /><path d="M8 18 Q12 15 16 18" /></Mark>,
+};
+
 function classMechanicReadout(runState, combat, combatBoard) {
+  const constructs = combatBoard.cells.filter(cell => cell.construct);
+  const heatedConstructs = constructs.filter(cell => ['sentry', 'relay'].includes(cell.construct?.kind));
+  const maxHeat = Math.max(0, ...heatedConstructs.map(cell => Number(cell.construct?.heat || 0)));
+  const heatCap = 3 + Number(combat.powers?.heatTolerance || 0);
+  const runes = combatBoard.cells.filter(cell => cell.rune);
+  const runePower = runes.reduce((sum, cell) => sum + Number(cell.rune?.value || 0), 0);
+  const loadedCap = Number(combat.classState.loadedCap || 3);
+  const resolveCap = Number(combat.classState.resolveCap || 20);
   const byClass = {
-    sapper: ['blast chain', '✹', Number(combat.classState.blastChain || 0), 'Blast Chain'],
-    surveyor: ['insight', '◇', combat.insight, 'Insight'],
-    terraformer: ['construct', '⌂', combatBoard.cells.filter(cell => cell.construct).length, 'Constructs'],
-    lamplighter: ['light', '✦', Number(combat.classState.light || 0), 'Light'],
-    gambler: ['loaded', '●', `${Number(combat.classState.loaded || 0)}/${Number(combat.classState.loadedCap || 3)}`, 'Loaded'],
-    chirurgeon: ['blood', '♥', Number(combat.classState.untreatedBlood || 0), 'Untreated Blood'],
-    archivist: ['archive', '▤', `${combat.archive.length}/${Number(combat.classState.citations || 0)}`, 'Archive / Citations'],
-    warden: ['resolve', '◆', Number(combat.classState.resolve || 0), 'Resolve'],
-    hexwright: ['rune', '⌘', combatBoard.cells.filter(cell => cell.rune).length, 'Runes'],
-    revenant: ['grave', '†', combat.grave.length, 'Grave'],
+    sapper: {
+      mechanic: 'blast chain', label: 'Blast Chain', value: Number(combat.classState.blastChain || 0),
+      detail: 'this turn',
+    },
+    surveyor: {
+      mechanic: 'insight', label: 'Insight', value: Number(combat.insight || 0),
+      detail: 'banked',
+    },
+    terraformer: {
+      mechanic: 'construct', label: 'Constructs', value: `${constructs.length}/3`,
+      detail: heatedConstructs.length ? `Heat ${maxHeat}/${heatCap}` : 'No Heat', current: constructs.length, max: 3,
+    },
+    lamplighter: {
+      mechanic: 'light', label: 'Light', value: `${Number(combat.classState.light || 0)}/10`,
+      detail: Number(combat.classState.preserveLight || 0) ? `${combat.classState.preserveLight} preserved` : 'half fades',
+      current: Number(combat.classState.light || 0), max: 10,
+    },
+    gambler: {
+      mechanic: 'loaded', label: 'Loaded', value: `${Number(combat.classState.loaded || 0)}/${loadedCap}`,
+      detail: Number(combat.classState.riggedWagers || 0) ? `${combat.classState.riggedWagers} rigged` : 'coin ready',
+      current: Number(combat.classState.loaded || 0), max: loadedCap,
+    },
+    chirurgeon: {
+      mechanic: 'blood', label: 'Untreated Blood', value: Number(combat.classState.untreatedBlood || 0),
+      detail: 'recoverable',
+    },
+    archivist: {
+      mechanic: 'archive', label: 'Archive', value: combat.archive.length,
+      detail: `${Number(combat.classState.citations || 0)} Citations`,
+    },
+    warden: {
+      mechanic: 'resolve', label: 'Resolve', value: `${Number(combat.classState.resolve || 0)}/${resolveCap}`,
+      detail: 'riposte fuel', current: Number(combat.classState.resolve || 0), max: resolveCap,
+    },
+    hexwright: {
+      mechanic: 'rune', label: 'Runes', value: runes.length,
+      detail: `${runePower} total power`,
+    },
+    revenant: {
+      mechanic: 'grave', label: 'Grave', value: combat.grave.length,
+      detail: 'ready to Rise',
+    },
   };
-  return byClass[runState.cls] || null;
+  const readout = byClass[runState.cls];
+  return readout ? { ...readout, cls: runState.cls, icon: DELVER_RESOURCE_MARKS[runState.cls] } : null;
 }
 
 function CombatCoach({ step, onStep, onFinish, onRevealCards }) {
@@ -232,9 +287,16 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
         <span className="stat" data-mechanic="block"><GameIcon name="block" preferences={preferences} /> <b>{c.block}</b></span>
         <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}><GameIcon name="plating" preferences={preferences} /> <b>{c.plating}</b></span>
         {classMechanic && (
-          <span className="stat class-mechanic-stat" data-mechanic={classMechanic[0]}
-            aria-label={`${classMechanic[2]} ${classMechanic[3]}`} title={classMechanic[3]} style={{ color: 'var(--n2)' }}>
-            <i aria-hidden="true">{classMechanic[1]}</i> <b>{classMechanic[2]}</b><span className="stat-label"> {classMechanic[3]}</span>
+          <span className={`stat class-mechanic-stat ${classMechanic.cls} ${Number(classMechanic.current ?? classMechanic.value) > 0 ? 'charged' : ''}`}
+            data-mechanic={classMechanic.mechanic} tabIndex="0"
+            aria-label={`${classMechanic.label}: ${classMechanic.value}. ${classMechanic.detail}`}
+            title={`${classMechanic.label}: ${classMechanic.value} · ${classMechanic.detail}`}>
+            <i className="class-mechanic-icon" aria-hidden="true">{classMechanic.icon}</i>
+            <span className="class-mechanic-main"><small>{classMechanic.label}</small><strong>{classMechanic.value}</strong></span>
+            <span className="class-mechanic-detail">{classMechanic.detail}</span>
+            {classMechanic.max && <span className="class-mechanic-meter" aria-hidden="true">
+              <i style={{ width: `${Math.min(100, Math.max(0, classMechanic.current / classMechanic.max * 100))}%` }} />
+            </span>}
           </span>
         )}
         <span className="seg" data-mechanic="mines" tabIndex="0" title="hidden mines − flags"><GameIcon name="mines" preferences={preferences} /> {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>

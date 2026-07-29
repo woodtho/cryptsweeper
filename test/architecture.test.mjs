@@ -36,6 +36,19 @@ const styles = source('src/styles.css');
 const entrypoint = source('src/main.jsx');
 const handheldTheme = source('src/gba-theme.css');
 const cardSheetRenderer = source('src/ui/CardSheetRenderer.jsx');
+test('every Delver has an obvious class-resource panel with useful secondary state',
+  ['sapper:', 'surveyor:', 'terraformer:', 'lamplighter:', 'gambler:',
+    'chirurgeon:', 'archivist:', 'warden:', 'hexwright:', 'revenant:']
+    .every(cls => combat.includes(cls))
+    && combat.includes('DELVER_RESOURCE_MARKS')
+    && combat.includes('class-mechanic-detail')
+    && combat.includes('class-mechanic-meter')
+    && ['Heat ${maxHeat}/${heatCap}', 'preserved', 'rigged', 'Citations', 'total power', 'ready to Rise']
+      .every(detail => combat.includes(detail))
+    && styles.includes('.class-mechanic-stat {')
+    && styles.includes('grid-column: span 2;')
+    && styles.includes('.class-mechanic-main small')
+    && styles.includes('.class-mechanic-stat.charged'));
 test('card review sheets use the live CardView and cover every Delver deck plus shared cards',
   entrypoint.includes("get('card-sheet')")
     && cardSheetRenderer.includes('<CardView')
@@ -66,7 +79,7 @@ test('the original handheld pixel skin loads after the base theme and covers cor
   entrypoint.indexOf("import './styles.css'") < entrypoint.indexOf("import './gba-theme.css'")
     && handheldTheme.includes('--gba-screen:')
     && handheldTheme.includes('.home-action::before')
-    && handheldTheme.includes('.home-action.compact {\n  padding: 12px 16px 12px 38px;')
+    && /\.home-action\.compact\s*\{[^}]*padding:\s*12px 16px 12px 38px;/s.test(handheldTheme)
     && handheldTheme.includes('.mapnode.reachable')
     && handheldTheme.includes('.tile.open')
     && handheldTheme.includes('.enemy-token')
