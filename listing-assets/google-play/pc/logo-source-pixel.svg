@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 300 200" shape-rendering="crispEdges">
+  <style>
+    .title { font-family: "Press Start 2P", "Courier New", monospace; font-weight: 700; text-anchor: middle; }
+  </style>
+  <g stroke="#030504" stroke-width="2" paint-order="stroke">
+    <text class="title" x="150" y="86" font-size="31" fill="#eee6ad">FLAG</text>
+    <text class="title" x="150" y="137" font-size="22" fill="#d5ad3b">THE DEEP</text>
+  </g>
+  <rect x="59" y="156" width="182" height="4" fill="#63d7c5"/>
+</svg>

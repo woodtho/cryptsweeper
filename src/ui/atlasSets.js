@@ -45,6 +45,18 @@ const svgSet = (id, label, filename) => {
     },
   }]] : [];
 };
+const rasterSet = (id, label, filename) => {
+  const data = byFilename[filename];
+  return data ? [[id, {
+    id, label, base: 'main',
+    icons: Object.fromEntries(slots.map((slot, index) => [`${slot.domain}:${slot.key}`, `atlas:${id}:${index}`])),
+    atlas: {
+      data, mime: 'image/webp', group: 'all', count: slots.length,
+      columns: ATLAS_LAYOUT.columns, rows: ATLAS_LAYOUT.rows,
+    },
+  }]] : [];
+};
+const pixelSet = rasterSet('pixel', 'Pixel Crypt', 'pixel-icons-coarse.webp');
 const mainSet = svgSet('main', 'Main Icons', 'main-icons.svg');
 const mainColorSet = svgSet('main-color', 'Main Icons (Colour)', 'main-icons-color.svg');
 const mainEmojiSet = svgSet('main-emoji', 'Main Icons (Emoji)', 'main-icons-emoji.svg');
@@ -53,6 +65,6 @@ const mainLineSet = svgSet('main-line', 'Main Icons (Line Art)', 'main-icons-lin
    scripts/generate-sigil-icons.mjs. */
 const sigilSet = svgSet('sigils', 'Sigils', 'sigil-icons.svg');
 
-export const ATLAS_SETS = Object.fromEntries([...mainSet, ...mainColorSet, ...mainEmojiSet, ...mainLineSet, ...sigilSet, ...generatedSets]);
+export const ATLAS_SETS = Object.fromEntries([...pixelSet, ...mainSet, ...mainColorSet, ...mainEmojiSet, ...mainLineSet, ...sigilSet, ...generatedSets]);
 
 registerIconSets(ATLAS_SETS);

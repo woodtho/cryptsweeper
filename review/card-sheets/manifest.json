@@ -1,0 +1,71 @@
+{
+  "generatedAt": "2026-07-29T20:41:08.692Z",
+  "sheets": [
+    {
+      "sheet": "sapper",
+      "file": "01-sapper-card-sheet.png",
+      "width": 1160,
+      "height": 1735
+    },
+    {
+      "sheet": "surveyor",
+      "file": "02-surveyor-card-sheet.png",
+      "width": 1160,
+      "height": 1630
+    },
+    {
+      "sheet": "terraformer",
+      "file": "03-terraformer-card-sheet.png",
+      "width": 1160,
+      "height": 2025
+    },
+    {
+      "sheet": "lamplighter",
+      "file": "04-lamplighter-card-sheet.png",
+      "width": 1160,
+      "height": 1630
+    },
+    {
+      "sheet": "gambler",
+      "file": "05-gambler-card-sheet.png",
+      "width": 1160,
+      "height": 1639
+    },
+    {
+      "sheet": "chirurgeon",
+      "file": "06-chirurgeon-card-sheet.png",
+      "width": 1160,
+      "height": 2062
+    },
+    {
+      "sheet": "archivist",
+      "file": "07-archivist-card-sheet.png",
+      "width": 1160,
+      "height": 1630
+    },
+    {
+      "sheet": "warden",
+      "file": "08-warden-card-sheet.png",
+      "width": 1160,
+      "height": 1630
+    },
+    {
+      "sheet": "hexwright",
+      "file": "09-hexwright-card-sheet.png",
+      "width": 1160,
+      "height": 1653
+    },
+    {
+      "sheet": "revenant",
+      "file": "10-revenant-card-sheet.png",
+      "width": 1160,
+      "height": 1630
+    },
+    {
+      "sheet": "neutral-special",
+      "file": "11-neutral-special-card-sheet.png",
+      "width": 1160,
+      "height": 1910
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { CARDS, CLASSES, TRINKETS, GADGETS } from '../engine/data.js';
 import {
-  run, ui, board, cbt, newRun, reachableNodes, enterNode, closeModal, numAt,
+  run, ui, board, cbt, newRun, reachableNodes, enterNode, closeModal, numAt, neighborsOf,
   effCost, clickHandCard, clickTile, tileEligible, endTurn,
   takeRewardCard, takeRewardTrinket, takeBossTrinket, takeRewardGadget, finishReward,
   campHeal, campSurvey, campUpgrade, campTrainPicks, doUpgrade, gotoMap, eventChoice, puzzleClick,
@@ -10,9 +10,9 @@ import {
 } from '../engine/engine.js';
 
 const TERMINAL = new Set(['gameover', 'victory']);
-const cardText = (def, upgraded = false) => typeof def?.text === 'function'
-  ? def.text(Boolean(upgraded))
-  : Array.isArray(def?.text) ? def.text[upgraded ? 1 : 0] : (def?.text || '');
+const cardText = (def, upgraded = 0) => typeof def?.text === 'function'
+  ? def.text(Math.max(0, Math.min(2, Number(upgraded) || 0)))
+  : Array.isArray(def?.text) ? def.text[Math.max(0, Math.min(def.text.length - 1, Number(upgraded) || 0))] : (def?.text || '');
 const plain = value => String(typeof value === 'function' ? value(false) : value || '')
   .replace(/<[^>]+>/g, '').replace(/&times;/g, '×');
 
@@ -198,8 +198,10 @@ function targetTile(policy) {
   const candidates = board().cells.map((_, i) => i).filter(i => tileEligible(i, spec, target.picked));
   if (!candidates.length) return null;
   if (spec === 'hidden' && policy === 'oracle') {
-    const text = cardText(CARDS[cbt().hand[target.handIdx].key], cbt().hand[target.handIdx].up);
-    const wantsMine = /detonat|defuse|mine to deal|verified flag/i.test(text);
+    const handCard = cbt().hand[target.handIdx];
+    const text = cardText(CARDS[handCard.key], handCard.up);
+    const wantsMine = handCard.key !== 'fielddressing'
+      && /detonat|defuse|verified.flag|if (?:it is )?mined|mine grants|add a mine/i.test(text);
     return candidates.find(i => Boolean(board().cells[i].mine) === wantsMine) ?? candidates[0];
   }
   return candidates.find(i => board().cells[i].scan === 'safe') ?? candidates[0];
@@ -208,30 +210,82 @@ function targetTile(policy) {
 function cardScore(card) {
   const def = CARDS[card.key];
   const text = cardText(def, card.up);
+  const c = cbt();
+  const incoming = c?.enemies
+    .filter(enemy => enemy.hp > 0 && enemy.intent?.kind === 'attack')
+    .reduce((sum, enemy) => sum + Number(enemy.intent.n || 0), 0) || 0;
+  const defenseNeeded = Math.max(0, incoming - Number(c?.block || 0) - Number(c?.plating || 0));
+  const defensive = /Block|Plating/i.test(text);
   const classBias = {
-    sapper: /Detonate|Defuse|mine/i,
+    sapper: /Detonate|Blast Chain|flagged mine|mine/i,
     surveyor: /Scan|Insight|Chord/i,
     terraformer: /Entomb|Construct|Plating/i,
-    lamplighter: /Reveal|Energy/i,
-    gambler: /flag|random|draw/i,
-    chirurgeon: /Recover|Block|Plating/i,
-    archivist: /draw|Exhaust|discard/i,
-    warden: /Block|Plating|Construct/i,
-    hexwright: /number|Scan|Chord/i,
-    revenant: /damage|HP|Exhaust/i,
+    lamplighter: /Light|cascade|flare|Reveal|Energy/i,
+    gambler: /Wager|Loaded|flag|Heads|Tails/i,
+    chirurgeon: /Blood|HP|Recover|Triage/i,
+    archivist: /Archive|File|Recall|Citation/i,
+    warden: /Resolve|Riposte|Block|Plating/i,
+    hexwright: /Rune|Inscribe|number|Chord/i,
+    revenant: /Grave|Rise|Death.s Door|HP/i,
   };
-  return (/damage|Attack/i.test(text) ? 30 : 0) + (/Block|Plating/i.test(text) ? 16 : 0)
+  const healthRisk = /(?:lose|spend) \d+ HP/i.test(text) && run.hp < run.maxHp * 0.4 ? 35 : 0;
+  const recoveryUrgency = /Recover|refund|treat/i.test(text) && run.hp < run.maxHp * 0.65 ? 30 : 0;
+  return (/damage|Attack/i.test(text) ? 30 : 0)
+    + (defensive ? (defenseNeeded > 0 ? 48 : 16) : 0)
     + (/Reveal|Scan|Defuse|Chord/i.test(text) ? 10 : 0)
-    + (classBias[run.cls]?.test(text) ? 12 : 0) - (effCost(card) || 0);
+    + (/draw|Energy/i.test(text) ? 6 : 0)
+    + (classBias[run.cls]?.test(text) ? 16 : 0)
+    + recoveryUrgency
+    - healthRisk - (effCost(card) || 0);
 }
 
-function choosePlayableCard() {
+function chordCandidate(policy = 'honest') {
+  const c = cbt(), b = board();
+  if (!c || !b) return null;
+  for (let i = 0; i < b.cells.length; i++) {
+    const cell = b.cells[i];
+    if (!cell.revealed || cell.void || cell.entombed) continue;
+    const number = numAt(i);
+    if (!number) continue;
+    const adjacent = neighborsOf(i, b.size);
+    const accounted = adjacent.filter(j => b.cells[j].flag || b.cells[j].entombed);
+    const unopened = adjacent.filter(j => !b.cells[j].void && !b.cells[j].revealed && !b.cells[j].entombed && !b.cells[j].flag);
+    if (accounted.length !== number || !unopened.length) continue;
+    if (policy !== 'oracle' || accounted.every(j => b.cells[j].mine)) return i;
+  }
+  return null;
+}
+
+function chordFlagCandidate(policy = 'honest') {
+  const c = cbt(), b = board();
+  if (!c || !b || run.challenge === 'noflags') return null;
+  const chordReady = c.hand.some(card => /Chord/i.test(cardText(CARDS[card.key], card.up)));
+  if (!chordReady) return null;
+  for (let i = 0; i < b.cells.length; i++) {
+    if (!b.cells[i].revealed || b.cells[i].void || b.cells[i].entombed) continue;
+    const number = numAt(i);
+    if (!number) continue;
+    const adjacent = neighborsOf(i, b.size);
+    const marked = adjacent.filter(j => b.cells[j].flag || b.cells[j].entombed).length;
+    if (marked >= number) continue;
+    const mine = adjacent.find(j => {
+      const cell = b.cells[j];
+      return !cell.void && !cell.revealed && !cell.entombed && !cell.flag
+        && (policy === 'oracle' ? cell.mine : cell.scan === 'mine');
+    });
+    if (mine != null) return mine;
+  }
+  return null;
+}
+
+function choosePlayableCard(policy = 'honest') {
   const c = cbt();
   return c.hand.map((card, index) => ({ card, index }))
     .filter(({ card }) => {
       const def = CARDS[card.key];
       if (def.unplayable || effCost(card) > c.energy) return false;
       if (def.can && !def.can(card.up)) return false;
+      if (/Chord/i.test(cardText(def, card.up)) && chordCandidate(policy) == null) return false;
       return def.targets.every(spec => c.board.cells.some((_, i) => tileEligible(i, spec, [])));
     })
     .sort((a, b) => cardScore(b.card) - cardScore(a.card))[0];
@@ -240,7 +294,18 @@ function choosePlayableCard() {
 export function step(command = {}) {
   const policy = command.policy || 'oracle';
   if (TERMINAL.has(ui.screen)) return { action: 'terminal', state: observe() };
-  if (ui.modal) { closeModal(); return { action: 'close-modal', state: observe() }; }
+  if (ui.modal) {
+    if (ui.modal.kind === 'upgrade') {
+      const candidates = run.deck.map((card, index) => ({ card, index }))
+        .filter(({ card }) => Number(card.up || 0) < 2 && CARDS[card.key]?.cost != null)
+        .sort((a, b) => cardScore(b.card) - cardScore(a.card));
+      if (candidates.length) {
+        doUpgrade(candidates[0].index);
+        return { action: `upgrade:${candidates[0].card.key}`, state: observe() };
+      }
+    }
+    closeModal(); return { action: 'close-modal', state: observe() };
+  }
   if (!run || ui.screen === 'title') {
     const cls = command.class || 'sapper';
     if (!CLASSES[cls]) throw new Error(`Unknown class: ${cls}`);
@@ -261,7 +326,12 @@ export function step(command = {}) {
       clickTile(tile);
       return { action: `target:${tile}`, state: observe() };
     }
-    const choice = choosePlayableCard();
+    const chordFlag = chordFlagCandidate(policy);
+    if (chordFlag != null) {
+      toggleFlag(chordFlag);
+      return { action: `chord-flag:${chordFlag}`, state: observe() };
+    }
+    const choice = choosePlayableCard(policy);
     if (choice) {
       clickHandCard(choice.index);
       return { action: `card:${choice.card.key}`, state: observe() };
@@ -278,7 +348,20 @@ export function step(command = {}) {
     return { action: 'end-turn', state: observe() };
   }
   if (ui.screen === 'reward') {
-    if (!run.reward.cardTaken && run.reward.cards.length) { takeRewardCard(0); return { action: 'reward:card', state: observe() }; }
+    if (!run.reward.cardTaken && run.reward.cards.length) {
+      const rarity = { starter:0, common:1, uncommon:2, rare:3 };
+      const defensiveCards = run.deck.filter(card => /Block|Plating/i.test(cardText(CARDS[card.key], card.up))).length;
+      const ranked = run.reward.cards.map((card, index) => ({
+        card, index,
+        score: (CARDS[card.key].cls === run.cls ? 12 : 0)
+          + (rarity[CARDS[card.key].rarity] || 0) * 3
+          + (defensiveCards < 4 && /Block|Plating/i.test(cardText(CARDS[card.key], card.up)) ? 24 : 0)
+          + (run.hp < run.maxHp * 0.55 && /Recover/i.test(cardText(CARDS[card.key], card.up)) ? 24 : 0)
+          + (/damage|Block|Plating|Energy|draw/i.test(cardText(CARDS[card.key], card.up)) ? 3 : 0),
+      })).sort((a, b) => b.score - a.score);
+      takeRewardCard(ranked[0].index);
+      return { action: `reward:card:${ranked[0].card.key}`, state: observe() };
+    }
     if (run.reward.trinket) { takeRewardTrinket(); return { action: 'reward:trinket', state: observe() }; }
     if (run.reward.bossTrinkets?.length) { takeBossTrinket(run.reward.bossTrinkets[0]); return { action: 'reward:boss-trinket', state: observe() }; }
     if (run.reward.gadget && run.gadgets.length < 3) { takeRewardGadget(); return { action: 'reward:gadget', state: observe() }; }

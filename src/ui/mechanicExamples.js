@@ -108,7 +108,7 @@ export const MECHANIC_EXAMPLES = {
   },
   construct: {
     card: 'Sentry',
-    setup: 'You have an empty revealed tile, 2 active Constructs, and Sentry in hand.',
+    setup: 'You have an empty safe revealed tile, 2 active Constructs, and Sentry in hand.',
     action: 'You build Sentry as your third and final active Construct.',
     result: 'It persists through board re-seals, triggers before enemies after End Turn, and can destroy itself to cancel one enemy Board Attack.',
   },
@@ -126,9 +126,15 @@ export const MECHANIC_EXAMPLES = {
   },
   'survey relay': {
     card: 'Survey Relay',
-    setup: 'A Survey Relay that grants 2 Block is active while hidden tiles remain.',
+    setup: 'A Survey Relay is active with hidden tiles still inside its radius.',
     action: 'You press End Turn.',
-    result: 'Before enemies act, it Scans one random hidden tile and then grants 2 Block.',
+    result: 'Before enemies act, it draws 1 Energy and Scans one random hidden tile within radius 2. Upgraded, it would also grant Block.',
+  },
+  heat: {
+    card: 'Survey Relay',
+    setup: 'You build two Survey Relays two tiles apart, inside each other’s radius.',
+    action: 'Each turn both run, and because a Relay shares its radius, each gains 2 Heat instead of 1.',
+    result: 'Within two turns they hit max Heat and overload — skipping their Scan and Block and venting Heat into each other. Spread farther apart, each Relay cools and stays reliable.',
   },
   'master builder': {
     card: 'Sentry',
@@ -272,7 +278,7 @@ export const MECHANIC_EXAMPLES = {
     card: 'Short Fuse',
     setup: 'Playing the Sapper, you line up a scanned mine and hold Short Fuse.',
     action: 'You detonate it — your first controlled detonation this turn.',
-    result: 'Breachcraft adds 4 damage to every enemy on top of Short Fuse’s own hit.',
+    result: 'Breachcraft adds 6 damage to every enemy and grants 3 Block on top of Short Fuse’s own hit.',
   },
   surveyor: {
     card: 'Scan',
@@ -282,7 +288,7 @@ export const MECHANIC_EXAMPLES = {
   },
   terraformer: {
     card: 'Sentry',
-    setup: 'Playing the Terraformer, you hold Sentry over a revealed tile.',
+    setup: 'Playing the Terraformer, you hold Sentry over a safe revealed tile.',
     action: 'You build the Sentry construct.',
     result: 'Master Builder grants 4 Block for the first Construct built that turn. Up to 3 Constructs can remain active.',
   },
@@ -299,10 +305,10 @@ export const MECHANIC_EXAMPLES = {
     result: 'Lucky Read immediately draws you 1 card.',
   },
   chirurgeon: {
-    card: 'Brace',
-    setup: 'As the Chirurgeon you take an 8-damage hit — the first Health you have lost this turn.',
-    action: 'The damage resolves.',
-    result: 'Triage converts that first pain into 5 Block, softening the next blow.',
+    card: 'Clean Cut',
+    setup: 'As the Chirurgeon you spend 5 Health on Clean Cut, creating 5 Untreated Blood and gaining 5 Block from Triage.',
+    action: 'You then reveal a safe tile.',
+    result: 'Triage treats 1 Untreated Blood and restores 1 Health. Red Thread or Cauterize can close the remaining wounds.',
   },
   archivist: {
     card: 'Eureka',
@@ -314,7 +320,7 @@ export const MECHANIC_EXAMPLES = {
     card: 'Brace',
     setup: 'As the Warden you end the turn holding 8 Block.',
     action: 'The new turn begins, when Block would normally reset to 0.',
-    result: 'Hold Fast keeps a quarter of it — you start with 2 Block instead of none.',
+    result: 'Hold Fast keeps 10% of it — you start with 1 Block instead of none.',
   },
   hexwright: {
     card: 'Probe',

@@ -5,13 +5,19 @@ import { GameIcon } from './gameIcons.jsx';
 import { BattleMechanicStory } from './BattleMechanicStory.jsx';
 import { MechanicTerms } from './MechanicTerms.jsx';
 
-const RESOURCE_KEYS = ['health','gold','deck','mines','turn','block','plating','insight','picks','max picks','energy','vein'];
+const RESOURCE_KEYS = [
+  'health','gold','deck','mines','turn','block','plating','insight','picks','max picks','energy','vein',
+  'light','loaded','blood','citation','resolve',
+];
 const BOARD_KEYS = [
   'reveal','detonate','scan','defuse','chord','entomb','flag','verified flag','full clear',
-  'instinct','mine damage','lair','construct','sentry','bulwark','survey relay',
-  'master builder','stone choir','board attack',
+  'instinct','mine damage','lair','construct','sentry','bulwark','survey relay','heat',
+  'master builder','stone choir','board attack','rune','inscribe',
 ];
-const COMBAT_KEYS = ['power','exhaust','exposed','jammed','sundered'];
+const COMBAT_KEYS = [
+  'power','exhaust','exposed','jammed','sundered','blast chain','wager','untreated blood','wound','archive','file','recall',
+  'riposte','grave','rise','death’s door',
+];
 const MODIFIER_KEYS = ['armoured','burrowing','cursed','unstable'];
 const CURSE_KEYS = ['claustrophobia','vertigo','exhaustion','night terrors','paranoia'];
 const DELVER_KEYS = ['archivist','chirurgeon','gambler','hexwright','lamplighter','revenant','sapper','surveyor','terraformer','warden'];
@@ -21,10 +27,14 @@ const MECHANIC_ICONS = {
   vein:'picks',
   reveal:'safe', detonate:'bomb', scan:'scan', defuse:'services', chord:'target', entomb:'buried',
   block:'block', plating:'plating', insight:'insight', picks:'picks', 'max picks':'picks', energy:'energy',
+  light:'energy', loaded:'flag', blood:'health', 'untreated blood':'health', wound:'deck', citation:'deck', resolve:'block',
   flag:'flag', 'verified flag':'flag', 'full clear':'victory', instinct:'instinct', 'mine damage':'bomb',
-  lair:'lair', construct:'sentry', sentry:'sentry', bulwark:'bulwark', 'survey relay':'relay',
+  lair:'lair', construct:'sentry', sentry:'sentry', bulwark:'bulwark', 'survey relay':'relay', heat:'energy',
   'master builder':'sentry', 'stone choir':'relay', 'board attack':'crater',
+  rune:'safe', inscribe:'safe',
   power:'energy', exhaust:'exhaust',
+  'blast chain':'bomb', wager:'flag', archive:'deck', file:'exhaust', recall:'deck',
+  riposte:'attack', grave:'exhaust', rise:'health', 'death’s door':'health',
   exposed:'target', jammed:'relay', sundered:'attack',
   claustrophobia:'mines', vertigo:'picks', exhaustion:'draw', 'night terrors':'energy', paranoia:'flag',
   archivist:'exhaust', chirurgeon:'health', gambler:'flag', hexwright:'safe', lamplighter:'energy',

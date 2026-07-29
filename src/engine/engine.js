@@ -2,6 +2,7 @@
    every exported action mutates state then notify()s. Content data lives in data.js. */
 import {
   STRATA, CLASSES, CARDS, TRINKETS, GADGETS, ENEMIES, FIGHTS, NN99_PHASES, PERSISTENT_CURSES,
+  NEUTRAL_REWARD_POOL, SIGNATURE_RELICS,
 } from './data.js';
 import { sfx } from './sfx.js';
 import { haptic } from './haptics.js';
@@ -59,6 +60,23 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 function effectiveHealing(n) { return run?.challenge === 'brittle' ? Math.ceil(n / 2) : n; }
 let _cardId = 0;
 function mkCard(key, up = 0) { return { id: ++_cardId, key, up }; }
+
+const RETIRED_CARD_REPLACEMENTS = {
+  bigred: 'killzone', markedcharge: 'controlled', blastdividend: 'powderkeg',
+  wholepicture: 'knownquantity', crosssection: 'surveystakes',
+  landslide: 'citybelow', lastlight: 'bandage', gravemoss: 'bandage',
+};
+function migrateCardDefinition(card, clsKey) {
+  if (!card) return null;
+  if (CARDS[card.key]) return card;
+  let replacement = RETIRED_CARD_REPLACEMENTS[card.key];
+  const generated = /^exp_([a-z]+)_(\d+)$/.exec(card.key || '');
+  if (!replacement && generated && CLASSES[generated[1]]) {
+    const pool = CLASSES[generated[1]].rewardPool;
+    replacement = pool[Number(generated[2]) % pool.length];
+  }
+  return replacement && CARDS[replacement] ? { ...card, key: replacement } : null;
+}
 
 /* ================= global state ================= */
 export let run = null;
@@ -204,14 +222,32 @@ export function loadRun(slot) {
     /* Catalog curation can retire generated cards and events between builds.
        Preserve the run wherever possible, but never leave a dead definition in
        a hand, reward, shop, or event screen. */
-    run.deck = (run.deck || []).filter(card => CARDS[card.key]);
+    run.deck = (run.deck || []).map(card => migrateCardDefinition(card, run.cls)).filter(Boolean);
     if (!run.deck.length && CLASSES[run.cls]) run.deck = CLASSES[run.cls].deck.map(key => mkCard(key));
-    if (run.reward?.cards) run.reward.cards = run.reward.cards.filter(card => CARDS[card.key]);
-    if (run.shop?.cards) run.shop.cards = run.shop.cards.filter(card => CARDS[card.key]);
+    if (run.reward?.cards) run.reward.cards = run.reward.cards.map(card => migrateCardDefinition(card, run.cls)).filter(Boolean);
+    if (run.shop?.cards) run.shop.cards = run.shop.cards.map(card => migrateCardDefinition(card, run.cls)).filter(Boolean);
+    if (run.reward?.trinket && !isTrinketEligible(run.reward.trinket, run.cls)) run.reward.trinket = null;
+    if (run.shop?.trinkets) {
+      const slots = run.shop.blackMarket ? 3 : 2;
+      run.shop.trinkets = run.shop.trinkets.filter(item => isTrinketEligible(item.key, run.cls));
+      const signatureKey = SIGNATURE_RELICS[run.cls];
+      const signatureOffer = run.shop.trinkets.find(item => item.key === signatureKey);
+      if (signatureOffer) signatureOffer.signature = true;
+      else if (signatureKey && !run.trinkets.includes(signatureKey)) {
+        const offer = {
+          key: signatureKey,
+          price: run.shop.blackMarket ? 225 : 150,
+          sold: false,
+          signature: true,
+        };
+        if (run.shop.trinkets.length >= slots) run.shop.trinkets[slots - 1] = offer;
+        else run.shop.trinkets.unshift(offer);
+      }
+    }
     if (run.combat) {
-      for (const pile of ['draw', 'hand', 'discard', 'exhaust', 'powersPlayed']) {
+      for (const pile of ['draw', 'hand', 'discard', 'exhaust', 'powersPlayed', 'archive', 'grave']) {
         if (Array.isArray(run.combat[pile])) {
-          run.combat[pile] = run.combat[pile].filter(card => CARDS[card.key]);
+          run.combat[pile] = run.combat[pile].map(card => migrateCardDefinition(card, run.cls)).filter(Boolean);
         }
       }
     }
@@ -239,13 +275,26 @@ export function loadRun(slot) {
       run.combat.powers = {
         powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
         blastDividend: false, blastDividendUsed: false, stonechoir: false,
+        lightBonus: 0, whiteFlame: null, operatingTheatre: 0, interlock: 0,
+        blockRetention: null, wallBelow: null, refuseDark: 0, heatTolerance: 0,
         ...run.combat.powers,
       };
       run.combat.classState = {
         passiveUsed: false, scanCount: 0, kindleUsed: false, luckyUsed: false,
         painUsed: false, exhaustUsed: false, deathUsed: false, constructBuiltThisTurn: false,
+        blastChain: 0, light: 0, preserveLight: 0, loaded: 0,
+        loadedCap: hasT('twoheadedcoin') ? 4 : 3, riggedWagers: 0,
+        twoHeadedCoin: hasT('twoheadedcoin'), twoHeadedCoinUsed: false,
+        doubleWagers: 0, bloodSpent: 0, bloodSpentThisTurn: 0,
+        untreatedBlood: Number(run.combat.classState?.untreatedBlood ?? run.combat.classState?.bloodSpent ?? 0),
+        triageRecoveryUsed: false, triageLineRecovery: 0, triageLineHealing: 0, operatingUses: 0,
+        leechKit: hasT('leechkit'), cinderbrand: hasT('cinderbrand'),
+        deathsDoorThreshold: hasT('secondshroud') ? 0.4 : 0.25,
+        citations: 0, resolve: 0, resolveCap: 20,
         ...run.combat.classState,
       };
+      run.combat.archive ??= [];
+      run.combat.grave ??= [];
     }
     _cardId = Math.max(_cardId, ...run.deck.map(c => c.id || 0));
     seedRunCollection(run);
@@ -300,6 +349,10 @@ function pushDmg(fx) {
 export function cbt() { return run.combat; }
 export function board() { return run?.combat?.board || null; }
 export function hasT(key) { return run.trinkets.includes(key); }
+export function isTrinketEligible(key, clsKey = run?.cls) {
+  const item = TRINKETS[key];
+  return Boolean(item && (!item.cls || item.cls === clsKey));
+}
 function relicLevel(key) { return Math.max(0, Number(run?.relicUpgrades?.[key]) || 0); }
 
 export const BOSS_RELIC_KEYS = Object.keys(TRINKETS).filter(key => TRINKETS[key].tier === 'boss');
@@ -335,8 +388,8 @@ export function newRun(clsKey, options = {}) {
   const deck = (cls.deck || ['probe', 'probe', 'probe', 'probe', 'probe', 'brace', 'brace', 'brace', 'brace', cls.sig])
     .map(key => mkCard(key));
   run = {
-    cls: clsKey, hp: cls.hp + (cls.trinket === 'fieldkit' ? 8 : 0),
-    maxHp: cls.hp + (cls.trinket === 'fieldkit' ? 8 : 0), gold: 50,
+    cls: clsKey, hp: cls.hp + (cls.trinket === 'fieldkit' ? 4 : 0),
+    maxHp: cls.hp + (cls.trinket === 'fieldkit' ? 4 : 0), gold: 50,
     deck, trinkets: [cls.trinket], gadgets: [],
     stratum: 0, map: null, pos: null, visited: {},
     floors: 0, fullClears: 0, safeReveals: 0, removalCost: 75,
@@ -416,6 +469,7 @@ export function toast(msg, bad = false) {
 function invalidCardFeedback(card, message) {
   sfx('invalid'); haptic('invalid');
   ui.invalidCard = { seq: (ui.invalidCard?.seq || 0) + 1, cardId: card?.id ?? null, message };
+  log(`⚠ ${message}`);
   toast(message, true);
 }
 function deckChanged(kind, label) {
@@ -552,8 +606,10 @@ function grantTreasure() {
     });
   }
 }
-function unownedTrinket() {
-  const pool = Object.keys(TRINKETS).filter(k => !run.trinkets.includes(k) && !['starter', 'boss'].includes(TRINKETS[k].tier));
+function unownedTrinket(excluded = []) {
+  const blocked = new Set(excluded);
+  const pool = Object.keys(TRINKETS).filter(k => !blocked.has(k) && !run.trinkets.includes(k)
+    && isTrinketEligible(k) && !['starter', 'boss'].includes(TRINKETS[k].tier));
   return randPick(pool);
 }
 
@@ -814,8 +870,8 @@ export function revealTile(i, cause) {
   if (!cell || cell.revealed || cell.void || cell.entombed) return { safe: false, mine: false, none: true };
   if (cell.mine) {
     const protectable = cause === 'reveal' || cause === 'chord';
-    if (protectable && c.powers.sixthsense && !c.powers.sixthUsed) {
-      c.powers.sixthUsed = true;
+    if (protectable && Number(c.powers.sixthsense || 0) > Number(c.powers.sixthUsed || 0)) {
+      c.powers.sixthUsed = Number(c.powers.sixthUsed || 0) + 1;
       verifyFlag(i);
       toast('Sixth Sense: mine flagged instead!');
       return { safe: false, mine: true, saved: true };
@@ -833,7 +889,15 @@ export function revealTile(i, cause) {
   const count = openSafe(i);
   if (!run?.combat || c.over) return { safe: true, mine: false, cascade: count };
   if (!c.setup && count > 0) { sfx(count >= 4 ? 'cascade' : 'dig'); haptic('dig'); }
-  if (c.powers.leylines && count >= c.powers.leylines) { gainEnergy(1); toast('Ley Lines: +1⚡'); }
+  if (c.powers.leylines && count >= c.powers.leylines) {
+    gainEnergy(1);
+    if (c.powers.leyCooling) {
+      board().cells.filter(cell => cell.construct).forEach(cell => {
+        cell.construct.heat = Math.max(0, Number(cell.construct.heat || 0) - 1);
+      });
+    }
+    toast('Ley Lines: +1⚡');
+  }
   checkFullClear();
   return { safe: true, mine: false, cascade: count };
 }
@@ -862,7 +926,9 @@ export function openSafe(start) {
           toast('Tally Counter: +1 max HP');
         }
       }
-      if (run.cls === 'hexwright' && n >= 3 && !c.over) hitAll(2, { noNitro: true });
+      if (run.cls === 'hexwright' && n >= 3 && !c.over) {
+        hitAll(hasT('cinderbrand') ? 4 : 2, { noNitro: true });
+      }
     }
     cell.ever = true;
     if (cell.grub) { cell.grub = false; unburyAt(i); }
@@ -887,20 +953,42 @@ export function openSafe(start) {
       toast(`${e.def.name} bursts from the stone!`);
     }
   }
-  if (!c.setup && run.cls === 'lamplighter' && count >= 4 && !c.classState.kindleUsed) {
-    c.classState.kindleUsed = true;
-    gainEnergy(1);
-    toast('Kindle: a bright cascade grants +1⚡');
+  if (!c.setup && run.cls === 'lamplighter' && count >= 2) {
+    const light = (count >= 8 ? 3 : count >= 4 ? 2 : 1) + Number(c.powers.lightBonus || 0);
+    const gained = gainLight(light);
+    if (gained) gainBlock(gained * 4);
+    if (count >= 4 && !c.classState.kindleUsed) {
+      c.classState.kindleUsed = true;
+      gainEnergy(1);
+      toast('Kindle: a bright cascade grants +1⚡');
+    }
+  }
+  if (!c.setup && count > 0 && run.cls === 'chirurgeon' && !c.over
+      && !c.classState.triageRecoveryUsed && Number(c.classState.untreatedBlood || 0) > 0) {
+    c.classState.triageRecoveryUsed = true;
+    const healed = healHP(Math.min(1, Number(c.classState.untreatedBlood || 0)));
+    if (healed) toast(`Triage: safe ground closes ${healed} wound${healed === 1 ? '' : 's'}`);
   }
   return count;
 }
 
-function triggerPainPassive() {
+function triggerPainPassive(bloodPayment = false) {
   const c = run?.combat;
-  if (c && run.cls === 'chirurgeon' && !c.classState.painUsed && !c.over) {
-    c.classState.painUsed = true;
-    gainBlock(5);
-    toast('Triage: pain grants 5 Block');
+  if (c && run.cls === 'chirurgeon' && !c.over) {
+    if (!c.classState.painUsed) {
+      c.classState.painUsed = true;
+      gainBlock(5);
+      toast('Triage: pain grants 5 Block');
+    }
+    const theatre = c.powers.operatingTheatre;
+    const theatreUses = Number(theatre?.uses ?? theatre ?? 0);
+    const theatreHealing = Number(theatre?.healing ?? 1);
+    if (bloodPayment && Number(c.classState.operatingUses || 0) < theatreUses) {
+      c.classState.operatingUses = Number(c.classState.operatingUses || 0) + 1;
+      drawCards(1);
+      const healed = healHP(theatreHealing);
+      toast(`Operating Theatre: draw 1, recover ${healed || theatreHealing}`);
+    }
   }
 }
 
@@ -966,8 +1054,19 @@ export function detonateForCards(i) {
   }
   if (run.combat && run.cls === 'sapper' && !c.classState.passiveUsed) {
     c.classState.passiveUsed = true;
-    hitAll(4, { noNitro: true });
-    toast('Breachcraft: 4 damage to all enemies');
+    hitAll(6, { noNitro: true });
+    toast('Breachcraft: 6 damage to all enemies');
+  }
+  if (run.combat && run.cls === 'sapper') {
+    c.classState.blastChain = Number(c.classState.blastChain || 0) + 1;
+    gainBlock(3);
+    if (hasT('daisychain') && !c.over) {
+      hitRandom(2, { noNitro: true });
+      if (run.combat) {
+        log('⛓ Daisy Chain lashes a random enemy for 2 damage.');
+        toast('Daisy Chain: 2 damage');
+      }
+    }
   }
   if (run.combat && c.powers.blastDividend && !c.powers.blastDividendUsed) {
     c.powers.blastDividendUsed = true;
@@ -1045,14 +1144,16 @@ export function chordAt(i) {
   const n = numAt(i);
   const adjacent = neighborsOf(i, b.size);
   const flagged = adjacent.filter(j => b.cells[j].flag && isHiddenUsable(j));
+  const entombed = adjacent.filter(j => b.cells[j].entombed && !b.cells[j].void);
+  const accounted = [...flagged, ...entombed];
   if (n === 0) return { ok: false, attempted: false, detonations: 0, reason: 'Only numbered tiles can be chorded.' };
-  if (flagged.length !== n) {
-    return { ok: false, attempted: false, detonations: 0, reason: `This ${n} needs exactly ${n} adjacent flag${n === 1 ? '' : 's'}.` };
+  if (accounted.length !== n) {
+    return { ok: false, attempted: false, detonations: 0, reason: `This ${n} needs exactly ${n} adjacent mine${n === 1 ? '' : 's'} accounted for by flags or Entombed tiles.` };
   }
   if (!adjacent.some(j => isHiddenUsable(j) && !b.cells[j].flag)) {
     return { ok: false, attempted: false, detonations: 0, reason: 'This number has no unopened neighbors left to Chord.' };
   }
-  const correct = flagged.every(j => b.cells[j].mine);
+  const correct = accounted.every(j => b.cells[j].mine);
   const before = c.minesDetonated;
   for (const j of adjacent) {
     if (board() !== b) break; // board collapsed & re-sealed mid-chord
@@ -1091,21 +1192,86 @@ export function verifyFlag(i) {
 }
 
 export const MAX_CONSTRUCTS = 3;
+export const RELAY_RADIUS = 2;    // Chebyshev reach for a Relay's scan and its heat/interference field
+export const RELAY_HEAT_MAX = 3;  // Heat at which a Relay overloads
+export function constructHeatMax() {
+  return RELAY_HEAT_MAX + Number(run?.combat?.powers?.heatTolerance || 0);
+}
+
+/* Constructs that run hot — a Sentry or Survey Relay. Bulwark stays cool. */
+export const HEAT_CONSTRUCTS = new Set(['sentry', 'relay']);
+const CONSTRUCT_NAMES = { sentry: 'Sentry', bulwark: 'Bulwark', relay: 'Survey Relay' };
+/* Chebyshev distance between two board indices. */
+function cheb(size, a, b) {
+  return Math.max(Math.abs(Math.floor(a / size) - Math.floor(b / size)), Math.abs((a % size) - (b % size)));
+}
+/* Other heat-bearing Constructs inside i's own radius (its interference field). */
+function heatConstructsNear(b, i) {
+  const r = b.cells[i].construct?.radius || RELAY_RADIUS;
+  const out = [];
+  for (let j = 0; j < b.cells.length; j++) {
+    if (j !== i && HEAT_CONSTRUCTS.has(b.cells[j].construct?.kind) && cheb(b.size, i, j) <= r) out.push(j);
+  }
+  return out;
+}
+/* End-of-turn Heat step for a Sentry/Relay. Heat rises +1, plus 1 for every other
+   heat-Construct sharing its radius; a lone Construct cools. Returns true if it
+   overloaded — it then skips its trigger and vents Heat into nearby Constructs. */
+function constructOverheats(i, con, b) {
+  const near = heatConstructsNear(b, i);
+  const coolant = run.cls === 'terraformer' && hasT('coolantcell') ? 1 : 0;
+  con.heat = (con.heat || 0) + Math.max(0, 1 + near.length - coolant);
+  if (con.heat >= constructHeatMax()) {
+    con.heat = 0;
+    for (const j of near) { const o = b.cells[j].construct; if (o) o.heat = (o.heat || 0) + 1; }
+    if (con.kind === 'sentry') {
+      // a Sentry's turret misfires when it overheats — the shot burns the Delver
+      const backfire = Math.max(2, Math.ceil((con.dmg || 4) / 2));
+      loseHP(backfire);
+      log(`⌁ Sentry overheats and misfires — it burns you for ${backfire}!`);
+    } else {
+      log(`⌁ ${CONSTRUCT_NAMES[con.kind]} overloads — it loses its trigger and vents Heat into nearby Constructs.`);
+    }
+    return true;
+  }
+  if (!near.length) con.heat = Math.max(0, con.heat - 2);
+  return false;
+}
+/* A powered, cool Survey Relay's output: scan a hidden tile within radius, then grant Block. */
+function relayScan(i, con, b) {
+  const targets = [];
+  for (let j = 0; j < b.cells.length; j++) {
+    if (isHiddenUsable(j) && !b.cells[j].flag && cheb(b.size, i, j) <= (con.radius || RELAY_RADIUS)) targets.push(j);
+  }
+  shuffle(targets).slice(0, Number(con.scans || 1)).forEach(scanTile);
+  gainBlock(Number(con.block || 0));
+  log('⌁ Survey Relay reads the stone.');
+}
+
+export function isConstructSite(i) {
+  const cell = board()?.cells[i];
+  return Boolean(cell && cell.revealed && !cell.void && !cell.entombed
+    && !cell.mine && !cell.crater && !cell.construct);
+}
 
 export function addConstruct(i, kind, opts = {}) {
   const cell = board().cells[i];
-  if (!cell || !cell.revealed || cell.void || cell.construct) return false;
+  if (!isConstructSite(i)) {
+    toast('Constructs need an empty safe revealed tile.', true);
+    return false;
+  }
   if (board().cells.filter(candidate => candidate.construct).length >= MAX_CONSTRUCTS) {
     toast(`Construct limit reached (${MAX_CONSTRUCTS}).`, true);
     return false;
   }
   cell.construct = { kind, ...opts };
+  if (HEAT_CONSTRUCTS.has(kind)) cell.construct.radius ??= RELAY_RADIUS; // each heat-Construct carries its own field radius
   const names = { sentry: 'Sentry', bulwark: 'Bulwark', relay: 'Survey Relay' };
   log(`🏗 ${names[kind] || kind} built.`);
   if (run.cls === 'terraformer' && !cbt().classState.constructBuiltThisTurn) {
     cbt().classState.constructBuiltThisTurn = true;
-    gainBlock(4);
-    toast('Master Builder: first Construct this turn grants +4 Block');
+    gainBlock(6);
+    toast('Master Builder: first Construct this turn grants +6 Block');
   }
   return true;
 }
@@ -1409,6 +1575,18 @@ function absorbPlating(n) {
 }
 export function gainEnergy(n) { if (run?.combat) cbt().energy += n; }
 export function gainInsight(n) { if (run?.combat) cbt().insight += n; }
+export function spendInsight(n = Infinity) {
+  if (!run?.combat) return 0;
+  const c = cbt();
+  const available = Math.max(0, Number(c.insight || 0));
+  const spent = Math.min(available, Number.isFinite(n) ? Math.max(0, n) : available);
+  c.insight = available - spent;
+  if (run.cls === 'surveyor' && hasT('bottomlessledger') && available > 0 && spent >= available) {
+    c.insight = 1;
+    log('📒 Bottomless Ledger retains 1 Insight.');
+  }
+  return spent;
+}
 export function gainPicks(n) {
   if (!run?.combat || n <= 0) return;
   cbt().picks += n;
@@ -1442,7 +1620,7 @@ export function loseHP(n, source = 'A lingering wound', opts = {}) {
     sfx('hurt'); haptic('damage');
     pushDmg({ kind: 'player', amount: rest });
     log(`🩸 You lose ${rest} HP${soak ? ` (${soak} absorbed by Plating)` : ''}`);
-    triggerPainPassive();
+    triggerPainPassive(Boolean(opts.bloodPayment));
   } else {
     sfx('block');
     pushDmg({ kind: 'player', amount: 0, note: 'PLATED' });
@@ -1451,18 +1629,86 @@ export function loseHP(n, source = 'A lingering wound', opts = {}) {
   checkPlayerDeath();
 }
 export function canHeal() { return Boolean(run && run.hp < run.maxHp); }
-export function healHP(n) {
+export function healthState() {
+  return { hp: Number(run?.hp || 0), maxHp: Number(run?.maxHp || 1) };
+}
+export function consumeUntreatedBlood(n, sourceState = null) {
+  const s = sourceState || run?.combat?.classState;
+  if (!s || n <= 0) return 0;
+  const treated = Math.min(Number(s.untreatedBlood || 0), n);
+  s.untreatedBlood = Math.max(0, Number(s.untreatedBlood || 0) - treated);
+  return treated;
+}
+export function healHP(n, opts = {}) {
   if (!run || n <= 0) return 0;
   const before = run.hp;
   run.hp = Math.min(run.maxHp, run.hp + effectiveHealing(n));
   const healed = run.hp - before;
   if (healed > 0) {
+    if (opts.treatBlood !== false && run.cls === 'chirurgeon' && run.combat) {
+      consumeUntreatedBlood(healed);
+    }
     sfx('heal');
     pushDmg({ kind: 'player', amount: -healed, note: `+${healed}` });
     log(`✚ You recover ${healed} HP`);
   }
   return healed;
 }
+
+export function gainLight(n) {
+  if (!run?.combat || run.cls !== 'lamplighter' || n <= 0) return 0;
+  const c = cbt(), s = c.classState;
+  const before = Number(s.light || 0);
+  s.light = Math.min(10, before + n);
+  const gained = s.light - before;
+  if (gained) log(`✦ +${gained} Light (${s.light}/10)`);
+  const flame = c.powers.whiteFlame;
+  if (s.light >= 10 && flame && !s.whiteFlameResolving) {
+    s.whiteFlameResolving = true;
+    s.light = Math.max(0, s.light - flame.spend);
+    hitAll(atk(flame.damage), { noNitro: true });
+    toast(`White Flame: ${flame.damage} to all enemies`);
+    s.whiteFlameResolving = false;
+  }
+  return gained;
+}
+
+export function recallArchived(count = 1, upgrade = 0) {
+  if (!run?.combat) return 0;
+  const c = cbt();
+  if (run.cls === 'archivist' && hasT('masterindex')) upgrade = Math.max(1, Number(upgrade || 0));
+  let recalled = 0;
+  while (recalled < count && c.archive.length && c.hand.length < 10) {
+    const card = c.archive.pop();
+    card.up = Math.min(2, Number(card.up || 0) + upgrade);
+    card.recalledTurn = c.turn;
+    c.hand.push(card);
+    recalled++;
+  }
+  if (recalled) { sfx('draw'); toast(`Recalled ${recalled} card${recalled === 1 ? '' : 's'}`); }
+  return recalled;
+}
+
+export function riseGraves(count = 1) {
+  if (!run?.combat) return 0;
+  const c = cbt();
+  let risen = 0;
+  while (risen < count && c.grave.length && c.hand.length < 10) {
+    const card = c.grave.pop();
+    card.up = Math.min(2, Number(card.up || 0) + 1);
+    card.risen = true;
+    if (c.powers.refuseDark > 0) {
+      c.powers.refuseDark--;
+      card.riseFree = true;
+      card.riseDraw = true;
+    }
+    c.hand.push(card);
+    risen++;
+  }
+  if (risen) { sfx('draw'); toast(`${risen} card${risen === 1 ? '' : 's'} Rise from the Grave`); }
+  return risen;
+}
+
 export function drawCards(n) {
   if (!run?.combat) return;
   const c = cbt();
@@ -1500,6 +1746,7 @@ export function enemyAttack(e, n) {
     e.effects.jammed--;
     log(`⌁ Jammed weakens ${e.def.name}'s attack from ${original} to ${n}.`);
   }
+  const incoming = n;
   const blockSoak = Math.min(c.block, n);
   c.block -= blockSoak;
   const plated = absorbPlating(n - blockSoak);
@@ -1519,6 +1766,18 @@ export function enemyAttack(e, n) {
     sfx('block');
     pushDmg({ kind: 'player', amount: 0, note: platingSoak ? 'PLATED' : 'BLOCKED' });
     log(`⚔ ${e.def.name} attacks — fully absorbed by ${blockSoak && platingSoak ? 'Block and Plating' : platingSoak ? 'Plating' : 'Block'}.`);
+  }
+  if (run.cls === 'warden' && blockSoak + platingSoak > 0) {
+    const bonus = rest === 0 ? Number(c.powers.interlock || 0) : 0;
+    const gained = Math.max(1, Math.ceil((blockSoak + platingSoak) / 6)) + bonus;
+    const cap = Number(c.classState.resolveCap || 20);
+    c.classState.resolve = Math.min(cap, Number(c.classState.resolve || 0) + gained);
+    log(`◆ Warden gains ${gained} Resolve (${c.classState.resolve}/${cap}).`);
+  }
+  if (run.cls === 'warden' && hasT('spikedaegis') && incoming > 0 && rest === 0
+      && blockSoak + platingSoak > 0 && e.hp > 0 && !c.over) {
+    log(`🛡 Spiked Aegis strikes ${e.def.name}.`);
+    hitEnemy(e, 4, { noNitro: true });
   }
   checkPlayerDeath();
 }
@@ -1626,11 +1885,13 @@ export function hitEnemy(e, n, opts = {}) {
   e.block -= soak;
   const dmg = n - soak;
   e.hp -= dmg;
+  const killed = e.hp <= 0;
   pushDmg({ kind: 'enemy', idx: c.enemies.indexOf(e), amount: dmg, note: dmg === 0 && soak > 0 ? 'BLOCKED' : null });
   if (dmg > 0) { sfx('hit'); log(`🗡 ${e.def.name} takes ${dmg}`); }
-  if (e.hp <= 0) onEnemyDeath(e);
+  if (killed) onEnemyDeath(e);
   else if (e.key === 'nn99') checkNNPhase(e);
   checkWin();
+  return killed;
 }
 export function hitRandom(n, opts) { hitEnemy(randPick(targetableEnemies()), n, opts); }
 export function hitAll(n, opts) { for (const e of targetableEnemies().slice()) hitEnemy(e, n, opts); }
@@ -1695,11 +1956,12 @@ export function startCombat(kind) {
   const b = genBoard(st.size, st.mines + veinMines + minePenalty());
   run.combat = {
     kind, board: b, boardSpec: { size: st.size, mines: st.mines + veinMines + minePenalty() },
-    enemies: [], hand: [], discard: [], exhaust: [], powersPlayed: [],
+    enemies: [], hand: [], discard: [], exhaust: [], powersPlayed: [], archive: [], grave: [],
     draw: shuffle(run.deck.map(c => ({ ...c }))),
     energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0) + (run.challenge === 'wardenroad' ? 1 : 0),
     block: 0, plating: (run.challenge === 'wardenroad' ? 6 : 0)
-      + (hasT('bedrockheart') ? 8 + relicLevel('bedrockheart') * 2 : 0), insight: 0, turn: 0,
+      + (hasT('bedrockheart') ? 8 + relicLevel('bedrockheart') * 2 : 0),
+    insight: run.cls === 'surveyor' && hasT('bottomlessledger') ? 3 : 0, turn: 0,
     maxPicks: Math.max(PERSISTENT_CURSES.vertigo.minimum, basePicksFor(run.cls) + (run.pickBonus || 0) + (hasT('pitons') ? 1 : 0)
       + (hasT('veincompass') ? 1 + relicLevel('veincompass') : 0)
       + persistentCurseTotal('maxPicks') + (run.challenge === 'noflags' ? 1 : 0)),
@@ -1707,10 +1969,20 @@ export function startCombat(kind) {
     powers: {
       powderkeg: 0, sixthsense: false, sixthUsed: false, leylines: 0,
       blastDividend: false, blastDividendUsed: false, stonechoir: false,
+      lightBonus: 0, whiteFlame: null, operatingTheatre: 0, interlock: 0,
+      blockRetention: null, wallBelow: null, refuseDark: 0, heatTolerance: 0,
     },
     classState: {
       passiveUsed: false, scanCount: 0, kindleUsed: false, luckyUsed: false,
       painUsed: false, exhaustUsed: false, deathUsed: false, constructBuiltThisTurn: false,
+      blastChain: 0, light: 0, preserveLight: 0, loaded: 0,
+      loadedCap: hasT('twoheadedcoin') ? 4 : 3, riggedWagers: 0,
+      twoHeadedCoin: hasT('twoheadedcoin'), twoHeadedCoinUsed: false,
+      doubleWagers: 0, bloodSpent: 0, bloodSpentThisTurn: 0, untreatedBlood: 0,
+      triageRecoveryUsed: false, triageLineRecovery: 0, triageLineHealing: 0, operatingUses: 0,
+      leechKit: hasT('leechkit'), cinderbrand: hasT('cinderbrand'),
+      deathsDoorThreshold: hasT('secondshroud') ? 0.4 : 0.25,
+      citations: 0, resolve: 0, resolveCap: 20,
     },
     instinctUsed: 0, gogglesUsed: false, compassUsed: false, canaryUsed: false, keystoneUsed: false,
     nitro: 0, nitroBoost: 0, lie: null, primed: null, targetIdx: 0,
@@ -1754,7 +2026,7 @@ export function startCombat(kind) {
     shuffle(hiddenIdx()).slice(0, 3).forEach(i => scanTile(i));
     log('🔷 Hex Key scans 3 tiles.');
   }
-  if (hasT('wardplate')) c.plating = Math.max(c.plating, 2);
+  if (hasT('wardplate')) c.plating = Math.max(c.plating, 1);
   const falseFlags = persistentCurseTotal('falseFlags');
   if (falseFlags > 0) {
     const safe = shuffle(hiddenIdx().filter(i => !b.cells[i].mine && !b.cells[i].flag));
@@ -1781,10 +2053,33 @@ export function basePicksFor(clsKey) { return CLASSES[clsKey]?.picks ?? PICKS_PE
 function startTurn() {
   const c = cbt();
   c.turn++;
-  c.block = run.cls === 'warden' && c.turn > 1 ? Math.floor(c.block / 4) : 0;
+  const retention = run.cls === 'warden'
+    ? Number(c.powers.blockRetention ?? 0.1)
+    : 0;
+  c.block = c.turn > 1 ? Math.floor(c.block * retention) : 0;
+  if (run.cls === 'lamplighter' && c.turn > 1 && !hasT('everburningwick')) {
+    const light = Number(c.classState.light || 0);
+    const preserved = Math.min(light, Number(c.classState.preserveLight || 0));
+    c.classState.light = preserved + Math.floor((light - preserved) / 2);
+    c.classState.preserveLight = 0;
+  }
   c.energy = c.maxEnergy;
   if (c.turn === 1) c.energy = Math.max(PERSISTENT_CURSES.nightterrors.minimum, c.energy + persistentCurseTotal('firstTurnEnergy'));
   c.picks = c.maxPicks;
+  /* Survey Relays draw power: each active relay costs 1 Energy at turn start. A
+     relay that can't be powered goes offline for the turn (no Scan/Block) but
+     stays on the board and runs again once energy is available. */
+  const relayCells = board().cells.filter(cell => cell.construct?.kind === 'relay');
+  if (relayCells.length) {
+    let powered = 0;
+    for (const cell of relayCells) {
+      if (c.energy > 0) { c.energy--; cell.construct.powered = true; powered++; }
+      else cell.construct.powered = false;
+    }
+    if (powered) log(`⌁ Relay upkeep draws ${powered} Energy.`);
+    const offline = relayCells.length - powered;
+    if (offline) log(`⌁ ${offline} Relay${offline === 1 ? '' : 's'} offline — not enough power.`);
+  }
   c.revealedThisTurn = 0; c.sumThisTurn = 0; c.chordedThisTurn = false;
   c.powers.sixthUsed = false;
   c.classState.passiveUsed = false;
@@ -1793,11 +2088,24 @@ function startTurn() {
   c.classState.painUsed = false;
   c.classState.exhaustUsed = false;
   c.classState.constructBuiltThisTurn = false;
+  c.classState.blastChain = 0;
+  c.classState.bloodSpentThisTurn = 0;
+  c.classState.twoHeadedCoinUsed = false;
+  c.classState.triageRecoveryUsed = false;
+  c.classState.triageLineRecovery = 0;
+  c.classState.triageLineHealing = 0;
+  c.classState.operatingUses = 0;
+  c.classState.freeFlareUsed = false;
   c.powers.blastDividendUsed = false;
   c.signalCoreUsed = false;
   c.dowsingScanUses = 0;
   c.protocolCoilUsed = false;
   c.silverThreadUsesThisTurn = 0;
+  if (run.cls === 'warden' && c.powers.wallBelow) {
+    gainBlock(c.plating * c.powers.wallBelow.blockPerPlating);
+    c.classState.resolve = Math.min(Number(c.classState.resolveCap || 20),
+      Number(c.classState.resolve || 0) + c.powers.wallBelow.resolve);
+  }
   const normalDraw = 5 + (hasT('indexcard') && c.turn === 1 ? 1 : 0) - (hasT('emberjar') && c.turn > 1 ? 1 : 0)
     + persistentCurseTotal('cardsPerTurn');
   drawCards(Math.max(PERSISTENT_CURSES.exhaustion.minimum, normalDraw));
@@ -1866,16 +2174,15 @@ export function endTurn() {
   for (let i = 0; i < b.cells.length; i++) {
     const con = b.cells[i].construct;
     if (!con || c.over) continue;
+    if (HEAT_CONSTRUCTS.has(con.kind)) {
+      if (con.powered === false) continue;            // Relay offline — no upkeep Energy this turn
+      if (constructOverheats(i, con, b)) continue;     // overheated — skip its trigger entirely
+    }
     const repeats = c.powers.stonechoir && con.kind !== 'bulwark' ? 2 : 1;
     for (let n = 0; n < repeats && !c.over; n++) {
       if (con.kind === 'sentry') { log('🗼 Sentry fires.'); hitRandom(con.dmg); }
       else if (con.kind === 'bulwark') { gainPlating(con.plating); gainBlock(con.block); }
-      else if (con.kind === 'relay') {
-        const target = randPick(hiddenIdx());
-        if (target != null) scanTile(target);
-        gainBlock(con.block);
-        log('⌁ Survey Relay reads the stone.');
-      }
+      else if (con.kind === 'relay') relayScan(i, con, b);
     }
   }
   for (const e of c.enemies) {
@@ -1894,7 +2201,26 @@ export function endTurn() {
     e.intent = e.def.next(e);
   }
   if (c.over) { notify(); return; }
+  if (run.cls === 'chirurgeon' && Number(c.classState.triageLineRecovery || 0) > 0
+      && c.block > 0 && Number(c.classState.untreatedBlood || 0) > 0) {
+    const recovery = Math.min(
+      Number(c.classState.triageLineRecovery || 0),
+      Number(c.block || 0),
+      Number(c.classState.untreatedBlood || 0),
+    );
+    consumeUntreatedBlood(recovery);
+    const healed = healHP(Math.min(recovery, Number(c.classState.triageLineHealing || 0)), { treatBlood: false });
+    if (healed) toast(`Triage Line: ${healed} HP recovered from unused Block`);
+  }
   startTurn();
+}
+
+export function addTemporaryCard(key, pile = 'discard') {
+  const c = run?.combat;
+  if (!c || !CARDS[key] || !Array.isArray(c[pile])) return false;
+  c[pile].push(mkCard(key));
+  log(`▧ ${CARDS[key].name} added to your ${pile}.`);
+  return true;
 }
 
 export function fleeCombat() {
@@ -1916,7 +2242,12 @@ function isScanCard(card) {
 export function effCost(card) {
   const def = CARDS[card.key];
   if (def.cost == null) return null;
-  let cost = def.cost[card.up ? 1 : 0];
+  const level = Math.max(0, Math.min(2, Number(card.up || 0)));
+  let cost = def.cost.length >= 3
+    ? def.cost[level]
+    : def.cost[level ? 1 : 0];
+  if (level >= 2 && def.cost.length < 3) cost = Math.max(0, cost - 1);
+  if (card.riseFree) cost = 0;
   if (card.key === 'entombcard' && hasT('keystone') && !cbt().keystoneUsed) cost = 0;
   if (hasT('protocolcoil') && !cbt().protocolCoilUsed) cost = Math.max(0, cost - 1 - relicLevel('protocolcoil'));
   if (hasT('dowsingrod') && (cbt().dowsingScanUses || 0) < 1 + relicLevel('dowsingrod') && isScanCard(card)) cost = 0;
@@ -1935,7 +2266,7 @@ export function clickHandCard(handIdx) {
   if (def.unplayable) { invalidCardFeedback(card, `${def.name} is a ${def.type} and cannot be played.`); return; }
   const cost = effCost(card);
   if (cost > c.energy) { invalidCardFeedback(card, `${def.name} needs ${cost} Energy; you have ${c.energy}.`); return; }
-  if (def.can && !def.can(card.up)) { invalidCardFeedback(card, def.canMsg || `${def.name}'s condition is not currently met.`); return; }
+  if (def.can && !def.can(card.up || 0)) { invalidCardFeedback(card, def.canMsg || `${def.name}'s condition is not currently met.`); return; }
   if (def.targets.length) {
     ui.targeting = { handIdx, specs: def.targets, picked: [], optional: !!def.optionalTargets };
     notify();
@@ -1950,7 +2281,7 @@ export function tileEligible(i, spec, picked) {
   if (picked.includes(i)) return false;
   switch (spec) {
     case 'hidden': return isHiddenUsable(i);
-    case 'open': return cell.revealed && !cell.construct;
+    case 'open': return isConstructSite(i);
     case 'number': return cell.revealed && numAt(i) > 0;
     case 'row': return true;
     case 'anytile': return true;
@@ -1988,10 +2319,21 @@ function resolveCard(handIdx, picked) {
   c.energy -= cost;
   c.hand.splice(handIdx, 1);
   sfx('play');
-  def.play(card.up, picked);
+  def.play(card.up || 0, picked); // real tier (0/1/2); cards read it as a boolean, level-scaling cards use the number
   if (!c.over) {
     if (def.type === 'Power') c.powersPlayed.push(card);
-    else if (def.exhaust) {
+    else if (def.file && card.recalledTurn !== c.turn) {
+      c.archive.push(card);
+      if (run.cls === 'archivist' && !c.classState.exhaustUsed) {
+        c.classState.exhaustUsed = true;
+        drawCards(1);
+        toast('Cross-reference: draw 1');
+      }
+    }
+    else if (def.grave && run.cls === 'revenant' && !card.risen) {
+      c.grave.push(card);
+    }
+    else if (def.exhaust || def.file || def.grave) {
       c.exhaust.push(card);
       if (run.cls === 'archivist' && !c.classState.exhaustUsed) {
         c.classState.exhaustUsed = true;
@@ -2000,6 +2342,7 @@ function resolveCard(handIdx, picked) {
       }
     }
     else c.discard.push(card);
+    if (card.riseDraw) drawCards(1);
   }
   notify();
 }
@@ -2038,10 +2381,14 @@ export function toggleFlag(i) {
   const cell = board().cells[i];
   if (!isHiddenUsable(i)) return;
   cell.flag = cell.flag ? 0 : 1;
-  if (cell.flag && cell.mine && run.cls === 'gambler' && !cbt().classState.luckyUsed) {
-    cbt().classState.luckyUsed = true;
-    drawCards(1);
-    toast('Read the Tell: correct flag draws 1');
+  if (cell.flag && cell.mine && run.cls === 'gambler') {
+    const cap = Math.max(3, Number(cbt().classState.loadedCap || 3));
+    cbt().classState.loaded = Math.min(cap, Number(cbt().classState.loaded || 0) + 1);
+    if (!cbt().classState.luckyUsed) {
+      cbt().classState.luckyUsed = true;
+      drawCards(1);
+      toast('Lucky Read: +1 Loaded and draw 1');
+    } else toast(`Correct flag: Loaded ${cbt().classState.loaded}/${cap}`);
   }
   sfx('flag');
   haptic('flag');
@@ -2115,13 +2462,8 @@ function combatVictory() {
   notify();
 }
 
-const CURATED_NEUTRAL_REWARDS = [
-  'resonanttap', 'stonechorus', 'steadyhand', 'lanternloan', 'hardlesson', 'emergencyexit',
-  'bandage', 'lastlight', 'gravemoss', 'signaljam', 'sunderingchalk', 'gravebind',
-];
-
 export function rewardPoolFor(clsKey) {
-  const keys = [...(CLASSES[clsKey]?.rewardPool || []), ...CURATED_NEUTRAL_REWARDS];
+  const keys = [...(CLASSES[clsKey]?.rewardPool || []), ...NEUTRAL_REWARD_POOL];
   return [...new Set(keys)].filter(key => {
     const card = CARDS[key];
     return card && ['common', 'uncommon', 'rare'].includes(card.rarity)
@@ -2130,18 +2472,21 @@ export function rewardPoolFor(clsKey) {
 }
 
 function rollCardReward(upgraded) {
-  const pool = rewardPoolFor(run.cls);
-  const byRarity = r => pool.filter(k => CARDS[k].rarity === r);
-  const picks = [];
-  let guard = 30;
-  while (picks.length < 3 && guard-- > 0) {
+  const classPool = [...(CLASSES[run.cls]?.rewardPool || [])];
+  const neutralPool = [...NEUTRAL_REWARD_POOL];
+  const pickFrom = (pool, excluded = []) => {
     const roll = random();
     const r = roll < 0.10 ? 'rare' : roll < 0.40 ? 'uncommon' : 'common';
-    const cand = byRarity(r).filter(k => !picks.includes(k));
-    const k = randPick(cand.length ? cand : pool.filter(x => !picks.includes(x)));
-    if (k) picks.push(k);
-    else break;
+    const available = pool.filter(key => !excluded.includes(key));
+    return randPick(available.filter(key => CARDS[key]?.rarity === r)) || randPick(available);
+  };
+  const picks = [];
+  for (let i = 0; i < 2; i++) {
+    const key = pickFrom(classPool, picks);
+    if (key) picks.push(key);
   }
+  const neutral = pickFrom(neutralPool, picks);
+  if (neutral) picks.push(neutral);
   return picks.map(k => ({ key: k, up: upgraded ? 1 : 0 }));
 }
 
@@ -2157,7 +2502,7 @@ export function takeRewardCard(i) {
 }
 export function takeRewardTrinket() {
   const r = run.reward;
-  if (!r.trinket) return;
+  if (!r.trinket || !isTrinketEligible(r.trinket)) return;
   run.trinkets.push(r.trinket);
   recordItemOwned(`trinket:${r.trinket}`);
   r.trinket = null;
@@ -2187,10 +2532,10 @@ export function takeVeinBoon(key) {
     run.maxHp += 8;
     run.hp = Math.min(run.maxHp, run.hp + 8);
   } else if (key === 'reforge') {
-    const targets = shuffle(run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null)).slice(0, 2);
+    const targets = shuffle(run.deck.filter(card => (card.up || 0) < 2 && CARDS[card.key]?.cost != null)).slice(0, 2);
     if (!targets.length) run.gold += 100;
     for (const card of targets) {
-      card.up = 1;
+      card.up = Math.min(2, (card.up || 0) + 1);
       run.upgrades = (run.upgrades || 0) + 1;
       deckChanged('upgrade', `${CARDS[card.key].name} was reforged`);
     }
@@ -2313,35 +2658,72 @@ export function campTrainPicks() {
   ui.screen = 'map'; notify();
 }
 export function campUpgrade() {
-  const upgradable = run.deck.filter(c => !c.up && CARDS[c.key].cost != null);
+  const upgradable = run.deck.filter(c => (c.up || 0) < 2 && CARDS[c.key].cost != null);
   if (!upgradable.length) { toast('Nothing to upgrade.', true); return; }
   openModal({ kind: 'upgrade' });
 }
 export function doUpgrade(deckIdx) {
-  run.deck[deckIdx].up = 1;
+  run.deck[deckIdx].up = Math.min(2, (run.deck[deckIdx].up || 0) + 1);
   run.upgrades = (run.upgrades || 0) + 1;
   ui.modal = null;
-  toast(`${CARDS[run.deck[deckIdx].key].name}+ !`);
+  const upTag = run.deck[deckIdx].up >= 2 ? '++' : '+';
+  toast(`${CARDS[run.deck[deckIdx].key].name}${upTag} !`);
   deckChanged('upgrade', `${CARDS[run.deck[deckIdx].key].name} was upgraded`);
   if (ui.screen === 'puzzle' && run.puzzle) run.puzzle.active = false;
   if (ui.screen === 'camp' || ui.screen === 'puzzle') ui.screen = 'map';
   notify();
 }
 
+/* Weighted sample without replacement (Efraimidis–Spirakis) on the run RNG. */
+function weightedSample(items, n, weight) {
+  return items
+    .map(it => ({ it, k: Math.pow(random() || 1e-9, 1 / Math.max(0.01, weight(it))) }))
+    .sort((a, b) => b.k - a.k)
+    .slice(0, n)
+    .map(x => x.it);
+}
+
 export function genShop() {
-  const pool = rewardPoolFor(run.cls);
-  const cards = shuffle(pool).slice(0, 5).map(k => ({
-    key: k,
-    price: CARDS[k].rarity === 'rare' ? 130 + randInt(30) : CARDS[k].rarity === 'uncommon' ? 70 + randInt(20) : 45 + randInt(15),
-    sold: false,
-  }));
+  /* In the Vein, the Rat Merchant runs a Black Market: prices are marked up and
+     climb with depth, but the goods are richer — biased toward rarer cards, some
+     arriving pre-upgraded, with an extra card and trinket shelf. */
+  const vein = run.stratum === 3;
+  const tier = veinThreatTier();
+  const markup = vein ? 1.5 + tier * 0.08 : 1;
+  const px = base => Math.round(base * markup);
+  const upChance = vein ? Math.min(0.7, 0.35 + tier * 0.05) : 0;
+  const cardSlots = vein ? 6 : 5;
+  const trinketSlots = vein ? 3 : 2;
+  const cardBase = k => CARDS[k].rarity === 'rare' ? 130 + randInt(30) : CARDS[k].rarity === 'uncommon' ? 70 + randInt(20) : 45 + randInt(15);
+
+  const classPool = [...(CLASSES[run.cls]?.rewardPool || [])];
+  const neutralPool = [...NEUTRAL_REWARD_POOL];
+  const rank = { common: 1, uncommon: 2, rare: 3 };
+  const classSlots = vein ? 4 : 3;
+  const neutralSlots = cardSlots - classSlots;
+  const classDraw = vein
+    ? weightedSample(classPool, classSlots, k => rank[CARDS[k].rarity] || 1)
+    : shuffle(classPool).slice(0, classSlots);
+  const neutralDraw = vein
+    ? weightedSample(neutralPool, neutralSlots, k => rank[CARDS[k].rarity] || 1)
+    : shuffle(neutralPool).slice(0, neutralSlots);
+  const draw = shuffle([...classDraw, ...neutralDraw]);
+  const cards = draw.map(k => {
+    const up = random() < upChance ? 1 : 0;
+    return { key: k, up, price: px(up ? Math.round(cardBase(k) * 1.3) : cardBase(k)), sold: false };
+  });
   const trinkets = [];
-  for (let i = 0; i < 2; i++) {
-    const t = unownedTrinket();
-    if (t && !trinkets.some(x => x.key === t)) trinkets.push({ key: t, price: 120 + randInt(60), sold: false });
+  const signatureRelic = SIGNATURE_RELICS[run.cls];
+  if (signatureRelic && !run.trinkets.includes(signatureRelic)) {
+    trinkets.push({ key: signatureRelic, price: px(120 + randInt(60)), sold: false, signature: true });
   }
-  const gadgets = shuffle(Object.keys(GADGETS)).slice(0, 2).map(k => ({ key: k, price: 30 + randInt(15), sold: false }));
-  run.shop = { cards, trinkets, gadgets };
+  while (trinkets.length < trinketSlots) {
+    const t = unownedTrinket(trinkets.map(item => item.key));
+    if (!t) break;
+    trinkets.push({ key: t, price: px(120 + randInt(60)), sold: false });
+  }
+  const gadgets = shuffle(Object.keys(GADGETS)).slice(0, 2).map(k => ({ key: k, price: px(30 + randInt(15)), sold: false }));
+  run.shop = { cards, trinkets, gadgets, blackMarket: vein };
   for (const item of cards) recordCardSeen(item.key);
   for (const item of trinkets) recordItemSeen(`trinket:${item.key}`);
   for (const item of gadgets) recordItemSeen(`gadget:${item.key}`);
@@ -2350,14 +2732,18 @@ export function buyShopCard(i) {
   const it = run.shop.cards[i];
   if (it.sold || run.gold < it.price) { toast('Not enough gold.', true); return; }
   run.gold -= it.price; it.sold = true;
-  run.deck.push(mkCard(it.key));
+  run.deck.push(mkCard(it.key, it.up || 0));
   recordCardOwned(it.key);
-  deckChanged('add', `${CARDS[it.key].name} joins the deck`);
+  deckChanged('add', `${CARDS[it.key].name}${it.up ? '+' : ''} joins the deck`);
   notify();
 }
 export function buyShopTrinket(i) {
   const it = run.shop.trinkets[i];
-  if (it.sold || run.gold < it.price || run.trinkets.includes(it.key)) { toast('Not enough gold.', true); return; }
+  if (!it || it.sold || run.trinkets.includes(it.key) || !isTrinketEligible(it.key)) {
+    toast('That item is unavailable.', true);
+    return;
+  }
+  if (run.gold < it.price) { toast('Not enough gold.', true); return; }
   run.gold -= it.price; it.sold = true;
   run.trinkets.push(it.key);
   recordItemOwned(`trinket:${it.key}`);
@@ -2533,10 +2919,10 @@ function applyEventEffect(effect = {}) {
     lines.push(`Gain ${effect.pickBonus} maximum Pick per turn for this run.`);
   }
   if (effect.upgrade) {
-    const eligible = run.deck.filter(card => !card.up && CARDS[card.key]?.cost != null);
+    const eligible = run.deck.filter(card => (card.up || 0) < 2 && CARDS[card.key]?.cost != null);
     const card = randPick(eligible);
     if (card) {
-      card.up = 1; run.upgrades = (run.upgrades || 0) + 1;
+      card.up = Math.min(2, (card.up || 0) + 1); run.upgrades = (run.upgrades || 0) + 1;
       lines.push(`Upgrade ${CARDS[card.key].name}.`);
       deckChanged('upgrade', `${CARDS[card.key].name} was upgraded`);
     } else {
@@ -3055,7 +3441,7 @@ function recordDailyRunEnd(won) {
 bindRuntime({
   cbt, board, shuffle, randPick, randInt,
   revealTile, hitEnemy, hitRandom, hitAll, curTarget, atk,
-  gainBlock, gainPlating, gainEnergy, gainInsight, gainPicks, gainMaxPicks,
+  gainBlock, gainPlating, gainEnergy, gainInsight, spendInsight, gainPicks, gainMaxPicks,
   loseMaxPicks, spendPicks, drawCards, loseHP, healHP, canHeal, applyEnemyEffect,
   detonateForCards, defuseTile, scanTile, entombTile, swapCells, addConstruct,
   chordAt, verifyFlag, flaggedIdx, hiddenIdx, isHiddenUsable, area3x3,
@@ -3063,5 +3449,6 @@ bindRuntime({
   outerRingIndices,
   enemyAttack, boardAttack, layMines, fogTiles, scrambleMines,
   setLie, clearLie, primeTile, resolvePrimed, clearPrimed, devourRing,
-  annexTiles, addMineAt,
+  annexTiles, addMineAt, healthState, recallArchived, riseGraves, gainLight,
+  consumeUntreatedBlood, addTemporaryCard,
 });

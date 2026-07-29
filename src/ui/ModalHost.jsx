@@ -41,14 +41,14 @@ export function ModalHost() {
   } else if (m.kind === 'upgrade') {
     const upgradable = run.deck
       .map((c, i) => ({ c, i }))
-      .filter(x => !x.c.up && CARDS[x.c.key].cost != null);
+      .filter(x => (x.c.up || 0) < 2 && CARDS[x.c.key].cost != null);
     body = (
       <>
         <h2><GameIcon name="upgrade" /> Upgrade a card</h2>
-        <p className="sub">Previewing upgraded versions — pick one.</p>
-        <div className="cardpick">
+        <p className="sub">Previewing the next tier — pick one. Level 2 keeps the upgrade and costs 1 less Energy.</p>
+        <div className="cardpick card-select-grid">
           {upgradable.map(x => (
-            <CardView key={x.c.id} card={{ ...x.c, up: 1 }} onClick={() => doUpgrade(x.i)} />
+            <CardView key={x.c.id} card={{ ...x.c, up: Math.min(2, (x.c.up || 0) + 1) }} onClick={() => doUpgrade(x.i)} />
           ))}
         </div>
         <button className="btn" onClick={closeModal}>Cancel</button>
@@ -58,7 +58,7 @@ export function ModalHost() {
     body = (
       <>
         <h2>Remove a card — {run.removalCost}g</h2>
-        <div className="cardpick">
+        <div className="cardpick card-select-grid">
           {run.deck.map((c, i) => (
             <CardView key={c.id} card={c} onClick={() => doRemove(i)} />
           ))}

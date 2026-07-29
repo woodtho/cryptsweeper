@@ -19,6 +19,13 @@ magick -size 1280x1152 canvas:none -define webp:lossless=true src/assets/icon-at
 
 ## Rendered sets
 
+`sets/pixel-icons-coarse.webp` is the canonical **Pixel Crypt** set used by the
+handheld presentation. It renders every map, enemy, interface, camp, and item
+slot on a 16 × 16 logical tile, nearest-neighbour scaled 8× to the standard
+128 × 128 atlas cells. The complete sheet is limited to 48 colours and remains
+editable independently of the vector families. `sets/pixel-icons.webp` retains
+the earlier 32 × 32-per-icon treatment as a source reference.
+
 `sets/main-icons.svg` is the artist-authored primary icon set. It is registered
 as **Main Icons** and is the default map, enemy, interface, camp, and item art
 for new installs. Keep its filename, 10 × 9 layout, and 1280 × 1152 canvas

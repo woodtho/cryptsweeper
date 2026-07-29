@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CLASSES, CARDS, TRINKETS, GADGETS, STRATA, ENEMIES } from '../engine/data.js';
+import { CLASSES, CARDS, TRINKETS, GADGETS, SIGNATURE_RELICS, STRATA, ENEMIES } from '../engine/data.js';
 import {
   run, ui, MAP_ROWS, newRun, reachableNodes, mapClosure, enterNode, score, resetToTitle,
   takeRewardCard, takeRewardTrinket, takeBossTrinket, takeVeinBoon, takeRewardGadget, finishReward,
@@ -356,7 +356,7 @@ function DailyPanel({ today: initialToday }) {
 
 export function MapIconSettings({ preferences, onPreferenceChange }) {
   const styles = mapIconStyles(preferences);
-  const styleKey = styles[preferences.mapIconStyle] ? preferences.mapIconStyle : 'main';
+  const styleKey = styles[preferences.mapIconStyle] ? preferences.mapIconStyle : 'marks';
   const style = styles[styleKey];
   const isMixer = styleKey === 'mixer';
   const isMarks = Object.values(style.icons).every(isMarkToken);
@@ -426,7 +426,7 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
 
 export function EnemyIconSettings({ preferences, onPreferenceChange }) {
   const styles = getEnemyIconStyles(preferences);
-  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'main';
+  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'marks';
   const previewKeys = ['grubber', 'ossuary', 'nn99'];
   const mix = preferences.enemyIconMix || {};
   const styleKeys = Object.keys(styles).filter(key => key !== 'mixer').sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : 0);
@@ -815,7 +815,9 @@ function HowToPlay() {
   const filteredEffects = Object.values(ENEMY_EFFECTS).sort((a,b) => a.name.localeCompare(b.name)).filter(effect => matches(effect.name, effect.desc));
   const sortedDelvers = Object.entries(CLASSES).sort((a,b) => a[1].name.localeCompare(b[1].name));
   const filteredDelvers = sortedDelvers.filter(([key,cls]) => matches(key, cls.name, cls.role, cls.passive,
-    TRINKETS[cls.trinket]?.name || '', TRINKETS[cls.trinket]?.desc || '', ...cls.deck.map(cardKey => CARDS[cardKey]?.name || cardKey)));
+    TRINKETS[cls.trinket]?.name || '', TRINKETS[cls.trinket]?.desc || '',
+    TRINKETS[SIGNATURE_RELICS[key]]?.name || '', TRINKETS[SIGNATURE_RELICS[key]]?.desc || '',
+    ...cls.deck.map(cardKey => CARDS[cardKey]?.name || cardKey)));
   const sectionVisible = {
     run: matches('run map strata route nodes daily challenge autosave unlock collection progression dig elite event shop treasure camp boss'),
     board: matches('board reveal number mine picks flag verified scan defuse chord detonate entomb construct sentry bulwark survey relay master builder stone choir board attack shapes excavate annex seed bury crater lair'),
@@ -857,9 +859,9 @@ function HowToPlay() {
         <li>Tap a hidden tile to <b data-mechanic="reveal">Reveal</b> it. A number counts mines in its eight neighboring spaces. A revealed zero cascades through connected safe tiles.</li>
         <li>Manual digs spend one <b data-mechanic="picks">Pick</b>; a whole cascade still costs one. Picks refill to your Max Picks each turn. Card actions normally do not spend Picks.</li>
         <li>Long-press a hidden tile on touch—or right-click with a mouse—to place a free <b data-mechanic="flag">Flag</b>. A normal flag is only your guess; a verified flag is guaranteed correct.</li>
-        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. In battles, <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent flag count matches. Honest Puzzle Minesweeper instead lets you tap the revealed number directly. The flags must be on the correct mines; wrong flags expose and detonate the unmarked mines. Basic battle Chord cards cost 0 Energy.</li>
+        <li><b data-mechanic="scan">Scan</b> identifies a tile without opening it. <b data-mechanic="defuse">Defuse</b> safely removes a mine. In battles, <b data-mechanic="chord">Chord</b> is card-only: play a Chord card on a revealed number once its adjacent mines are accounted for by flags or <b data-mechanic="entomb">Entombed</b> tiles. Honest Puzzle Minesweeper instead lets you tap the revealed number directly. The flags and Entombs must cover actual mines; a wrong one exposes and detonates an unmarked mine. Basic battle Chord cards cost 0 Energy.</li>
         <li><b data-mechanic="detonate">Detonate</b> deliberately triggers and removes a mine. Controlled card detonations attack enemies safely unless the card says you take damage.</li>
-        <li><b data-mechanic="entomb">Entomb</b> permanently seals a tile and counts it as resolved. A <b data-mechanic="construct">Construct</b> is built on an empty revealed tile and persists until destroyed; you can maintain up to 3.</li>
+        <li><b data-mechanic="entomb">Entomb</b> permanently seals a tile and counts it as resolved. A <b data-mechanic="construct">Construct</b> is built on an empty safe revealed tile and persists until destroyed; you can maintain up to 3. Numbered tiles keep showing their number beneath the Construct. Mines and craters cannot hold one.</li>
         <li>After you press End Turn, Constructs trigger before enemies act: a <b data-mechanic="sentry">Sentry</b> attacks, a <b data-mechanic="bulwark">Bulwark</b> grants Plating and Block, and a <b data-mechanic="survey relay">Survey Relay</b> Scans and grants Block. One Construct can destroy itself to cancel an enemy <b data-mechanic="board attack">Board Attack</b>.</li>
         <li>Boards may be rectangles, crosses, diamonds, rings, or caverns. Excavate and Annex effects add new ground; Seed and Bury effects can add mines; some bosses destroy whole regions.</li>
       </ul>
@@ -885,7 +887,7 @@ function HowToPlay() {
 
     <HowSection icon={<GameIcon name="health" preferences={prefs} />} title="Damage, defenses, and clearing" open={Boolean(search)} visible={sectionVisible.damage}>
       <ul>
-        <li>Enemy attacks remove <b data-mechanic="block">Block</b> before Health. Block normally resets at your next turn; the Warden retains a quarter.</li>
+        <li>Enemy attacks remove <b data-mechanic="block">Block</b> before Health. Block normally resets at your next turn; the Warden retains 10%.</li>
         <li><b data-mechanic="plating">Plating</b> persists between turns and is capped at 40. It absorbs enemy attacks after Block, and directly absorbs uncontrolled mine damage and hostile blasts that bypass Block. Card costs and voluntary Health loss bypass both defenses.</li>
         <li><b data-mechanic="instinct">Instinct</b> prevents the first accidentally revealed mine in a combat by verified-flagging it instead. Some Delvers or items modify this safety net.</li>
         <li>A <b data-mechanic="full clear">Full Clear</b> resolves every safe tile. The board collapses for <b>50 damage to all enemies</b>, grants an upgraded card reward, and re-seals if anything survives.</li>
@@ -899,7 +901,7 @@ function HowToPlay() {
         <li>Press <b>Show Cards</b> to open your hand. A card's gem is its Energy cost; dim cards are unaffordable or currently unplayable.</li>
         <li><b>Attack</b> cards deal damage, <b>Skill</b> cards provide utility or defense, and <b data-mechanic="power">Power</b> cards create a combat-long effect.</li>
         <li>Played cards normally enter the discard pile. When the draw pile empties, discard is shuffled into a new draw pile. <b data-mechanic="exhaust">Exhausted</b> cards stay out for the rest of combat.</li>
-        <li>Card rewards may be skipped. Upgrading a card improves its green-highlighted values; upgraded cards show a <b>+</b>. Removal permanently thins the run's deck and becomes more expensive each time.</li>
+        <li>Card rewards may be skipped. A card can be upgraded twice: the first upgrade improves its green-highlighted values (shown as <b>+</b>); the second hones it, keeping the upgrade and costing <b>1 less Energy</b> (shown as <b>++</b>). Removal permanently thins the run's deck and becomes more expensive each time.</li>
         <li>Curses are unplayable cards with persistent penalties: <b data-mechanic="claustrophobia">Claustrophobia</b> adds mines, <b data-mechanic="vertigo">Vertigo</b> removes Picks, <b data-mechanic="exhaustion">Exhaustion</b> reduces draw, <b data-mechanic="night terrors">Night Terrors</b> drains opening Energy, and <b data-mechanic="paranoia">Paranoia</b> plants false flags. Removal permanently clears a curse from the run.</li>
       </ul>
     </HowSection>
@@ -917,15 +919,18 @@ function HowToPlay() {
     </HowSection>
 
     <HowSection icon={<GameIcon name="picks" preferences={prefs} />} title="Delvers and passives" open={Boolean(search)} visible={sectionVisible.delvers}>
-      <p className="dim">Every Delver is documented alphabetically with their base resources, exact passive, starter trinket, and complete ten-card starting deck.</p>
+      <p className="dim">Every Delver is documented alphabetically with their base resources, exact passive, starter trinket, class-locked signature relic, and complete ten-card starting deck.</p>
       <div className="delver-rules">
         {filteredDelvers.map(([key, cls]) => {
           const deck = Object.entries(cls.deck.reduce((cards,cardKey) => ({ ...cards, [cardKey]:(cards[cardKey] || 0) + 1 }), {}));
           const trinket = TRINKETS[cls.trinket];
+          const signatureKey = SIGNATURE_RELICS[key];
+          const signatureRelic = TRINKETS[signatureKey];
           return <article key={key}>
             <div className="delver-rule-head"><img src={delverPortrait(key)} alt={`${cls.name} portrait`} /><div><b data-mechanic={key}>{cls.name}</b><small>{cls.role}</small><span><GameIcon name="health" preferences={prefs} /> {cls.hp} Health · <GameIcon name="picks" preferences={prefs} /> {cls.picks} starting Picks</span></div></div>
             <div className="delver-rule-passive"><small>Passive</small><p dangerouslySetInnerHTML={{ __html: decorateMechanics(cls.passive) }} /></div>
             <div className="delver-rule-trinket"><span>{itemVector(cls.trinket, prefs)}</span><p><small>Starter trinket</small><b>{trinket.name}</b>{trinket.desc}</p></div>
+            <div className="delver-rule-trinket"><span>{itemVector(signatureKey, prefs)}</span><p><small>Signature relic · guaranteed shop slot until owned</small><b>{signatureRelic.name}</b>{signatureRelic.desc}</p></div>
             <div className="delver-starter-deck"><small>Starting deck · 10 cards</small>{deck.map(([cardKey,count]) => { const card = CARDS[cardKey]; return <span key={cardKey}><b>{count > 1 ? `${count}× ` : ''}{card.name}</b><i>{card.type} · {card.cost?.[0] ?? '—'} Energy</i><em>{card.text(0)}</em></span>; })}</div>
           </article>;
         })}
@@ -970,7 +975,7 @@ const NODE_TYPE_LABELS = [
 ];
 function mapIcons(prefs) {
   const styles = mapIconStyles(prefs);
-  const styleKey = styles[prefs?.mapIconStyle] ? prefs.mapIconStyle : 'main';
+  const styleKey = styles[prefs?.mapIconStyle] ? prefs.mapIconStyle : 'marks';
   const icons = { ...styles[styleKey].icons };
   if (styleKey === 'mixer') {
     for (const [type] of NODE_TYPE_LABELS) {
@@ -1166,7 +1171,7 @@ export function RewardScreen() {
         {!r.cardTaken ? (
           <>
             <p>Choose a card (or skip):</p>
-            <div className="cardpick">
+            <div className="cardpick card-select-grid">
               {r.cards.map((cd, i) => (
                 <CardView key={i} card={{ id: i, key: cd.key, up: cd.up }} onClick={() => takeRewardCard(i)} />
               ))}
@@ -1272,13 +1277,15 @@ export function ShopScreen() {
   return (
     <>
       <TopBar />
-      <main className="screenpanel shop-screen">
+      <main className={`screenpanel shop-screen ${s.blackMarket ? 'black-market' : ''}`}>
         <header className="shop-merchant">
           <button type="button" className="shop-merchant-art" onClick={() => setShowMerchantArt(true)} aria-haspopup="dialog" aria-label="View full artwork for the Rat Merchant">
             <img src={ratMerchantPortrait()} alt="The Rat Merchant" />
             <span className="art-expand-hint">Full art</span>
           </button>
-          <div><p className="eyebrow">The Rat Merchant</p><h2>Wares from deeper tunnels</h2><p>“Dig gold, spend gold, eh?”</p></div>
+          {s.blackMarket
+            ? <div><p className="eyebrow">The Rat Merchant · Black Market</p><h2>Steep prices, richer goods</h2><p>“Vein rates, friend — but look what I smuggled down…”</p></div>
+            : <div><p className="eyebrow">The Rat Merchant</p><h2>Wares from deeper tunnels</h2><p>“Dig gold, spend gold, eh?”</p></div>}
           <div className="shop-purse"><small>Your purse</small><b>◈ {run.gold}g</b></div>
         </header>
 
@@ -1301,13 +1308,13 @@ export function ShopScreen() {
               const id = `${item.kind}:${item.index}`;
               return <button key={id} disabled={item.sold} className={`shop-item-token ${selectedItem === id ? 'selected' : ''} ${run.gold < item.price ? 'too-pricey' : ''}`}
                 onClick={() => setSelectedItem(id)} aria-label={`${item.def.name}, ${item.price} gold`}>
-                <span>{itemVector(item.key, prefs)}</span><b>{item.price}g</b><small>{item.kind}</small>{item.sold && <i>Sold</i>}
+                <span>{itemVector(item.key, prefs)}</span><b>{item.price}g</b><small>{item.signature ? 'signature' : item.kind}</small>{item.sold && <i>Sold</i>}
               </button>;
             })}
           </div>
           {selected ? <article className={`shop-item-detail ${selected.sold ? 'sold' : ''}`}>
             <div className="shop-detail-icon">{itemVector(selected.key, prefs)}</div>
-            <div><small>{selected.kind}</small><h3>{selected.def.name}</h3><p>{selected.def.desc}</p></div>
+            <div><small>{selected.signature ? `${CLASSES[run.cls].name} signature relic` : selected.kind}</small><h3>{selected.def.name}</h3><p>{selected.def.desc}</p></div>
             <button className="btn primary" disabled={selected.sold || run.gold < selected.price || (selected.kind === 'gadget' && run.gadgets.length >= 3)} onClick={buySelected}>
               {selected.sold ? 'Sold' : run.gold < selected.price ? `Need ${selected.price - run.gold}g` : selected.kind === 'gadget' && run.gadgets.length >= 3 ? 'Gadget slots full' : `Buy · ${selected.price}g`}
             </button>
@@ -1320,7 +1327,7 @@ export function ShopScreen() {
             {s.cards.map((it, i) => <button type="button" role="listitem" key={i} disabled={it.sold}
               className={`${selectedCard === i ? 'selected' : ''} ${run.gold < it.price ? 'too-pricey' : ''}`}
               onClick={() => setSelectedCard(i)}>
-              <span>{CARDS[it.key].name}</span><b>{it.sold ? 'SOLD' : `${it.price}g`}</b>
+              <span>{CARDS[it.key].name}{it.up ? '+' : ''}</span><b>{it.sold ? 'SOLD' : `${it.price}g`}</b>
             </button>)}
           </div>
           <div className="shop-card-browser" aria-label="Card navigation">
@@ -1329,9 +1336,9 @@ export function ShopScreen() {
             <button type="button" className="btn" disabled={remainingCards <= 1} onClick={() => moveSelectedCard(1)} aria-label="Next card">›</button>
           </div>
           {cardOffer ? <div className={`shop-card-feature ${cardOffer.sold ? 'sold' : ''}`}>
-            <CardView card={{ id: selectedCard, key: cardOffer.key, up: 0 }} />
+            <CardView card={{ id: selectedCard, key: cardOffer.key, up: cardOffer.up || 0 }} />
             <div className="shop-card-buy">
-              <div><small>Card for sale</small><b>{CARDS[cardOffer.key].name}</b><span>Permanent addition to this run’s deck.</span></div>
+              <div><small>Card for sale</small><b>{CARDS[cardOffer.key].name}{cardOffer.up ? '+' : ''}</b><span>{cardOffer.up ? 'Arrives already upgraded — permanent.' : 'Permanent addition to this run’s deck.'}</span></div>
               <button className="btn primary" disabled={cardOffer.sold || run.gold < cardOffer.price} onClick={buySelectedCard}>
                 {cardOffer.sold ? 'Sold' : run.gold < cardOffer.price ? `Need ${cardOffer.price - run.gold}g` : `Buy · ${cardOffer.price}g`}
               </button>

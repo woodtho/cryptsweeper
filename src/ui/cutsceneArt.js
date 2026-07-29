@@ -1,12 +1,13 @@
-import openingArt from '../assets/cutscenes/opening.webp';
-import campArt from '../assets/cutscenes/camp.webp';
-import archivesArt from '../assets/cutscenes/sunk-archives.webp';
-import clockworkArt from '../assets/cutscenes/clockwork-depths.webp';
-import collapserArt from '../assets/cutscenes/collapser.webp';
-import fogfatherArt from '../assets/cutscenes/fogfather.webp';
-import nn99Art from '../assets/cutscenes/nn99.webp';
-import finaleArt from '../assets/cutscenes/finale.webp';
-/* One canonical cutscene set ships for every player. */
+import openingArt from '../assets/cutscenes/opening-pixel-coarse.webp';
+import campArt from '../assets/cutscenes/camp-pixel-coarse.webp';
+import archivesArt from '../assets/cutscenes/sunk-archives-pixel-coarse.webp';
+import clockworkArt from '../assets/cutscenes/clockwork-depths-pixel-coarse.webp';
+import collapserArt from '../assets/cutscenes/collapser-pixel-coarse.webp';
+import fogfatherArt from '../assets/cutscenes/fogfather-pixel-coarse.webp';
+import nn99Art from '../assets/cutscenes/nn99-pixel-coarse.webp';
+import finaleArt from '../assets/cutscenes/finale-pixel-coarse.webp';
+/* The canonical scenes use a 160 × 90 logical pixel canvas, scaled exactly
+   6× so WebView rendering never has to invent softened intermediate pixels. */
 export const CUTSCENE_ART = {
   opening: openingArt,
   camp: campArt,

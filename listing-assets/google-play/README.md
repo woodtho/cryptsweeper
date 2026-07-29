@@ -16,4 +16,6 @@ The files in this directory are prepared to match Google Play's current image di
 
 Do not upload Chromebook, Google Play Games on PC, or Android XR assets unless those device form factors are enabled and the game has been tested there. A promotional video is optional and is not generated here.
 
-`source/` contains the high-resolution generated masters. `listing-copy.md` contains the copy and suggested screenshot captions.
+`source/` contains the original high-resolution, first-pass pixel, and new
+`*-pixel-coarse` masters. Ready-to-upload files use the coarse pixel-art sources.
+`listing-copy.md` contains the copy and suggested screenshot captions.

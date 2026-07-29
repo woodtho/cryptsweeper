@@ -2,9 +2,9 @@
   "appId": "com.woodtho.cryptsweeper",
   "appName": "Flag the Deep",
   "webDir": "dist",
-  "backgroundColor": "#0b0d11",
+  "backgroundColor": "#070b0a",
   "android": {
-    "backgroundColor": "#0b0d11"
+    "backgroundColor": "#070b0a"
   },
   "plugins": {
     "SystemBars": {

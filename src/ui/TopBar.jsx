@@ -27,7 +27,8 @@ export function TopBar({ children }) {
         <button className="btn top-home" onClick={() => window.dispatchEvent(new Event('cryptsweeper:open-game-menu'))} title="Game menu"><GameIcon name="menu" preferences={prefs} /> Menu</button>
       </div>
       <div className={`topbar ${combat ? 'combat-topbar' : ''}`}>
-        <span className={`stat hpbar ${critical ? 'critical' : ''}`} data-mechanic="health" tabIndex="0" style={{ position: 'relative' }}>
+        <span className={`stat hpbar ${critical ? 'critical' : ''}`} data-mechanic="health" tabIndex="0"
+          aria-label={`Health ${run.hp} of ${run.maxHp}${critical ? ', critical' : ''}`} style={{ position: 'relative' }}>
           <GameIcon name="health" preferences={prefs} /> <b>{run.hp}</b>/{run.maxHp}
           {critical && <small className="critical-label">CRITICAL</small>}
           {ui.dmg.filter(d => d.kind === 'player').map((d, k) => (

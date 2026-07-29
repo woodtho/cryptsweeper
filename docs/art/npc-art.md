@@ -12,7 +12,8 @@ The only friendly face in the Undermine. A hunched, hooded anthropomorphic rat w
 stall of scavenged gear — greedy, wry, and weirdly reassuring. He appears in the **shop
 cutscene** (`getScene('shop')` in `src/ui/Cutscene.jsx`) and his portrait is the shop art.
 
-- **Asset:** `src/assets/npcs/rat-merchant.webp` — 4:3 landscape, currently AI-generated.
+- **Runtime asset:** `src/assets/npcs/rat-merchant-pixel-coarse.webp`; the original
+  `rat-merchant.webp` and first-pass `rat-merchant-pixel.webp` remain as identity references.
 - **Who he is:** a fence, not a friend — the last commercial instinct in a dead place. He
   buys what delvers strip from corpses and sells it back to the next one down. He is greedy,
   wry, and — precisely because he only wants your gold — oddly *reassuring* in a mine where
@@ -36,8 +37,9 @@ cutscene** (`getScene('shop')` in `src/ui/Cutscene.jsx`) and his portrait is the
 - **Framing:** 4:3, chest-up, face upper-center with the **offered coin/hand as the secondary
   focal point** in the lower third. He must brighten when "speaking" (the cutscene highlights
   the main art), so keep the key light firmly on his face and the coin.
-- **Spec:** 4:3, master 1280×960 PNG + source; ship WebP (q~82, < 150 KB); filename stays
-  `rat-merchant.webp`. This canonical version ships to every player.
+- **Spec:** 3:4 portrait composed at 96×128, ≤16 colours, nearest-neighbour scaled
+  to a 384×512 lossless WebP. The canonical runtime filename is
+  `rat-merchant-pixel-coarse.webp`.
 
 ## 2. Boss characters
 
@@ -48,9 +50,9 @@ character cutouts. Each is a menacing 16:9-ish establishing shot of the boss in 
 
 | Boss | Stratum | Asset | One-line read |
 |---|---|---|---|
-| **The Collapser** | 1 — Topsoil Crypts | `cutscenes/collapser.webp` | A colossus of stacked crypt-stone with a furnace-eyed ring for a maw. Tectonic dread. |
-| **The Fogfather** | 2 — Fog Galleries | `cutscenes/fogfather.webp` | A drowned bell-ringer of silver mist. A sound you can't place. |
-| **NN-99** | 3 — Machine Seam | `cutscenes/nn99.webp` | A machine-saint survey engine with a single red lens. Cold, inhuman authority. |
+| **The Collapser** | 1 — Topsoil Crypts | `cutscenes/collapser-pixel-coarse.webp` | A colossus of stacked crypt-stone with a furnace-eyed ring for a maw. Tectonic dread. |
+| **The Fogfather** | 2 — Fog Galleries | `cutscenes/fogfather-pixel-coarse.webp` | A drowned bell-ringer of silver mist. A sound you can't place. |
+| **NN-99** | 3 — Machine Seam | `cutscenes/nn99-pixel-coarse.webp` | A machine-saint survey engine with a single red lens. Cold, inhuman authority. |
 
 ### The Collapser *(Stratum 1 boss)*
 A cave-in that decided to walk. A colossus assembled from stacked, ill-fitting crypt-masonry
@@ -91,9 +93,10 @@ machine-oil dark. *Its line: "FAULT DETECTED. DELVER CONFIDENCE EXCEEDS SAFE LIM
   upper-center-left** and leave the lower-right quarter readable/darker for that inset.
 - Each boss leans on **one accent over the shared palette:** Collapser = ember **orange/blood**;
   Fogfather = **moss + cold blue**; NN-99 = **red lens on brass**.
-- Same painterly chiaroscuro as everything else — these are the AI cutscene backgrounds'
-  established looks; elevate craft, keep the read.
-- **Spec:** 16:9, master 1600×900, ship WebP (q~82, < 150 KB), filenames unchanged.
+- Same chunky pixel chiaroscuro as every other scene: large clusters, dithered
+  materials, hard silhouette edges, and no anti-aliasing.
+- **Spec:** 16:9 on a 160×90 logical canvas, ≤24 colours, nearest-neighbour
+  scaled 6× to a 960×540 lossless WebP.
 
 ## 3. Smaller enemies (not commissioned as portraits)
 

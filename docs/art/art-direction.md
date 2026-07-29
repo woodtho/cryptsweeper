@@ -13,13 +13,14 @@ descending through three strata of the **Undermine** — a living mine that grow
 charges in its own stone. It is a place of pick-marks and old graves, drowned archives
 and buried clockwork, lit by hand-carried flame. The tone is **grim but not gory,
 adventurous but doomed** — a lantern held up in a vast dark that does not care about you.
-Think *Darkest Dungeon*'s dread and *Slay the Spire*'s grubby fantasy, rendered with the
-weight of oil-painted key art rather than flat illustration.
+The final treatment is an original late-1990s handheld dark-fantasy game: chunky,
+tile-readable pixel clusters carrying the weight and material grime of the concept art.
 
 ## 2. Rendering style
 
-- **Painterly, semi-realistic dark fantasy.** Visible brushwork and material texture, not
-  cel-shaded or vector-flat. Faces and hands read as real; costume and stone read as heavy.
+- **Hand-pixeled, semi-realistic dark fantasy.** Deliberate 1–2 pixel clusters at the
+  logical resolution, crisp stair-stepped silhouettes, compact dithered shading, and no
+  anti-aliasing. It must look authored as pixel art, never like a mosaic filter.
 - **Chiaroscuro is the whole game.** One dominant warm light source (a lantern, a fuse
   spark, a candle) carving a subject out of deep shadow. Let 50–60% of every frame fall to
   near-black. Rim-light the silhouette so it separates from the ground.
@@ -27,8 +28,8 @@ weight of oil-painted key art rather than flat illustration.
   frayed rope. Everything looks used, patched, and slightly corroded.
 - **Restraint on saturation.** The world is desaturated stone and shadow; saturated color
   is an *event* — a flame, a blood-red ribbon, a glowing rune. Never a rainbow.
-- **No modern, cute, or clean.** No flat mobile-game gloss, no chibi proportions, no bright
-  gradients, no lens flares, no visible UI in the art itself.
+- **No modern, cute, or clean.** No flat mobile-game gloss, chibi proportions, smooth
+  gradients, lens flares, painterly blur, vector curves, or visible UI in the art itself.
 
 ## 3. Palette
 
@@ -63,21 +64,21 @@ interface without clashing. Build every piece from these families.
 
 ## 5. Technical export specs
 
-All final art ships as **WebP** (quality ~82, target < 150 KB each) into `src/assets/`.
-Provide layered source (PSD/PROCREATE) + a lossless PNG master per piece for future crops.
+All final art ships as lossless **WebP**, nearest-neighbour scaled from a very small
+logical canvas. Keep original high-resolution references and the first-pass
+`*-pixel.webp` artwork beside the `*-pixel-coarse.webp` runtime files so future
+conversions can return to a detailed source rather than a scaled copy.
 
-| Domain | Aspect | Master resolution | Ships to |
-|---|---|---|---|
-| Delver portrait | **3:4 portrait** (see note) | 1024×1365 | `src/assets/delvers/` |
-| NPC portrait | 4:3 landscape | 1280×960 | `src/assets/npcs/` |
-| Cutscene background | 16:9 landscape | 1600×900 | `src/assets/cutscenes/` |
+| Domain | Aspect | Logical canvas | Runtime export | Palette |
+|---|---|---:|---:|---:|
+| Delver / NPC portrait | **3:4 portrait** | 96×128 | 384×512 WebP | ≤16 colours |
+| Cutscene background | 16:9 landscape | 160×90 | 960×540 WebP | ≤24 colours |
+| Store key art | 2:1 landscape | 240×120 | 1920×960 PNG | ≤32 colours |
+| App emblem | 1:1 square | 64×64 | 512×512 WebP/PNG | ≤12 colours |
 
-> **Portrait aspect — action needed.** The current portraits are 1:1 (768×768), and the game
-> shows portraits in **two** crops: a
-> landscape card banner and a **3:4 vertical inset** in cutscenes (`object-position: center 25%`).
-> Commission new portraits at **3:4** with the face/bust in the **upper-center third** and
-> ~15% headroom, composed so a centered square and a landscape band both crop cleanly. See
-> the Delver doc's framing diagram.
+Portraits still appear in a landscape card band and a **3:4 vertical inset** in
+cutscenes (`object-position: center 25%`). Keep the face and signature prop in the
+upper-center safe area so both crops remain readable.
 
 **Naming:** lower-kebab, matching the engine keys in `src/engine/data.js` and the imports in
 `src/ui/portraits.js` / `src/ui/Cutscene.jsx`. Do not rename existing files without updating
@@ -86,8 +87,9 @@ those imports.
 ## 6. Canonical art pipeline
 
 Flag the Deep ships one complete art set to every player. There are no free/paid visual
-tiers and no alternate-art entitlement. A finished delivery replaces its canonical WebP
-directly in `src/assets/delvers/`, `src/assets/npcs/`, or `src/assets/cutscenes/`.
+tiers and no alternate-art entitlement. Runtime art uses the canonical
+`*-pixel-coarse.webp` files in `src/assets/delvers/`, `src/assets/npcs/`, and
+`src/assets/cutscenes/`; the first-pass `*-pixel.webp` files remain source references.
 
 Commissioned work targets Delver portraits first, then NPCs and cutscenes. Match — and
 elevate — the established mood without reinventing the characters.
@@ -99,5 +101,6 @@ elevate — the established mood without reinventing the characters.
 - [ ] A small blood-red note present.
 - [ ] Rim-lit silhouette separates from ground.
 - [ ] Materials worn, patched, corroded — nothing clean or modern.
-- [ ] Correct aspect + safe framing for its domain; exports as WebP < 150 KB.
-- [ ] Filename matches the engine key; no UI or text baked into the art.
+- [ ] Correct logical canvas, palette ceiling, aspect, and safe framing for its domain.
+- [ ] Nearest-neighbour scaling only; no softened or half-width pixel blocks.
+- [ ] Filename is `<engine-key>-pixel-coarse.webp`; no UI or text baked into the art.

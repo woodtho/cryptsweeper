@@ -246,13 +246,16 @@ declined to stay dead.
 
 ## Deliverables & specs
 
-- **One portrait per Delver:** the canonical shipped file lives at
-  `src/assets/delvers/<key>.webp` and is available to every player.
-- **Aspect 3:4**, master 1024×1365 PNG + layered source; ship WebP (q~82, < 150 KB).
-- **Filenames must equal the engine key** (`sapper.webp`, `hexwright.webp`, …) so
+- **One portrait per Delver:** the canonical runtime file lives at
+  `src/assets/delvers/<key>-pixel-coarse.webp`; the high-resolution and first-pass pixel
+  references remain beside it.
+- **Aspect 3:4**, composed at 96×128, limited to 16 colours, and nearest-neighbour
+  scaled 4× to a 384×512 lossless WebP.
+- **Runtime filenames use the engine key plus `-pixel-coarse`**
+  (`sapper-pixel-coarse.webp`, `hexwright-pixel-coarse.webp`, …) so
   `DELVER_PORTRAITS` in `src/ui/portraits.js` resolves without code changes.
 - **Deliver in roster order** (Sapper → Revenant). Each finished file replaces its
-  placeholder the moment it lands.
+  runtime pixel version the moment it lands.
 - **Consistency:** run the §7 checklist in the art bible on every portrait, and place all ten
   side-by-side before final — they must read as **one cast**, distinct by silhouette and
   signature accent, unified by light and palette.
