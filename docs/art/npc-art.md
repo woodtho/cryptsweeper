@@ -10,10 +10,14 @@ Inherits [art-direction.md](art-direction.md).
 
 The only friendly face in the Undermine. A hunched, hooded anthropomorphic rat who runs a
 stall of scavenged gear — greedy, wry, and weirdly reassuring. He appears in the **shop
-cutscene** (`getScene('shop')` in `src/ui/Cutscene.jsx`) and his portrait is the shop art.
+cutscene** (`getScene('shop')` in `src/ui/Cutscene.jsx`) as a full-body animated actor over
+a character-free shop environment.
 
-- **Runtime asset:** `src/assets/npcs/rat-merchant-pixel-coarse.webp`; the original
-  `rat-merchant.webp` and first-pass `rat-merchant-pixel.webp` remain as identity references.
+- **Runtime actor:** `src/assets/sprites/animations/sheets/rat-merchant.webp`, with
+  `src/assets/sprites/fullbody/npcs/rat-merchant.webp` as its static fallback.
+- **Shop environment:** `src/assets/cutscenes/rat-merchant-shop-pixel-coarse.webp`.
+- **Portrait/reference:** `src/assets/npcs/rat-merchant-pixel-coarse.webp`; the original
+  `rat-merchant.webp` and first-pass `rat-merchant-pixel.webp` remain identity references.
 - **Who he is:** a fence, not a friend — the last commercial instinct in a dead place. He
   buys what delvers strip from corpses and sells it back to the next one down. He is greedy,
   wry, and — precisely because he only wants your gold — oddly *reassuring* in a mine where
@@ -34,19 +38,17 @@ cutscene** (`getScene('shop')` in `src/ui/Cutscene.jsx`) and his portrait is the
 - **Personality to read:** *"Easy now, delver. Nothing on my shelves bites unless you
   haggle."* A shopkeeper who has outlived braver customers and finds that funny. Sly, warm in
   a transactional way, never cute.
-- **Framing:** 4:3, chest-up, face upper-center with the **offered coin/hand as the secondary
-  focal point** in the lower third. He must brighten when "speaking" (the cutscene highlights
-  the main art), so keep the key light firmly on his face and the coin.
+- **Framing:** the archive portrait remains 4:3 and chest-up. The cutscene actor is full-body,
+  staged on the left, and switches to its speaking row when the merchant has dialogue.
 - **Spec:** 3:4 portrait composed at 96×128, ≤16 colours, nearest-neighbour scaled
   to a 384×512 lossless WebP. The canonical runtime filename is
   `rat-merchant-pixel-coarse.webp`.
 
 ## 2. Boss characters
 
-Bosses are **enemies**, but they get full cutscene "character" art for their intro and
-aftermath scenes (`BOSS_SCENES` in `src/ui/Cutscene.jsx`). These double as cutscene
-backgrounds — so they are dramatic full-frame creature/environment portraits, not clean
-character cutouts. Each is a menacing 16:9-ish establishing shot of the boss in its lair.
+Bosses are **enemies**, but they get full cutscene animation for their intro and aftermath
+scenes (`BOSS_SCENES` in `src/ui/Cutscene.jsx`). Existing dramatic plates remain the
+environment layer; transparent boss sheets provide action, dialogue, and defeated poses.
 
 | Boss | Stratum | Asset | One-line read |
 |---|---|---|---|

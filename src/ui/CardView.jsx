@@ -1,5 +1,5 @@
 import { CARDS } from '../engine/data.js';
-import { effCost } from '../engine/engine.js';
+import { effCost, isPlayLethal } from '../engine/engine.js';
 import { decorateMechanics } from './mechanics.js';
 
 const TYPE_GLYPHS = { Attack: '▲', Skill: '◆', Power: '⬢', Status: '✕', Curse: '✕' };
@@ -37,12 +37,14 @@ export function CardView({ card, onClick, inCombat = false, selected = false, di
   const rarLabel = def.type === 'Curse' ? 'curse' : def.rarity;
   const segments = RARITY_SEGMENTS[def.rarity] ?? 1;
   const glyph = TYPE_GLYPHS[def.type] || '◆';
-  const cls = ['card', rar, (def.unplayable || dim) ? 'unplayable' : '', selected ? 'selected' : '']
+  const lethal = inCombat && isPlayLethal(card);
+  const cls = ['card', rar, (def.unplayable || dim) ? 'unplayable' : '', selected ? 'selected' : '', lethal ? 'lethal' : '']
     .filter(Boolean).join(' ');
   return (
     <div className={cls} onClick={onClick} data-ctype={def.type} data-cclass={def.cls || 'neutral'} data-glyph={glyph}>
       <span className="brk tl" /><span className="brk tr" /><span className="brk bl" /><span className="brk br" />
       <span className="ctab" />
+      {lethal ? <span className="clethal" title="Playing this now would end your run.">◆ Lethal</span> : null}
       <div className="cstrip">
         <span className={`chip ccost ${cost === 0 ? 'free' : ''} ${cost == null ? 'na' : ''}`.trim()}>{cost == null ? '—' : cost}</span>
         <span className="chip ctype">{def.type}</span>

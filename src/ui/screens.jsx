@@ -7,6 +7,7 @@ import {
   buyShopCard, buyShopTrinket, buyShopGadget, buyRemoval, gotoMap,
   EVENT_CATALOG, eventChoice, togglePuzzleScan, setLogicPuzzleCell, checkLogicPuzzle,
   toggleLightsCell, toggleNonogramCell, toggleSudokuNoteMode, answerSequence,
+  setCrosswordDirection, selectCrosswordCell, abandonPuzzle,
   currentEventView,
   listSaves, loadRun, saveRun, deleteSave, goHome,
   ENEMY_MODIFIERS, ENEMY_EFFECTS, BOSS_RESONANCE, VEIN_BOONS,
@@ -34,13 +35,14 @@ import { TEST_LAB_SECTIONS, runTestCase, testCasesForSection } from './testCatal
 import { customIconSets, customSetBase, customSetIcon, iconSetLabel } from './iconSets.js';
 import { registerBackHandler } from './backNav.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
-import { gridNavigationIndex } from '../engine/puzzleValidation.js';
+import { crosswordAdvanceIndex, gridNavigationIndex } from '../engine/puzzleValidation.js';
 import {
   CHALLENGES, clearGraveyard, loadGraveyard,
 } from '../engine/legacy.js';
 import { InteractiveTutorial } from './InteractiveTutorial.jsx';
 import { MechanicTerms } from './MechanicTerms.jsx';
 import { AchievementPanel, SpeedrunPanel } from './ArchivePanels.jsx';
+import { ChangelogPanel } from './ChangelogPanel.jsx';
 
 /* ---------------- title / class select ---------------- */
 const PANEL_TITLES = {
@@ -50,6 +52,7 @@ const PANEL_TITLES = {
   graveyard: 'The Delver Graveyard', achievements: 'Carved achievements', challenges: 'Challenges and daily descent',
   speedruns: 'Descent speed records',
   collection: 'Archive',
+  changelog: 'What’s new',
 };
 /* sub-panels reached through the consolidated Collection menu item; Back returns here, not home */
 const COLLECTION_PANELS = ['delvers', 'enemies', 'items', 'cards', 'achievements', 'saves', 'music', 'graveyard', 'speedruns'];
@@ -173,6 +176,7 @@ export function TitleScreen({
             <button className="home-action compact" onClick={() => open('how')}><span>Learn</span><small>Guided tutorial and searchable rules</small></button>
             <button className="home-action compact" onClick={() => open('collection')}><span>Archive</span><small>Indexes, records, saves, graveyard, and jukebox</small></button>
             <button className="home-action compact" onClick={() => open('settings')}><span>Settings</span><small>Sound, motion, and display</small></button>
+            <button className="home-action compact" onClick={() => open('changelog')}><span>Changelog</span><small>New features, improvements, and fixes</small></button>
           </div>
           {testUnlocked && <button className="home-action test-lab-action" onClick={() => open('test')}><span>Test lab</span><small>Launch encounters, puzzles, scenes, rewards, and combat directly</small></button>}
         </div>
@@ -192,6 +196,7 @@ export function TitleScreen({
           {panel === 'achievements' && <AchievementPanel />}
           {panel === 'test' && <TestLab onTestAll={onTestAll} onTestSection={onTestSection} />}
           {panel === 'how' && <HowToPlay />}
+          {panel === 'changelog' && <ChangelogPanel />}
           {panel === 'saves' && <div className="save-list">
             {['auto', 'slot1', 'slot2', 'slot3'].map((slot, i) => {
               const item = saves.find(s => s.slot === slot);
@@ -918,7 +923,7 @@ function HowToPlay() {
         <li><b>Trinkets</b> are passive and last for the run. <b>Gadgets</b> are consumable tools; you can carry at most three gadget copies. Tap the bag to inspect all items and use gadgets.</li>
         <li>Shops sell cards, trinkets, gadgets, and card removal. Gold is run-specific and prices vary; each removal raises the next removal cost.</li>
         <li>At camp, choose one: Rest heals 30% max Health, Smith upgrades a card, Survey starts the next fight 25% revealed, or Train adds one Max Pick up to the run's +2 training cap.</li>
-        <li><b>Honest Puzzles</b> begin with no-guess Minesweeper, 4×4 Sudoku, and 3×3 word squares. Deeper strata unlock larger versions plus number sequences, Lights Out, and nonograms. Minesweeper offers limited scans, flags, and direct Chording by tapping a revealed number with a matching adjacent flag count; other puzzles explain their controls in the room. Solve flawlessly for an upgrade, or abandon without the prize.</li>
+        <li><b>Honest Puzzles</b> begin with no-guess Minesweeper, 4×4 Sudoku, and 3×3 double word squares whose rows and columns use different answers. Deeper strata unlock larger versions plus number sequences, Lights Out, and nonograms. Minesweeper offers limited scans, flags, and direct Chording by tapping a revealed number with a matching adjacent flag count; other puzzles explain their controls in the room. Solve flawlessly for an upgrade, or abandon without the prize.</li>
       </ul>
     </HowSection>
 
@@ -1402,6 +1407,27 @@ function puzzleGridKeyDown(event, index, size, count) {
   if (next === index) return;
   event.preventDefault(); focusPuzzleCell(event.currentTarget, next);
 }
+function crosswordGridKeyDown(event, index, puzzle) {
+  const direction = ['ArrowUp', 'ArrowDown'].includes(event.key) ? 'down'
+    : ['ArrowLeft', 'ArrowRight'].includes(event.key) ? 'across'
+      : puzzle.direction;
+  if (event.key === 'Backspace' && !puzzle.values[index]) {
+    const previous = crosswordAdvanceIndex(index, puzzle.size, direction, -1);
+    if (previous !== index) {
+      event.preventDefault();
+      setCrosswordDirection(direction);
+      selectCrosswordCell(previous);
+      focusPuzzleCell(event.currentTarget, previous);
+    }
+    return;
+  }
+  const next = gridNavigationIndex(event.key, index, puzzle.size, puzzle.values.length);
+  if (!event.key.startsWith('Arrow')) return;
+  event.preventDefault();
+  setCrosswordDirection(direction);
+  selectCrosswordCell(next);
+  focusPuzzleCell(event.currentTarget, next);
+}
 
 export function PuzzleScreen() {
   const p = run.puzzle;
@@ -1410,7 +1436,7 @@ export function PuzzleScreen() {
   const descriptions = {
     mines: 'Reveal every safe tile. Flag adjacent mines, then tap a matching revealed number to Chord its unflagged neighbours. Misplaced flags can expose a mine. Scans identify a tile without opening it.',
     sudoku: `Fill every row, column, and outlined ${p.boxRows}×${p.boxCols} box with 1–${p.size} exactly once.`,
-    crossword: `Fill the ${p.size}×${p.size} word square. Every answer works both across and down.`,
+    crossword: `Fill every numbered row and column. Each direction has its own answers, joined by the letters where they cross.`,
     sequence: 'Choose the value that continues the sequence.',
     lights: 'Tap a rune to flip it and its orthogonal neighbors. Extinguish every rune.',
     nonogram: 'Fill cells so each row and column matches its ordered run-length clues.',
@@ -1425,6 +1451,7 @@ export function PuzzleScreen() {
 
         {type === 'mines' && <>
           <div style={{ display: 'flex', justifyContent: 'center' }}><BoardView mode="puzzle" /></div>
+          {p.abandoned && <p className="puzzle-solution-note">The revealed bombs are the mine solution.</p>}
           <div className="boardinfo" style={{ justifyContent: 'center' }}>
             <button className="btn" disabled={!p.scans} onClick={togglePuzzleScan}
               style={p.scanMode ? { borderColor: 'var(--n2)', color: 'var(--n2)' } : undefined}>
@@ -1459,24 +1486,79 @@ export function PuzzleScreen() {
         </div>}
 
         {type === 'crossword' && <div className="logic-puzzle-wrap crossword-layout">
-          <div className="crossword-grid" data-logic-grid style={{ '--logic-size': p.size }} role="grid" aria-label={`${p.size} by ${p.size} mini crossword`}>
-            {p.values.map((value, i) => <label className="crossword-cell" key={i}>
-              {(i < p.size || i % p.size === 0) && <small>{i + 1}</small>}
-              <input data-cell={i} aria-label={`Crossword square ${i + 1}`} autoCapitalize="characters" maxLength={1} value={value}
-                onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)}
-                onChange={e => { setLogicPuzzleCell(i, e.target.value); if (e.target.value && i + 1 < p.values.length) focusPuzzleCell(e.currentTarget, i + 1); }} />
-            </label>)}
+          <div className="crossword-direction" role="group" aria-label="Crossword typing direction">
+            <button type="button" className={`btn ${p.direction === 'across' ? 'primary' : ''}`}
+              aria-pressed={p.direction === 'across'} onClick={() => setCrosswordDirection('across')}>→ Rows</button>
+            <button type="button" className={`btn ${p.direction === 'down' ? 'primary' : ''}`}
+              aria-pressed={p.direction === 'down'} onClick={() => setCrosswordDirection('down')}>↓ Columns</button>
+            <small>
+              {p.cursor == null
+                ? 'Choose a square'
+                : `${p.direction === 'down' ? 'Column' : 'Row'} ${p.direction === 'down' ? (p.cursor % p.size) + 1 : Math.floor(p.cursor / p.size) + 1}`}
+            </small>
+          </div>
+          <p className="crossword-tap-hint">Tap the selected square again to switch direction.</p>
+          <div className="crossword-board" style={{ '--logic-size': p.size }}>
+            <span className={`crossword-axis-corner ${p.cursor == null ? '' : 'has-selection'}`} aria-hidden="true">
+              {p.cursor == null ? '—' : `${p.direction === 'down' ? 'C' : 'R'}${p.direction === 'down' ? (p.cursor % p.size) + 1 : Math.floor(p.cursor / p.size) + 1}`}
+            </span>
+            <div className="crossword-column-numbers" aria-hidden="true">
+              {Array.from({ length:p.size }, (_, i) =>
+                <span className={p.direction === 'down' && p.cursor != null && p.cursor % p.size === i ? 'active' : ''} key={i}>{i + 1}</span>)}
+            </div>
+            <div className="crossword-row-numbers" aria-hidden="true">
+              {Array.from({ length:p.size }, (_, i) =>
+                <span className={p.direction === 'across' && p.cursor != null && Math.floor(p.cursor / p.size) === i ? 'active' : ''} key={i}>{i + 1}</span>)}
+            </div>
+            <div className="crossword-grid" data-logic-grid style={{ '--logic-size': p.size }} role="grid" aria-label={`${p.size} by ${p.size} mini crossword`}>
+              {p.values.map((value, i) => {
+                const row = Math.floor(i / p.size), col = i % p.size;
+                const activeLine = p.cursor != null && (p.direction === 'down' ? col === p.cursor % p.size : row === Math.floor(p.cursor / p.size));
+                return <label className={`crossword-cell ${activeLine ? 'active-line' : ''} ${p.cursor === i ? 'selected' : ''}`} key={i}>
+                  <input data-cell={i} aria-label={`Row ${row + 1}, column ${col + 1}`} autoCapitalize="characters" maxLength={1} value={value}
+                    onPointerDown={() => {
+                      selectCrosswordCell(i, true);
+                    }}
+                    onFocus={() => { if (p.cursor !== i) selectCrosswordCell(i); }}
+                    onKeyDown={event => crosswordGridKeyDown(event, i, p)}
+                    onChange={event => {
+                      const letter = event.target.value;
+                      setLogicPuzzleCell(i, letter);
+                      if (letter) {
+                        const next = crosswordAdvanceIndex(i, p.size, p.direction);
+                        selectCrosswordCell(next);
+                        focusPuzzleCell(event.currentTarget, next);
+                      }
+                    }} />
+                </label>;
+              })}
+            </div>
           </div>
           <div className="crossword-clues">
-            <div><h3>Across</h3>{p.acrossClues.map((clue, i) => <p key={i}><b>{i * p.size + 1}.</b> {clue}</p>)}</div>
-            <div><h3>Down</h3>{p.downClues.map((clue, i) => <p key={i}><b>{i + 1}.</b> {clue}</p>)}</div>
+            <div>
+              <h3>Rows</h3>
+              {p.acrossClues.map((clue, i) => <button type="button" className={p.direction === 'across' && p.cursor != null && Math.floor(p.cursor / p.size) === i ? 'active' : ''} key={i}
+                onClick={() => { setCrosswordDirection('across'); selectCrosswordCell(i * p.size); }}>
+                <b>{i + 1}.</b> {clue}
+              </button>)}
+            </div>
+            <div>
+              <h3>Columns</h3>
+              {p.downClues.map((clue, i) => <button type="button" className={p.direction === 'down' && p.cursor != null && p.cursor % p.size === i ? 'active' : ''} key={i}
+                onClick={() => { setCrosswordDirection('down'); selectCrosswordCell(i); }}>
+                <b>{i + 1}.</b> {clue}
+              </button>)}
+            </div>
           </div>
           {!p.failed && !p.solved && <button className="btn primary" onClick={checkLogicPuzzle}>Check crossword</button>}
         </div>}
 
         {type === 'sequence' && <div className="logic-puzzle-wrap sequence-puzzle">
           <div className="sequence-runes">{p.prompt}</div>
-          <div className="sequence-choices">{p.choices.map(value => <button className="btn" key={value} onClick={() => answerSequence(value)}>{value}</button>)}</div>
+          <div className="sequence-choices">{p.choices.map(value => <button
+            className={`btn ${p.abandoned && value === p.answer ? 'puzzle-answer' : ''}`}
+            disabled={p.failed || p.solved} key={value} onClick={() => answerSequence(value)}>{value}</button>)}</div>
+          {p.abandoned && <p className="puzzle-solution-note">Answer: <b>{p.answer}</b> — {p.method}</p>}
         </div>}
 
         {type === 'lights' && <div className="logic-puzzle-wrap">
@@ -1484,6 +1566,10 @@ export function PuzzleScreen() {
             {p.values.map((value, i) => <button data-cell={i} key={i} className={value ? 'on' : ''} onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)} onClick={() => toggleLightsCell(i)} aria-label={`Rune ${i + 1}, ${value ? 'lit' : 'dark'}`}>{value ? '◆' : '·'}</button>)}
           </div>
           <p className="dim mono">Moves: {p.moves}</p>
+          {p.abandoned && <p className="puzzle-solution-note">
+            Press {p.solutionPath.map(index => `R${Math.floor(index / p.size) + 1}C${(index % p.size) + 1}`).join(' → ') || 'no runes'}.
+            {' '}Every rune ends dark in <b>{p.minimumMoves}</b> move{p.minimumMoves === 1 ? '' : 's'}.
+          </p>}
         </div>}
 
         {type === 'nonogram' && <div className="logic-puzzle-wrap nonogram-puzzle">
@@ -1501,7 +1587,7 @@ export function PuzzleScreen() {
 
         {p.failed && (
           <>
-            <p className="flagc mono">The engraving fades. Nothing gained.</p>
+            <p className="flagc mono">{p.abandoned ? 'Solution revealed. No reward earned.' : 'The engraving fades. Nothing gained.'}</p>
             <button className="btn primary" onClick={gotoMap}>Leave</button>
           </>
         )}
@@ -1511,7 +1597,7 @@ export function PuzzleScreen() {
             <button className="btn primary" onClick={campUpgrade}>Upgrade a card</button>
           </>
         )}
-        {!p.failed && !p.solved && <button className="btn" onClick={gotoMap}>Abandon</button>}
+        {!p.failed && !p.solved && <button className="btn" onClick={abandonPuzzle}>Abandon and reveal solution</button>}
       </div>
     </>
   );

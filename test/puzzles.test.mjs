@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import {
   run, newRun, closeCutscene, startPuzzle, neighborsOf, solveScore,
   puzzleClick, puzzleChordAt, puzzleToggleFlag, setLogicPuzzleCell, toggleSudokuNoteMode, toggleLightsCell, toggleNonogramCell,
-  answerSequence, checkLogicPuzzle, saveRun, loadRun, deleteSave,
+  answerSequence, checkLogicPuzzle, saveRun, loadRun, deleteSave, setCrosswordDirection, selectCrosswordCell, abandonPuzzle,
 } from '../src/engine/engine.js';
 import {
   isValidSudoku, countSudokuSolutions, nonogramClues, countNonogramSolutions,
-  minimumLightsSolution, validateCrossword, gridNavigationIndex,
+  minimumLightsSolution, validateCrossword, gridNavigationIndex, crosswordAdvanceIndex,
 } from '../src/engine/puzzleValidation.js';
 
 const storage = new Map();
@@ -51,16 +51,22 @@ saveRun('sudoku-notes'); toggleSudokuNoteMode(); loadRun('sudoku-notes');
 test('Sudoku candidate notes and note mode survive save/restore', run.puzzle.noteMode && run.puzzle.notes[sudokuBlank].length === 1);
 deleteSave('sudoku-notes');
 
-/* Crosswords: real word squares, separate clues, intersections, locale, and exact validation. */
+/* Crosswords: double word squares, separate clues, intersections, locale, and directional input. */
 for (const [type, size] of [['crossword',3], ['crossword-medium',4], ['crossword-hard',5]]) {
   fresh(`crossword-${size}`); startPuzzle(type); const p = run.puzzle;
   test(`${size}x${size} crossword has valid intersections and non-answer clues`, validateCrossword(p, size));
-  test(`${size}x${size} crossword carries distinct localized clue lists`, p.locale === 'en-CA'
+  test(`${size}x${size} crossword carries ten distinct row and column answers`, p.locale === 'en-CA'
     && p.acrossClues.length === size && p.downClues.length === size
-    && p.acrossClues.some((clue, i) => clue !== p.downClues[i]));
+    && new Set([...p.words, ...p.downWords]).size === size * 2);
   const variants = new Set(Array.from({ length:48 }, (_, seed) => puzzleSignature(type, `crossword-variety-${size}-${seed}`)));
-  test(`${size}x${size} crossword draws from at least seven distinct word squares`, variants.size >= 7);
+  test(`${size}x${size} crossword draws from at least eight distinct double word squares`, variants.size >= 8);
 }
+fresh('crossword-direction'); startPuzzle('crossword');
+selectCrosswordCell(1);
+selectCrosswordCell(1, true);
+test('selecting the same crossword square toggles its direction', run.puzzle.cursor === 1 && run.puzzle.direction === 'down');
+setCrosswordDirection('across');
+test('crossword direction can be selected explicitly', run.puzzle.direction === 'across');
 
 /* Procedural nonograms: generated clues match the answer and admit one solution. */
 for (const [type, size] of [['nonogram',5], ['nonogram-medium',5], ['nonogram-hard',7]]) {
@@ -203,15 +209,47 @@ test('arrow-key navigation respects rows, columns, and boundaries',
   && gridNavigationIndex('ArrowDown', 1, 3) === 4
   && gridNavigationIndex('ArrowUp', 4, 3) === 1
   && gridNavigationIndex('Enter', 4, 3) === 4);
+test('crossword typing wraps through rows or columns in the selected direction',
+  crosswordAdvanceIndex(2, 3, 'across') === 3
+  && crosswordAdvanceIndex(6, 3, 'down') === 1
+  && crosswordAdvanceIndex(1, 3, 'down', -1) === 6);
+
+for (const type of ['mines', 'sudoku', 'crossword', 'sequence', 'lights', 'nonogram']) {
+  fresh(`abandon-${type}`); startPuzzle(type);
+  const originalMinimum = run.puzzle.minimumMoves;
+  abandonPuzzle();
+  let solutionVisible = false;
+  if (run.puzzle.type === 'mines') {
+    solutionVisible = run.puzzle.board.cells.every(cell => cell.void || cell.revealed)
+      && run.puzzle.board.cells.some(cell => cell.mine);
+  } else if (run.puzzle.type === 'sudoku' || run.puzzle.type === 'crossword') {
+    solutionVisible = run.puzzle.values.every((value, index) => value === run.puzzle.solution[index]);
+  } else if (run.puzzle.type === 'sequence') {
+    solutionVisible = run.puzzle.revealedAnswer === run.puzzle.answer;
+  } else if (run.puzzle.type === 'lights') {
+    solutionVisible = run.puzzle.values.every(value => value === 0)
+      && run.puzzle.solutionPath.length === originalMinimum;
+  } else if (run.puzzle.type === 'nonogram') {
+    solutionVisible = run.puzzle.values.every((value, index) => (value === 1) === (run.puzzle.solution[index] === 1));
+  }
+  test(`abandoning ${type} reveals its solution without granting a reward`,
+    run.puzzle.abandoned && run.puzzle.failed && !run.puzzle.solved && solutionVisible);
+}
 
 const screens = fs.readFileSync(new URL('../src/ui/screens.jsx', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 test('all grid puzzles wire keyboard navigation into focusable controls',
-  (screens.match(/puzzleGridKeyDown/g) || []).length >= 5 && screens.includes('data-logic-grid'));
+  (screens.match(/puzzleGridKeyDown/g) || []).length >= 4 && screens.includes('crosswordGridKeyDown')
+    && screens.includes('data-logic-grid'));
 test('puzzle grids constrain both phone and large-display widths',
   /nonogram-board[^}]+min\(94vw, 430px\)/s.test(css)
   && /sudoku-grid[^}]+min\(100%, 460px\)/s.test(css)
-  && /crossword-grid[^}]+min\(100%, 410px\)/s.test(css));
+  && /crossword-board[^}]+min\(100%, 440px\)/s.test(css));
+test('crossword axes inherit the board size and mark the selected row or column on-board',
+  screens.includes('<div className="crossword-board" style={{ \'--logic-size\': p.size }}>')
+    && screens.includes("p.direction === 'down' ? 'C' : 'R'")
+    && screens.includes('crossword-column-numbers')
+    && css.includes('.crossword-column-numbers span.active'));
 
 if (failures) {
   console.error(`\n${failures} PUZZLE VALIDATION FAILURE${failures === 1 ? '' : 'S'}`);

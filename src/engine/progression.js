@@ -17,6 +17,7 @@ const defaults = () => ({
   deepestStratum: 0, maxGold: 0, cardsUpgraded: 0, safeReveals: 0,
   maxPlating: 0, fullClears: 0, wins: 0,
   campVisits: 0, shopVisits: 0, bossFights: 0, losses: 0, deepestVein: 0,
+  totalPlayMs: 0,
 });
 
 export function loadProgression() {
@@ -32,6 +33,15 @@ export function recordProgress(run, screen) {
   if (!run) return loadProgression();
   const p = loadProgression();
   run.progressRecorded ??= { cardsUpgraded: 0, safeReveals: 0, fullClears: 0 };
+  /* Lifetime play time accumulates the elapsed-time delta since the last record.
+     Test Lab runs are excluded, matching the rest of the lifetime stats. */
+  if (!run.testMode) {
+    run.progressRecorded.playMs ??= 0;
+    const elapsed = Math.max(0, Number(run.elapsedMs) || 0)
+      + (run.timerStartedAt != null ? Math.max(0, Date.now() - run.timerStartedAt) : 0);
+    p.totalPlayMs = Math.max(0, Number(p.totalPlayMs) || 0) + Math.max(0, elapsed - run.progressRecorded.playMs);
+    run.progressRecorded.playMs = elapsed;
+  }
   p.deepestStratum = Math.max(p.deepestStratum, run.stratum || 0);
   p.deepestVein = Math.max(p.deepestVein || 0, run.veinDepth || 0);
   p.maxGold = Math.max(p.maxGold, run.gold || 0);

@@ -172,28 +172,42 @@ function toggleLights(values, size, index) {
   }
 }
 
-export function minimumLightsSolution(values, size) {
-  let best = Infinity;
+export function minimumLightsSolutionPath(values, size) {
+  let best = null;
   for (let mask = 0; mask < 2 ** size; mask++) {
-    const state = values.slice(); let presses = 0;
-    for (let c = 0; c < size; c++) if (mask & (1 << c)) { toggleLights(state, size, c); presses++; }
+    const state = values.slice(); const presses = [];
+    for (let c = 0; c < size; c++) if (mask & (1 << c)) { toggleLights(state, size, c); presses.push(c); }
     for (let r = 1; r < size; r++) for (let c = 0; c < size; c++) {
-      if (state[(r - 1) * size + c]) { toggleLights(state, size, r * size + c); presses++; }
+      if (state[(r - 1) * size + c]) {
+        const index = r * size + c;
+        toggleLights(state, size, index);
+        presses.push(index);
+      }
     }
-    if (state.every(value => !value)) best = Math.min(best, presses);
+    if (state.every(value => !value) && (!best || presses.length < best.length)) best = presses;
   }
-  return Number.isFinite(best) ? best : null;
+  return best;
+}
+
+export function minimumLightsSolution(values, size) {
+  return minimumLightsSolutionPath(values, size)?.length ?? null;
 }
 
 export function validateCrossword(template, size) {
-  if (!template || template.words?.length !== size || template.acrossClues?.length !== size || template.downClues?.length !== size) return false;
-  if (!template.words.every(word => typeof word === 'string' && word.length === size && /^[A-Z]+$/.test(word))) return false;
-  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (template.words[r][c] !== template.words[c][r]) return false;
+  if (!template || template.words?.length !== size || template.downWords?.length !== size
+    || template.acrossClues?.length !== size || template.downClues?.length !== size) return false;
+  const answers = [...template.words, ...template.downWords];
+  if (!answers.every(word => typeof word === 'string' && word.length === size && /^[A-Z]+$/.test(word))) return false;
+  if (new Set(answers).size !== size * 2) return false;
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+    if (template.words[r][c] !== template.downWords[c][r]) return false;
+  }
   return template.words.every((word, index) => {
-    const answer = word.toLowerCase();
+    const acrossAnswer = word.toLowerCase();
+    const downAnswer = template.downWords[index].toLowerCase();
     return template.acrossClues[index] && template.downClues[index]
-      && !template.acrossClues[index].toLowerCase().includes(answer)
-      && !template.downClues[index].toLowerCase().includes(answer);
+      && !template.acrossClues[index].toLowerCase().includes(acrossAnswer)
+      && !template.downClues[index].toLowerCase().includes(downAnswer);
   });
 }
 
@@ -204,4 +218,15 @@ export function gridNavigationIndex(key, index, size, count = size * size) {
   if (key === 'ArrowUp') return row > 0 ? index - size : index;
   if (key === 'ArrowDown') return index + size < count ? index + size : index;
   return index;
+}
+
+export function crosswordAdvanceIndex(index, size, direction = 'across', amount = 1) {
+  if (!Number.isInteger(index) || !Number.isInteger(size) || size < 1) return index;
+  const count = size * size;
+  const clamped = Math.max(0, Math.min(count - 1, index));
+  if (direction !== 'down') return Math.max(0, Math.min(count - 1, clamped + amount));
+  const row = Math.floor(clamped / size), col = clamped % size;
+  const position = col * size + row;
+  const next = Math.max(0, Math.min(count - 1, position + amount));
+  return (next % size) * size + Math.floor(next / size);
 }

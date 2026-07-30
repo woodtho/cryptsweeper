@@ -21,7 +21,7 @@ import {
 } from './events.js';
 import {
   sudokuShape, solveSudoku, countSudokuSolutions, sudokuDifficulty,
-  nonogramClues, countNonogramSolutions, minimumLightsSolution, validateCrossword,
+  nonogramClues, countNonogramSolutions, minimumLightsSolution, minimumLightsSolutionPath, validateCrossword,
 } from './puzzleValidation.js';
 
 /* ================= store ================= */
@@ -264,6 +264,14 @@ export function loadRun(slot) {
     }
     if (run.puzzle?.type === 'nonogram') {
       run.puzzle.values = run.puzzle.values.map(value => value === 1 ? 1 : value === 2 ? 2 : 0);
+    }
+    if (run.puzzle?.type === 'crossword') {
+      const size = run.puzzle.size || Math.sqrt(run.puzzle.values?.length || 0);
+      run.puzzle.size = size;
+      run.puzzle.downWords ??= Array.from({ length:size }, (_, col) =>
+        Array.from({ length:size }, (_, row) => run.puzzle.solution[row * size + col]).join(''));
+      run.puzzle.direction = run.puzzle.direction === 'down' ? 'down' : 'across';
+      run.puzzle.cursor = Number.isInteger(run.puzzle.cursor) ? run.puzzle.cursor : null;
     }
     if (run.combat?.enemies) {
       for (const enemy of run.combat.enemies) {
@@ -2529,6 +2537,24 @@ export function effCost(card) {
   return cost;
 }
 
+/* Guaranteed Health a card pays as a cost when played (0 if it never self-harms). */
+export function cardSelfDamage(card) {
+  const def = CARDS[card?.key];
+  if (!def || typeof def.selfDamage !== 'function') return 0;
+  return Math.max(0, Number(def.selfDamage(card.up || 0)) || 0);
+}
+
+/* Would playing this card right now end the run? Blood/HP costs bypass Block and
+   Plating, and the Revenant's first lethal moment each combat returns them to 1 HP,
+   so that unspent save means the play is not actually suicidal. */
+export function isPlayLethal(card) {
+  if (!run?.combat) return false;
+  const dmg = cardSelfDamage(card);
+  if (dmg <= 0 || run.hp - dmg > 0) return false;
+  const saved = run.cls === 'revenant' && !cbt().classState.deathUsed;
+  return !saved;
+}
+
 export function clickHandCard(handIdx) {
   const c = cbt();
   if (c.over) return;
@@ -3331,70 +3357,58 @@ const SUDOKU_PUZZLES = {
   ].map(text => sudokuTemplate(9, text)),
 };
 
-const CROSSWORD_PUZZLES = {
+const CROSSWORD_CLUES = {
+  TOO:'More than needed', URN:'Decorative vessel', BEE:'Honey-making insect', TUB:'Bathing container', ORE:'Rock containing metal', ONE:'First whole number',
+  CAT:'Household mouser', WED:'Join in marriage', COW:'Farm animal that gives milk', ARE:'Present plural of “be”', TED:'Turn cut hay to dry it',
+  CAN:'Metal container', AGE:'Length of a lifetime', ROW:'Line of things', CAR:'Road vehicle', AGO:'In the past', NEW:'Not previously used',
+  POT:'Cooking vessel', CAP:'Head covering', NET:'Woven snare',
+  LACK:'Be without', IRON:'Metal used in steel', MERE:'Nothing more than', BAKE:'Cook with dry heat', LIMB:'Arm or leg', AREA:'Measured surface', CORK:'Bottle stopper', KNEE:'Joint in the middle of a leg',
+  SCAM:'Dishonest scheme', HOME:'Place where one lives', ONES:'Single units', PENS:'Writing tools', SHOP:'Place that sells goods', CONE:'Tapered geometric solid', AMEN:'Closing word of a prayer', MESS:'Untidy state',
+  PAGE:'One side of a leaf of paper', NEST:'Bird’s home', SPAN:'Distance from end to end', CARE:'Concern or attention', AGES:'Very long periods', MEAT:'Animal flesh used as food',
+  SKIN:'Body’s outer covering', UNDO:'Reverse an action', BEER:'Drink brewed from grain', SEAM:'Joined edge', SUBS:'Replacement players, informally', IDEA:'Thought or concept', NORM:'Usual standard',
+  SCENT:'Distinctive smell', CANOE:'Narrow paddled boat', ARSON:'Crime of setting a fire', ROUSE:'Wake from sleep', FLEET:'Group of ships', SCARF:'Cloth worn around the neck', CAROL:'Festive song', ENSUE:'Happen afterward', NOOSE:'Loop made with a sliding knot', TENET:'Core belief',
+  MERIT:'Quality worthy of praise', URINE:'Liquid waste from the body', RANTS:'Speaks angrily at length', ASSET:'Useful possession', LEERY:'Wary or suspicious', MURAL:'Painting made on a wall', ERASE:'Remove written marks', RINSE:'Wash lightly with water', INTER:'Place in a grave', TESTY:'Easily irritated',
+  LOCAL:'Nearby or from the area', ALIBI:'Claim of being elsewhere', DIVAS:'Celebrated female performers', EVICT:'Force out of a property', NECKS:'Parts joining heads to bodies', LADEN:'Heavily loaded', OLIVE:'Small green or black fruit', CIVIC:'Relating to a city', ABACK:'Taken by surprise', LISTS:'Written series',
+  HEALS:'Makes healthy again', OLDIE:'Something old but still enjoyed', SUAVE:'Smooth and charming', EDGED:'Moved gradually', DEEDS:'Actions that are done', HOSED:'Sprayed with water', ELUDE:'Escape or avoid', ADAGE:'Traditional short saying', LIVED:'Was alive', SEEDS:'Plant embryos',
+};
+const transposeCrossword = words =>
+  Array.from({ length:words.length }, (_, col) => words.map(word => word[col]).join(''));
+function crosswordTemplate(words) {
+  const downWords = transposeCrossword(words);
+  const template = {
+    words, downWords,
+    acrossClues:words.map(word => CROSSWORD_CLUES[word]),
+    downClues:downWords.map(word => CROSSWORD_CLUES[word]),
+  };
+  if ([...template.acrossClues, ...template.downClues].some(clue => !clue)) {
+    throw new Error(`Missing crossword clue for ${[...words, ...downWords].find(word => !CROSSWORD_CLUES[word])}`);
+  }
+  return template;
+}
+const CROSSWORD_BASES = {
   3: [
-    { words: ['CAR', 'APE', 'RED'], acrossClues: ['Road vehicle', 'Large primate', 'Warning colour'], downClues: ['Automobile', 'Mimic', 'Colour of blood'] },
-    { words: ['APE', 'PEA', 'EAR'], acrossClues: ['Primate', 'Small green vegetable', 'Organ used for listening'], downClues: ['Mimic another person', 'Round garden seed', 'Part of the body used for listening'] },
-    { words: ['CAT', 'ARE', 'TEN'], acrossClues: ['Feline', 'Exist', 'Number after nine'], downClues: ['Household mouser', 'Present form of “be”', 'Pins in a full bowling rack'] },
-    { words: ['BAT', 'ARE', 'TEN'], acrossClues: ['Flying mammal', 'Exist', 'Number after nine'], downClues: ['Club used at the plate', 'Second-person form of “be”', 'Count of fingers'] },
-    { words: ['MAN', 'ARE', 'NET'], acrossClues: ['Adult male', 'Exist', 'Mesh used to catch things'], downClues: ['Person of the male sex', 'Present plural of “be”', 'What remains after deductions'] },
-    { words: ['SIR', 'ICE', 'RED'], acrossClues: ['Respectful address', 'Frozen water', 'Colour of fresh blood'], downClues: ['Title for a knight', 'What skates glide across', 'Stop-light colour'] },
-    { words: ['DOT', 'ORE', 'TEN'], acrossClues: ['Small round mark', 'Rock containing metal', 'Number after nine'], downClues: ['Point in an address', 'Miner’s raw material', 'Two hands’ worth of digits'] },
-    { words: ['PEN', 'EYE', 'NET'], acrossClues: ['Writing implement', 'Organ of sight', 'Woven snare'], downClues: ['Enclosure for livestock', 'Needle opening', 'Goalkeeper’s target'] },
+    ['TOO', 'URN', 'BEE'],
+    ['CAT', 'ORE', 'WED'],
+    ['CAN', 'AGE', 'ROW'],
+    ['CAN', 'AGE', 'POT'],
   ],
   4: [
-    { words: ['BALL', 'AREA', 'LEAD', 'LADY'], acrossClues: ['Round toy', 'Region', 'Guide from the front', 'Woman of rank'], downClues: ['Formal dance', 'Surface measure', 'Metal with symbol Pb', 'Polite form of address'] },
-    { words: ['SAND', 'AREA', 'NEAR', 'DART'], acrossClues: ['Desert grains', 'Region', 'Close by', 'Small pointed missile'], downClues: ['Material in an hourglass', 'Extent of a surface', 'Almost', 'Move suddenly'] },
-    { words: ['CAPE', 'AREA', 'PEAR', 'EARS'], acrossClues: ['Sleeveless shoulder cloak', 'Region', 'Bell-shaped fruit', 'Organs used for hearing'], downClues: ['Headland extending into water', 'Surface measure', 'Fruit with a narrow stem', 'Handles on a jug'] },
-    { words: ['MASS', 'AREA', 'SEAT', 'SATE'], acrossClues: ['Quantity of matter', 'Region', 'Place to sit', 'Satisfy fully'], downClues: ['Large amount', 'Extent of a surface', 'Official’s elected position', 'Fill an appetite'] },
-    { words: ['SHOW', 'HAVE', 'OVER', 'WERE'], acrossClues: ['Public performance', 'Possess', 'Finished', 'Plural past form of “be”'], downClues: ['Display to others', 'Experience or hold', 'Above and across', 'Formerly existed'] },
-    { words: ['HAND', 'AREA', 'NEXT', 'DATE'], acrossClues: ['Part at the end of an arm', 'Region', 'Immediately following', 'Calendar appointment'], downClues: ['Worker or helper', 'Measured surface', 'Nearest in order', 'Sweet fruit from a palm'] },
-    { words: ['LIST', 'INTO', 'STAY', 'TOYS'], acrossClues: ['Written series', 'Toward the inside', 'Remain', 'Children’s playthings'], downClues: ['Lean to one side', 'Expressing movement within', 'Temporary lodging', 'Plays with an idea'] },
-    { words: ['KNOW', 'NONE', 'ONCE', 'WEEK'], acrossClues: ['Understand', 'Not any', 'One time', 'Seven days'], downClues: ['Be certain of', 'Zero of a group', 'Formerly', 'A calendar’s short cycle'] },
+    ['LACK', 'IRON', 'MERE', 'BAKE'],
+    ['SCAM', 'HOME', 'ONES', 'PENS'],
+    ['SCAM', 'PAGE', 'AREA', 'NEST'],
+    ['SKIN', 'UNDO', 'BEER', 'SEAM'],
   ],
   5: [
-    {
-      words: ['HEART', 'EMBER', 'ABUSE', 'RESIN', 'TREND'],
-      acrossClues: ['Organ that pumps blood', 'Glowing coal', 'Misuse or mistreatment', 'Sticky tree substance', 'General direction of change'],
-      downClues: ['Core symbol on a playing card', 'Last glowing piece of a fire', 'Treat cruelly', 'Pine secretion', 'Movement over time'],
-    },
-    {
-      words: ['GAMES', 'ALERT', 'METRO', 'ERROR', 'STORE'],
-      acrossClues: ['Contests or pastimes', 'Watchful and ready', 'Urban rail system', 'Mistake', 'Retail shop'],
-      downClues: ['Activities played for fun', 'Warning signal', 'Big-city transit', 'Incorrect result', 'Keep for later'],
-    },
-    {
-      words: ['LAMPS', 'ALERT', 'MEDIA', 'PRINT', 'STATE'],
-      acrossClues: ['Portable lights', 'Watchful and ready', 'News and entertainment outlets', 'Words reproduced in ink', 'Condition'],
-      downClues: ['Things with shades and bulbs', 'Warning signal', 'Means of mass communication', 'Put text on paper', 'Province or political territory'],
-    },
-    {
-      words: ['CAUSE', 'ALPHA', 'UPPER', 'SHEET', 'EARTH'],
-      acrossClues: ['Reason something happens', 'First Greek letter', 'Higher of two', 'Single piece of paper', 'Our planet'],
-      downClues: ['Bring about', 'Early software build', 'Toward the top', 'Flat layer of fabric', 'Soil beneath one’s boots'],
-    },
-    {
-      words: ['TRUST', 'RANCH', 'UNDER', 'SCENE', 'THREE'],
-      acrossClues: ['Firm belief in reliability', 'Large livestock farm', 'Beneath', 'Part of a dramatic work', 'Number after two'],
-      downClues: ['Rely upon', 'Western cattle property', 'Less than or below', 'Place where something happens', 'A trio’s count'],
-    },
-    {
-      words: ['CARDS', 'ALARM', 'RADIO', 'DRINK', 'SMOKE'],
-      acrossClues: ['Deck components', 'Warning device', 'Wireless receiver', 'Beverage', 'Airborne sign of fire'],
-      downClues: ['Things dealt into a hand', 'Sudden fear', 'Broadcast medium', 'Take liquid by mouth', 'Cure food over a fire'],
-    },
-    {
-      words: ['PLANT', 'LOWER', 'AWARE', 'NERVE', 'TREES'],
-      acrossClues: ['Living thing rooted in soil', 'Move downward', 'Conscious of', 'Bundle carrying body signals', 'Tall woody plants'],
-      downClues: ['Factory or workshop', 'Less elevated', 'Informed about', 'Courage under pressure', 'Forest growth'],
-    },
-    {
-      words: ['START', 'THREE', 'ARISE', 'RESET', 'TEETH'],
-      acrossClues: ['Begin', 'Number after two', 'Get up', 'Return to an initial state', 'Hard structures used for biting'],
-      downClues: ['Beginning point', 'A trio’s count', 'Come into existence', 'Set again', 'Gearwheel projections'],
-    },
+    ['SCENT', 'CANOE', 'ARSON', 'ROUSE', 'FLEET'],
+    ['MERIT', 'URINE', 'RANTS', 'ASSET', 'LEERY'],
+    ['LOCAL', 'ALIBI', 'DIVAS', 'EVICT', 'NECKS'],
+    ['HEALS', 'OLDIE', 'SUAVE', 'EDGED', 'DEEDS'],
   ],
 };
+const CROSSWORD_PUZZLES = Object.fromEntries(Object.entries(CROSSWORD_BASES).map(([size, bases]) => [
+  size,
+  bases.flatMap(words => [crosswordTemplate(words), crosswordTemplate(transposeCrossword(words))]),
+]));
 for (const [size, templates] of Object.entries(CROSSWORD_PUZZLES)) for (const template of templates) {
   if (!validateCrossword(template, Number(size))) throw new Error(`Invalid ${size}×${size} crossword template`);
 }
@@ -3510,7 +3524,8 @@ function startCrosswordPuzzle(difficulty = 0) {
   run.puzzle = {
     type: 'crossword', difficulty, difficultyLabel: ['Measured', 'Demanding', 'Relentless'][difficulty], size,
     solution: template.words.join('').split(''), values: Array(size * size).fill(''), words: template.words.slice(),
-    acrossClues: template.acrossClues.slice(), downClues: template.downClues.slice(), locale: 'en-CA',
+    downWords: template.downWords.slice(), acrossClues: template.acrossClues.slice(), downClues: template.downClues.slice(),
+    direction: 'across', cursor: null, locale: 'en-CA',
     failed: false, solved: false,
   };
 }
@@ -3692,8 +3707,9 @@ export function puzzleClick(i) {
   notify();
 }
 export function puzzleToggleFlag(i) {
-  if (run.puzzle.type && run.puzzle.type !== 'mines') return;
-  const cell = run.puzzle.board.cells[i];
+  const p = run.puzzle;
+  if (!p || (p.type && p.type !== 'mines') || p.failed || p.solved) return;
+  const cell = p.board.cells[i];
   if (!cell.revealed) { cell.flag = cell.flag ? 0 : 1; notify(); }
 }
 export function togglePuzzleScan() {
@@ -3718,6 +3734,22 @@ export function setLogicPuzzleCell(i, value) {
   } else if (p.type === 'crossword') {
     p.values[i] = String(value || '').slice(-1).toUpperCase().replace(/[^A-Z]/g, '');
   }
+  notify();
+}
+
+export function setCrosswordDirection(direction) {
+  const p = run?.puzzle;
+  if (!p || p.type !== 'crossword' || !['across', 'down'].includes(direction)) return;
+  p.direction = direction;
+  notify();
+}
+
+export function selectCrosswordCell(i, toggleDirection = false) {
+  const p = run?.puzzle;
+  if (!p || p.type !== 'crossword' || i < 0 || i >= p.values.length) return;
+  const sameCell = p.cursor === i;
+  if (toggleDirection && sameCell) p.direction = p.direction === 'down' ? 'across' : 'down';
+  p.cursor = i;
   notify();
 }
 
@@ -3764,6 +3796,31 @@ export function checkLogicPuzzle() {
     p.failed = true;
     toast('The answer breaks the engraving. It fades…', true);
   }
+  notify();
+}
+
+export function abandonPuzzle() {
+  const p = run?.puzzle;
+  if (!p || p.failed || p.solved) return;
+  p.abandoned = true;
+  p.failed = true;
+  if (!p.type || p.type === 'mines') {
+    p.scanMode = false;
+    for (const cell of p.board.cells) {
+      if (!cell.void) cell.revealed = true;
+    }
+  } else if (p.type === 'sudoku' || p.type === 'crossword') {
+    p.values = p.solution.slice();
+    if (p.type === 'sudoku') p.notes = p.notes.map(() => []);
+  } else if (p.type === 'sequence') {
+    p.revealedAnswer = p.answer;
+  } else if (p.type === 'lights') {
+    p.solutionPath = minimumLightsSolutionPath(p.values, p.size) || [];
+    p.values = Array(p.size * p.size).fill(0);
+  } else if (p.type === 'nonogram') {
+    p.values = p.solution.map(value => value === 1 ? 1 : 2);
+  }
+  toast('Solution revealed. No puzzle reward earned.', true);
   notify();
 }
 

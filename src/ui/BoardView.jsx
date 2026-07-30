@@ -59,7 +59,12 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
   if (cell.entombed) { cls.push('entombed'); content = '▦'; title.push('Entombed — resolved for Full Clear and counts like a flag for Chord'); }
   else if (cell.revealed) {
     cls.push('open');
-    if (cell.crater) { cls.push('crater'); content = interfaceIcon('crater', prefs); title.push('Crater — a mine detonated here'); }
+    if (mode === 'puzzle' && cell.mine) {
+      cls.push('solution-mine');
+      content = interfaceIcon('bomb', prefs);
+      title.push('Mine — revealed solution');
+    }
+    else if (cell.crater) { cls.push('crater'); content = interfaceIcon('crater', prefs); title.push('Crater — a mine detonated here'); }
     else if (cell.construct) {
       cls.push('construct');
       const icons = { sentry: interfaceIcon('sentry', prefs), bulwark: interfaceIcon('bulwark', prefs), relay: interfaceIcon('relay', prefs) };

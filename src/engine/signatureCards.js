@@ -894,6 +894,7 @@ export const SIGNATURE_CARDS = {
   },
   cryptdebt: {
     name: 'Crypt Debt', type: 'Attack', rarity: 'uncommon', cls: 'revenant', cost: [1, 1, 0], hits: 'all', targets: [], grave: true,
+    selfDamage: u => tier(u, [4, 3, 2]),
     text: u => `Lose ${tier(u, [4, 3, 2])} HP. Deal ${tier(u, [18, 24, 32])} damage to all enemies. Enter the Grave.`,
     play: u => { loseHP(tier(u, [4, 3, 2]), 'Crypt Debt'); if (cbt() && !cbt().over) hitAll(atk(tier(u, [18, 24, 32]))); },
   },

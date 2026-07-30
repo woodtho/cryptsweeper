@@ -9,7 +9,7 @@ import { GameIcon } from './gameIcons.jsx';
 import { delverFullPortrait, delverPortrait } from './portraits.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
 import { CardView } from './CardView.jsx';
-import { ENEMY_MODIFIERS, ENEMY_EFFECTS } from '../engine/engine.js';
+import { ENEMY_MODIFIERS, ENEMY_EFFECTS, formatRunTime } from '../engine/engine.js';
 
 function Totals({ found, total, noun, suffix = 'discovered' }) {
   return <div className="index-total"><b>{found}</b> / {total} {noun} {suffix}</div>;
@@ -55,6 +55,7 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
     const played = allEntries.filter(([key]) => (collection.delvers[key]?.attempts || 0) > 0).length;
     return <div className="index-page delver-index">
       <Totals found={played} total={allEntries.length} noun="delvers" suffix="played" />
+      <div className="index-total playtime"><small>Total time played</small> <b>{formatRunTime(progress.totalPlayMs || 0)}</b></div>
       <IndexSearch kind="delvers" value={query} onChange={setQuery} />
       <p className="dim index-help">Stats update throughout each real run. Test Lab runs are excluded.</p>
       <div className="delver-index-grid">

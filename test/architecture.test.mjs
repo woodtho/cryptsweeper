@@ -41,6 +41,33 @@ const bossRules = source('src/ui/screens.jsx');
 const entrypoint = source('src/main.jsx');
 const handheldTheme = source('src/gba-theme.css');
 const cardSheetRenderer = source('src/ui/CardSheetRenderer.jsx');
+const fullbodyRoot = new URL('../src/assets/sprites/fullbody/', import.meta.url);
+const fullbodySprites = ['delvers', 'enemies', 'npcs'].flatMap(category =>
+  readdirSync(new URL(`${category}/`, fullbodyRoot)).filter(name => name.endsWith('.webp')));
+const animationRoot = new URL('../src/assets/sprites/animations/', import.meta.url);
+const animationSheets = readdirSync(new URL('sheets/', animationRoot))
+  .filter(name => name.endsWith('.webp'));
+const cutsceneSprites = source('src/ui/cutsceneSprites.js');
+const cutsceneActor = source('src/ui/CutsceneActor.jsx');
+const cutsceneComponent = source('src/ui/Cutscene.jsx');
+test('full-body sprite production covers every Delver, enemy, boss, and merchant',
+  fullbodySprites.length === 25
+    && source('src/assets/sprites/fullbody/README.md').includes('transparent, lossless **384×512 WebP**')
+    && source('scripts/process-fullbody-sprites.py').includes('Built {len(review_entries)} sprites')
+    && statSync(new URL('review/fullbody-roster.png', fullbodyRoot)).size > 100_000);
+test('cutscenes use compressed frame sheets for the complete character cast',
+  animationSheets.length === 25
+    && (cutsceneSprites.match(/animations\/sheets\/[^']+\.webp/g) || []).length === 25
+    && cutsceneSprites.includes("defeated: '100%'")
+    && cutsceneActor.includes('cutscene-actor-sheet')
+    && cutsceneActor.includes("'--cutscene-sprite-row'")
+    && cutsceneComponent.includes('cutscene-stage')
+    && cutsceneComponent.includes("actorKey: 'rat-merchant'")
+    && cutsceneComponent.includes("cutsceneArt('merchantShop')")
+    && styles.includes('@keyframes cutscene-sprite-frames')
+    && styles.includes('.cutscene-actor[data-motion="defeated"]')
+    && statSync(new URL('review/cutscene-animation-sheets.webp', animationRoot)).size > 100_000
+    && source('src/assets/sprites/animations/README.md').includes('transparent, lossless **768×512 WebP**'));
 test('every Delver has an obvious class-resource panel with useful secondary state',
   ['sapper:', 'surveyor:', 'terraformer:', 'lamplighter:', 'gambler:',
     'chirurgeon:', 'archivist:', 'warden:', 'hexwright:', 'revenant:']
@@ -128,9 +155,9 @@ const pixelDelvers = readdirSync(new URL('../src/assets/delvers/', import.meta.u
 const pixelCutscenes = readdirSync(new URL('../src/assets/cutscenes/', import.meta.url))
   .filter(name => name.endsWith('-pixel-coarse.webp'));
 test('every runtime illustration category uses the coarse pixel-art masters',
-  pixelDelvers.length === 10 && pixelCutscenes.length === 8
+  pixelDelvers.length === 10 && pixelCutscenes.length === 9
     && (portraits.match(/-pixel-coarse\.webp/g) || []).length === 11
-    && (cutsceneArt.match(/-pixel-coarse\.webp/g) || []).length === 8
+    && (cutsceneArt.match(/-pixel-coarse\.webp/g) || []).length === 9
     && atlasSets.includes("'pixel-icons-coarse.webp'"));
 test('Delver archive exposes full-resolution masters and both live card decks',
   (portraits.match(/assets\/delvers\/[^']+\.webp/g) || []).filter(path => !path.includes('-pixel-coarse')).length === 10
@@ -161,6 +188,13 @@ const mechanicRules = source('src/ui/mechanics.js');
 test('home screen presents Learn, Archive, and Settings as its secondary hierarchy',
   screens.includes('<span>Learn</span>') && screens.includes('<span>Archive</span>')
     && !screens.includes('<span>Speedrun records</span><small>Fastest completed descent'));
+test('the website exposes release notes from one versioned changelog source',
+  screens.includes("open('changelog')") && screens.includes('<ChangelogPanel />')
+    && source('src/ui/ChangelogPanel.jsx').includes("from '../changelog.js'")
+    && source('src/changelog.js').includes("version: 'Next'")
+    && source('src/changelog.js').includes("version: '0.1.5'")
+    && source('src/changelog.js').includes('REQUIRED: update the "Next" entry with every player-facing change')
+    && source('src/changelog.js').includes('Abandoning any Honest Puzzle now reveals its solution'));
 test('home navigation styles Continue as forward and Back as the red return action',
   screens.includes('className="home-action" onClick={() => loadRun(\'auto\')}><span>Continue descent</span>')
     && screens.includes('className="btn primary" onClick={() => open(COLLECTION_PANELS.includes(panel)'));

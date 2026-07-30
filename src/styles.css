@@ -449,6 +449,9 @@ h1.logo .flag {
 .index-page { display: grid; gap: 14px; }
 .index-total { font-family: var(--mono); color: var(--bone-dim); }
 .index-total b { color: var(--candle); font-size: 20px; }
+.index-total.playtime { margin-top: -6px; display: flex; align-items: baseline; gap: 8px; }
+.index-total.playtime small { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+.index-total.playtime b { font-size: 16px; font-variant-numeric: tabular-nums; }
 .index-help { margin: -8px 0 0; font-size: 12px; }
 .index-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .index-entry { display: flex; align-items: flex-start; gap: 12px; min-height: 106px; border: 1px solid var(--etch); background: rgba(8,10,13,.62); padding: 12px; }
@@ -1424,7 +1427,17 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
 /* interaction states */
 .card:hover { transform: translateY(-4px); border-color: var(--class-accent); }
 .card.unplayable { opacity: .5; cursor: default; }
-.card.selected { transform: translateY(-6px); border-color: var(--n1); box-shadow: 0 0 0 1px var(--n1), 0 0 15px rgba(108, 150, 232, .45); }
+.card.lethal { border-color: #e0344b; box-shadow: 0 0 0 1px #e0344b, 0 0 16px rgba(224, 52, 75, .5); }
+.card.lethal:hover { border-color: #ff5266; }
+.clethal {
+  position: absolute; top: 0; right: 0; z-index: 3;
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: #fff; background: #e0344b; padding: 2px 5px;
+  border-bottom-left-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.5);
+  animation: lethal-pulse 1.1s ease-in-out infinite;
+}
+@keyframes lethal-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .clethal { animation: none; } }
 .upg { color: var(--moss); }
 .kw, .mechanic-term { font-family: var(--mono); font-weight: 700; font-size: .92em; cursor: help; text-decoration: underline dotted rgba(207,201,184,.5); text-underline-offset: 3px; }
 .mechanic-term { color: var(--candle); }
@@ -1531,7 +1544,7 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
   to { transform: scale(1.06) translateY(-1.2%); }
 }
 .cutscene-main-art.player-main { object-position: center 25%; }
-.cutscene-vignette { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 45%, rgba(3,4,7,.9)), radial-gradient(ellipse at center, transparent 45%, rgba(3,4,7,.55)); }
+.cutscene-vignette { position: absolute; inset: 0; z-index: 4; pointer-events: none; background: linear-gradient(180deg, transparent 45%, rgba(3,4,7,.9)), radial-gradient(ellipse at center, transparent 45%, rgba(3,4,7,.55)); }
 .cutscene-player {
   position: absolute; right: 4%; bottom: 5%; width: 24%; aspect-ratio: 3 / 4;
   overflow: hidden; border: 2px solid var(--etch-hi); background: var(--stone-2);
@@ -1540,9 +1553,104 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
 }
 .cutscene-player.speaking { border-color: var(--candle); transform: translateY(0); opacity: 1; }
 .cutscene-player img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 25%; }
+.cutscene-stage {
+  position: absolute; inset: 0; z-index: 2; overflow: hidden;
+  pointer-events: none; isolation: isolate;
+}
+.cutscene-actor {
+  position: absolute; bottom: -3%; height: 94%;
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,.78));
+}
+.cutscene-actor-motion {
+  width: 100%; height: 100%; transform-origin: 50% 100%;
+  animation: cutscene-actor-idle 2.8s steps(4, end) infinite;
+  will-change: transform, filter;
+}
+.cutscene-actor img {
+  display: block; width: 100%; height: 100%; object-fit: contain;
+  object-position: center bottom; image-rendering: pixelated;
+  user-select: none; -webkit-user-drag: none;
+}
+.cutscene-actor-sheet {
+  position: absolute; left: 50%; bottom: 0; width: auto; height: 100%; aspect-ratio: 1;
+  transform: translateX(-50%);
+  background-image: var(--cutscene-sprite-sheet);
+  background-repeat: no-repeat;
+  background-size: 600% 400%;
+  background-position-x: 0%;
+  background-position-y: var(--cutscene-sprite-row, 0%);
+  image-rendering: pixelated;
+  animation: cutscene-sprite-frames 1.1s linear infinite;
+}
+@keyframes cutscene-sprite-frames {
+  0%, 16% { background-position-x: 0%; }
+  16.667%, 32.667% { background-position-x: 20%; }
+  33.333%, 49.333% { background-position-x: 40%; }
+  50%, 66% { background-position-x: 60%; }
+  66.667%, 82.667% { background-position-x: 80%; }
+  83.333%, 99.999% { background-position-x: 100%; }
+  100% { background-position-x: 0%; }
+}
+.cutscene-actor-player {
+  right: 3%; z-index: 3; width: 31%; height: 82%;
+  opacity: .82; transform: translateY(2.5%) scale(.96);
+  transition: opacity .18s ease, transform .18s ease, filter .18s ease;
+}
+.cutscene-actor-featured {
+  left: 8%; z-index: 2; width: 43%;
+}
+.cutscene-actor-featured.cutscene-actor-boss {
+  left: 14%; bottom: -5%; width: 53%; height: 104%;
+}
+.cutscene-actor-featured.cutscene-actor-npc {
+  left: 5%; width: 44%; height: 98%;
+}
+.cutscene-actor[data-motion="speaking"] {
+  opacity: 1; transform: translateY(0) scale(1);
+  filter: drop-shadow(0 11px 9px rgba(0,0,0,.82)) drop-shadow(0 0 8px rgba(224,184,89,.24));
+}
+.cutscene-actor[data-motion="speaking"] .cutscene-actor-motion {
+  animation: cutscene-actor-speak .72s steps(3, end) infinite;
+}
+.cutscene-actor[data-motion="threatening"] .cutscene-actor-motion {
+  animation: cutscene-actor-threat 2.2s steps(4, end) infinite;
+}
+.cutscene-actor[data-motion="offer"] .cutscene-actor-motion {
+  animation: cutscene-actor-offer 2.4s steps(4, end) infinite;
+}
+.cutscene-actor[data-motion="defeated"] {
+  opacity: .72; filter: grayscale(.45) brightness(.72) drop-shadow(0 9px 7px rgba(0,0,0,.8));
+}
+.cutscene-actor[data-motion="defeated"] .cutscene-actor-motion {
+  animation: cutscene-actor-defeated 3.5s steps(4, end) infinite;
+}
+@keyframes cutscene-actor-idle {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1.2%) scale(1.008, .994); }
+}
+@keyframes cutscene-actor-speak {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  35% { transform: translateY(-1.5%) rotate(-.7deg); }
+  70% { transform: translateY(-.5%) rotate(.45deg); }
+}
+@keyframes cutscene-actor-threat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-1%) scale(1.025); }
+  55% { transform: translateY(-.2%) scale(1.018); }
+}
+@keyframes cutscene-actor-offer {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  50% { transform: translate(1.5%, -1%) rotate(.6deg); }
+}
+@keyframes cutscene-actor-defeated {
+  0%, 100% { transform: translateY(6%) rotate(-3deg) scale(.96); }
+  50% { transform: translateY(6.8%) rotate(-3.4deg) scale(.957, .965); }
+}
 .cutscene-mark {
   position: absolute; left: 5%; top: 8%; width: 104px; height: 104px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 5;
   border: 1px solid var(--blood-hi); background: rgba(8,9,12,.82); transform: rotate(-2deg);
   box-shadow: 0 0 28px rgba(179,55,44,.22);
 }
@@ -1550,7 +1658,7 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
 .cutscene-mark small { margin-top: 8px; color: var(--blood-hi); font: 700 9px/1 var(--mono); letter-spacing: .18em; text-align: center; }
 .cutscene-visual { cursor: pointer; }
 .cutscene-tap-hint {
-  position: absolute; left: 14px; bottom: 10px; z-index: 2;
+  position: absolute; left: 14px; bottom: 10px; z-index: 5;
   color: rgba(207,201,184,.62); font: 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
 }
 .cutscene-main-art.speaking { filter: saturate(1) contrast(1.1) brightness(1.04); }
@@ -1637,14 +1745,47 @@ html.high-contrast .cutscene-dialogue p.narration { color: var(--bone); }
 .logic-cell.given { color: var(--candle); background: var(--stone-3); }
 .logic-cell:focus { box-shadow: inset 0 0 0 3px var(--n1); }
 .crossword-layout { justify-items: stretch; }
-.crossword-grid { width: min(100%, 410px); justify-self: center; display: grid; grid-template-columns: repeat(var(--logic-size), minmax(0, 1fr)); gap: 2px; background: var(--bone-dim); border: 3px solid var(--bone-dim); }
+.crossword-direction { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: min(100%, 410px); justify-self: center; }
+.crossword-direction small { grid-column: 1 / -1; color: var(--candle); text-align: center; font: 700 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.crossword-tap-hint { margin: -8px 0 -5px; color: var(--bone-dim); text-align: center; font-size: 12px; }
+.crossword-board {
+  width: min(100%, 440px); justify-self: center; display: grid;
+  grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: 24px minmax(0, 1fr);
+}
+.crossword-axis-corner {
+  grid-column: 1; grid-row: 1; display: grid; place-items: center; color: var(--bone-dim);
+  font: 700 8px/1 var(--mono);
+}
+.crossword-axis-corner.has-selection { color: var(--abyss-0); background: var(--candle); }
+.crossword-column-numbers { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(var(--logic-size), 1fr); }
+.crossword-row-numbers { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(var(--logic-size), 1fr); }
+.crossword-column-numbers span, .crossword-row-numbers span { display: grid; place-items: center; color: var(--candle); font: 700 11px/1 var(--mono); }
+.crossword-column-numbers span.active, .crossword-row-numbers span.active { color: var(--abyss-0); background: var(--candle); }
+.crossword-grid { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(var(--logic-size), minmax(0, 1fr)); gap: 2px; background: var(--bone-dim); border: 3px solid var(--bone-dim); }
 .crossword-cell { position: relative; aspect-ratio: 1; background: var(--stone-2); }
-.crossword-cell small { position: absolute; z-index: 1; top: 2px; left: 4px; color: var(--bone-dim); font: 9px/1 var(--mono); pointer-events: none; }
+.crossword-cell.active-line { background: color-mix(in srgb, var(--stone-2) 78%, var(--candle)); }
+.crossword-cell.selected { z-index: 1; }
 .crossword-cell input { width: 100%; height: 100%; border: 0; border-radius: 0; background: transparent; color: var(--bone); text-align: center; text-transform: uppercase; font: 700 clamp(24px, 8vw, 36px)/1 var(--mono); outline: 0; }
-.crossword-cell input:focus { box-shadow: inset 0 0 0 3px var(--n1); }
+.crossword-cell input:focus { box-shadow: inset 0 0 0 4px var(--n1); }
 .crossword-clues { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; width: 100%; }
 .crossword-clues h3 { margin: 0 0 6px; color: var(--candle); }
-.crossword-clues p { margin: 4px 0; font-size: 13px; }
+.crossword-clues button { display: block; width: 100%; margin: 2px 0; padding: 5px 6px; border: 0; background: transparent; color: var(--bone); text-align: left; font: inherit; font-size: 13px; }
+.crossword-clues button.active { background: var(--stone-3); color: var(--candle); }
+.crossword-clues button:focus-visible { outline: 2px solid var(--n1); }
+.puzzle-solution-note { margin: 0; padding: 8px 12px; border: 1px solid var(--candle); color: var(--candle); text-align: center; font-size: 13px; }
+.sequence-choices .puzzle-answer, .sequence-choices .puzzle-answer:disabled { border-color: var(--candle); color: var(--candle); opacity: 1; }
+.tile.solution-mine { color: var(--blood-hi); background: color-mix(in srgb, var(--stone-2) 65%, var(--blood)); }
+
+.changelog-list { display: grid; gap: 18px; }
+.changelog-entry { padding: clamp(16px, 4vw, 26px); border: 1px solid var(--etch-hi); background: var(--stone-1); box-shadow: inset 0 0 0 2px var(--abyss-0); }
+.changelog-entry.upcoming { border-color: var(--candle); }
+.changelog-entry > header { display: flex; justify-content: space-between; gap: 18px; align-items: start; padding-bottom: 12px; border-bottom: 1px solid var(--etch-hi); }
+.changelog-entry h2 { margin: 3px 0 0; color: var(--bone); }
+.changelog-entry time { flex: none; color: var(--bone-dim); font: 700 10px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.changelog-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; padding-top: 14px; }
+.changelog-sections h3 { margin: 0 0 8px; color: var(--candle); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+.changelog-sections ul { margin: 0; padding-left: 19px; }
+.changelog-sections li { margin: 0 0 8px; color: var(--bone-dim); line-height: 1.45; }
 .sequence-puzzle { padding: 24px 0; }
 .sequence-runes { padding: 20px; border: 1px solid var(--candle); background: var(--stone-1); color: var(--candle); text-align: center; font: 700 clamp(20px, 7vw, 34px)/1.2 var(--mono); letter-spacing: .08em; }
 .sequence-choices { display: grid; grid-template-columns: repeat(2, minmax(90px, 1fr)); gap: 10px; width: min(100%, 420px); }
@@ -2420,6 +2561,10 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
   .cutscene-dialogue { padding: 14px 14px 12px; }
   .cutscene-dialogue p { min-height: 58px; font-size: 16px; }
   .cutscene-player { width: 29%; right: 4%; }
+  .cutscene-actor-player { right: 1%; width: 35%; height: 78%; }
+  .cutscene-actor-featured { left: 2%; width: 48%; height: 91%; }
+  .cutscene-actor-featured.cutscene-actor-boss { left: 7%; width: 61%; height: 99%; }
+  .cutscene-actor-featured.cutscene-actor-npc { left: 1%; width: 50%; height: 93%; }
   .cutscene-mark { width: 82px; height: 82px; }
   .cutscene-mark span { font-size: 32px; }
   html.compact-cards .card { width: 132px; min-height: 178px; }

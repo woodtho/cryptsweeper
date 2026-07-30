@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { CLASSES } from '../engine/data.js';
 import { closeCutscene, run, ui } from '../engine/engine.js';
 import { sfx } from '../engine/sfx.js';
-import { delverPortrait, ratMerchantPortrait } from './portraits.js';
 import { loadPreferences } from '../engine/preferences.js';
 import { enemyIcon } from './enemyIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
 import { ENEMIES } from '../engine/data.js';
 import { cutsceneArt } from './cutsceneArt.js';
+import { CutsceneActor } from './CutsceneActor.jsx';
 
 const TYPE_INTERVAL_MS = 22;
 
@@ -78,7 +78,8 @@ function getScene(id, context = {}) {
     ],
   };
   if (id === 'shop') return {
-    kind: 'merchant', title: 'The Rat Merchant', art: ratMerchantPortrait(), finalLabel: 'See the wares',
+    kind: 'merchant', title: 'The Rat Merchant', art: cutsceneArt('merchantShop'),
+    actorKey: 'rat-merchant', actorState: 'offer', finalLabel: 'See the wares',
     lines: SHOP_LINES[Math.max(0, Math.min(2, context.stratum ?? run.stratum))],
   };
   if (id === 'camp') return {
@@ -135,6 +136,8 @@ function getScene(id, context = {}) {
       title: boss.name,
       art: cutsceneArt(boss.artKey),
       enemyKey: boss.enemyKey,
+      actorKey: boss.enemyKey,
+      actorState: phase === 'intro' ? 'threatening' : 'defeated',
       markLabel: phase === 'intro' ? 'BOSS AHEAD' : 'DEFEATED',
       finalLabel: phase === 'intro' ? 'Face the boss' : 'Claim the spoils',
       lines: boss[phase],
@@ -209,8 +212,14 @@ export function Cutscene() {
         <div className="cutscene-visual" onClick={advance}>
           <img className={`cutscene-main-art ${speaker === 'merchant' || speaker === 'boss' ? 'speaking' : ''}`}
             src={scene.art} alt={`${scene.title} cutscene`} />
-          <div className={`cutscene-player ${speaker === 'player' ? 'speaking' : ''}`}>
-            <img src={delverPortrait(run.cls)} alt={CLASSES[run.cls].name} />
+          <div className={`cutscene-stage cutscene-stage-${scene.kind}`}>
+            {scene.actorKey && (
+              <CutsceneActor actorKey={scene.actorKey} placement="featured"
+                speaking={(speaker === 'merchant' || speaker === 'boss')}
+                state={scene.actorState} />
+            )}
+            <CutsceneActor actorKey={run.cls} placement="player"
+              speaking={speaker === 'player'} state="idle" />
           </div>
           {(scene.iconName || scene.enemyKey) && (
             <div className="cutscene-mark" aria-label={`${scene.title}: ${scene.markLabel}`}>

@@ -2,9 +2,10 @@
 
 Design brief for the narrative **cutscene** backgrounds. Inherits
 [art-direction.md](art-direction.md). Cutscenes are how the run's story is told between
-combats — an establishing image, a typed line of dialogue, an active Delver portrait, and a
-"mark" badge. This doc covers the **background plates**; the Delver inset comes from the
-[portrait doc](delver-portraits.md) and the shop/merchant plate from the [NPC doc](npc-art.md).
+combats — an establishing image, a typed line of dialogue, animated full-body actors, and a
+"mark" badge. This doc covers the **background plates**; actor production is covered by the
+[cutscene animation doc](cutscene-animation.md), with identity references in the
+[portrait doc](delver-portraits.md) and [NPC doc](npc-art.md).
 
 ---
 
@@ -19,10 +20,9 @@ The cutscene component (`src/ui/Cutscene.jsx`) layers, over your background plat
 │   LABEL)              FOCAL INTEREST           │
 │                        upper-center            │
 │                                                │
-│                                  ╭──────────╮  │
-│                                  │  active  │  │ ← Delver portrait inset
-│                                  │  Delver  │  │   (3:4, brightens when speaking)
-│                                  ╰──────────╯  │
+│       featured actor          active Delver    │ ← full-body sprite actors
+│       merchant / boss          current class   │   animate by dialogue state
+│                                                │
 ├───────────────────────────────────────────────┤
 │  Speaker name                                  │
 │  Typed dialogue line…                          │ ← dialogue panel (drawn by UI)
@@ -34,8 +34,8 @@ The cutscene component (`src/ui/Cutscene.jsx`) layers, over your background plat
   critical content within a **center 4:3 safe area**; let the outer sides be atmosphere.
 - The image is `object-fit: cover`, `object-position: center 32%` — compose the focal point
   **slightly above center**.
-- **Reserve the bottom-right quarter** (Delver inset) and **top-left corner** (mark badge):
-  keep those zones darker and uncluttered so the overlays read.
+- **Reserve both lower actor zones** and the **top-left corner** (mark badge): keep the
+  lower-left/centre and lower-right darker and uncluttered so full-body silhouettes read.
 - A **vignette + bottom gradient** are added by the UI — you don't need to paint them, but do
   let edges fall to shadow so the composite blends.
 - **No text, no UI, no characters' dialogue** baked into the plate.
@@ -43,7 +43,8 @@ The cutscene component (`src/ui/Cutscene.jsx`) layers, over your background plat
 ## 2. Scene inventory
 
 Twelve scenes, from `getScene()` and `BOSS_SCENES` in `src/ui/Cutscene.jsx`. Boss plates are
-covered in the [NPC doc](npc-art.md); the shop plate is the Rat Merchant portrait.
+covered in the [NPC doc](npc-art.md); the shop uses a character-free stall plate beneath the
+animated Rat Merchant.
 
 | Scene id(s) | Title | Mark | Plate asset | Type |
 |---|---|---|---|---|
@@ -52,7 +53,7 @@ covered in the [NPC doc](npc-art.md); the shop plate is the Rat Merchant portrai
 | `descent-1` | The Sunk Archives | STRATUM II | `cutscenes/sunk-archives-pixel-coarse.webp` | Environment |
 | `descent-2` | The Clockwork Depths | STRATUM III | `cutscenes/clockwork-depths-pixel-coarse.webp` | Environment |
 | `finale` | The Seam Is Silent | FOR NOW | `cutscenes/finale-pixel-coarse.webp` | Environment |
-| `shop` | The Rat Merchant | — | `npcs/rat-merchant-pixel-coarse.webp` | NPC → see NPC doc |
+| `shop` | The Rat Merchant | — | `cutscenes/rat-merchant-shop-pixel-coarse.webp` | Character-free shop environment |
 | `boss-intro-0` / `-aftermath-0` | The Collapser | BOSS AHEAD / DEFEATED | `cutscenes/collapser-pixel-coarse.webp` | Boss → see NPC doc |
 | `boss-intro-1` / `-aftermath-1` | The Fogfather | BOSS AHEAD / DEFEATED | `cutscenes/fogfather-pixel-coarse.webp` | Boss → see NPC doc |
 | `boss-intro-2` / `-aftermath-2` | NN-99 | BOSS AHEAD / DEFEATED | `cutscenes/nn99-pixel-coarse.webp` | Boss → see NPC doc |

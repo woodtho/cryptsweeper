@@ -344,7 +344,8 @@ R().puzzle.solution.forEach((value, i) => setLogicPuzzleCell(i, value));
 checkLogicPuzzle();
 T('9x9 Sudoku resolves through the shared puzzle engine', R().puzzle.solved === true);
 startPuzzle('crossword-medium');
-T('middle-depth crossword expands to a 4x4 word square', R().puzzle.size === 4 && R().puzzle.values.length === 16);
+T('middle-depth crossword expands to a 4x4 double word square', R().puzzle.size === 4
+  && R().puzzle.values.length === 16 && new Set([...R().puzzle.words, ...R().puzzle.downWords]).size === 8);
 startPuzzle('sequence-medium');
 answerSequence(R().puzzle.answer);
 T('sequence puzzles resolve an answer', R().puzzle.solved === true);

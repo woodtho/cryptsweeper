@@ -10,10 +10,12 @@ commission priority. The canonical set ships to every player.
 
 1. **Delver select cards** (`.delver-art` in the class grid) — shown as a wide banner at the
    top of each card.
-2. **Cutscene speaker inset** (`.cutscene-player`) — a **3:4 vertical** frame, bottom-right,
-   `object-position: center 25%`; it brightens/gilds when that Delver is speaking.
+2. **Delver Archive artwork** — a **3:4 vertical** view that can open to the full-resolution
+   portrait.
 
 So each portrait must survive **both** a landscape band and a 3:4 vertical crop.
+Cutscenes now use the separate full-body animation sheets documented in
+[cutscene-animation.md](cutscene-animation.md).
 
 ### Framing template (compose to 3:4, safe for both crops)
 

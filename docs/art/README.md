@@ -10,6 +10,7 @@ inherit.
 | [delver-portraits.md](delver-portraits.md) | The ten playable Delvers — framing template, per-character briefs, and portrait production priorities. |
 | [npc-art.md](npc-art.md) | The Rat Merchant, the three boss character/cutscene portraits, and guidance for future NPCs. |
 | [cutscene-art.md](cutscene-art.md) | Narrative cutscene background plates — composition safe-zones, the twelve-scene inventory, and per-scene briefs. |
+| [cutscene-animation.md](cutscene-animation.md) | Full-body actor staging, animation-sheet rows, runtime integration, and production checks. |
 
 ## Where the art lives in the code
 
