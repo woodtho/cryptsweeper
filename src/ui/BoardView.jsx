@@ -4,8 +4,9 @@ import {
   clickTile, toggleFlag, puzzleClick, puzzleToggleFlag, LAIR_COLORS, constructHeatMax, RELAY_RADIUS, HEAT_CONSTRUCTS,
 } from '../engine/engine.js';
 import { loadPreferences } from '../engine/preferences.js';
-import { enemyIcon } from './enemyIcons.jsx';
+import { enemyIcon, enemySpriteKey } from './enemyIcons.jsx';
 import { interfaceIcon } from './gameIcons.jsx';
+import { SpriteAnimation } from './SpriteAnimation.jsx';
 
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
@@ -144,7 +145,12 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
           lairStyle[`border${dir[0].toUpperCase()}${dir.slice(1)}`] = `2px solid ${color}aa`;
         }
       }
-      if (owner.lair[Math.floor(owner.lair.length / 2)] === i) lairGhost = enemyIcon(owner.key, owner.def, prefs);
+      if (owner.lair[Math.floor(owner.lair.length / 2)] === i) {
+        lairGhost = prefs.animatedBoardEnemies || prefs.enemyIconStyle === 'sprites'
+          ? <SpriteAnimation actorKey={enemySpriteKey(owner.key)} motion="idle" variant="battle"
+            className="board-enemy-sprite" />
+          : enemyIcon(owner.key, owner.def, prefs);
+      }
       title.push(`${owner.def.name}'s lair — dig here to wound it (numbers hit harder; its mines deal 10 to it)`);
       if (hiliteLair === lairIdx) cls.push('lairhi');
     }
@@ -233,24 +239,15 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
 }
 
 export function BoardView({ mode = 'combat', hiliteLair = -1 }) {
-  const [inspectMode, setInspectMode] = useState(false);
   const [inspection, setInspection] = useState(null);
   const b = mode === 'puzzle' ? run.puzzle.board : board();
   const cap = clamp(Math.floor(520 / b.size), 26, 40);
   // shrink below the cap on narrow viewports so the whole board always fits on screen
   const tile = `min(${cap}px, calc((100vw - 58px) / ${b.size}))`;
-  const targeting = mode !== 'puzzle' && (ui.targeting || ui.gadgetTargeting);
   return <div className="board-shell">
-    <div className="board-tools">
-      <button type="button" className={`btn board-inspect-toggle ${inspectMode ? 'active' : ''}`} disabled={Boolean(targeting)}
-        aria-pressed={inspectMode} onClick={() => { setInspectMode(value => !value); setInspection(null); }}>
-        {inspectMode ? 'Finish inspection' : 'Inspect tiles'}
-      </button>
-      <small>Keyboard: arrows move · Enter digs · F flags · I inspects</small>
-    </div>
     <div className="board" role="grid" aria-label="Crypt board" style={{ '--bsize': b.size, '--tile': tile }}>
       {b.cells.map((_, i) => <Tile key={i} i={i} mode={mode} hiliteLair={hiliteLair}
-        inspectMode={inspectMode} onInspect={(index, text) => setInspection({ index, text })} />)}
+        inspectMode={false} onInspect={(index, text) => setInspection({ index, text })} />)}
     </div>
     {inspection && <aside className="tile-inspection" role="status">
       <div><b>Tile {Math.floor(inspection.index / b.size) + 1}, {inspection.index % b.size + 1}</b>

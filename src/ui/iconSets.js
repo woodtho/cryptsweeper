@@ -3,9 +3,9 @@ import { createElement } from 'react';
 /* Central icon-set manifest and runtime extension API. Add a built-in family
    once here; specialized art domains can then provide artwork or inherit. */
 export const ICON_SET_MANIFEST = [
-  ['pixel', 'Pixel Crypt'], ['main', 'Main Icons'], ['emoji', 'Emoji'], ['crypt', 'Graveyard'], ['marks', "Delver's Marks"],
-  ['dungeon', 'Dungeon'], ['deepwild', 'Deep Wild'], ['sunken', 'Sunken'], ['arcane', 'Arcane'],
-  ['gearworks', 'Gearworks'], ['beasts', 'Beasts'],
+  ['main', 'Main Icons'],
+  ['emoji', 'Emoji'],
+  ['marks', 'Delver Icons'],
 ];
 
 export const BUILTIN_ICON_SETS = Object.fromEntries(ICON_SET_MANIFEST.map(([id, label]) => [id, { id, label, builtin: true }]));

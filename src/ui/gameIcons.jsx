@@ -109,7 +109,8 @@ export function interfaceIcon(name, prefs = loadPreferences()) {
   let style = prefs?.interfaceIconStyle || 'marks';
   if (style === 'mixer') {
     const choice = prefs?.interfaceIconMix?.[name];
-    style = getArtStyleKeys(prefs).includes(choice?.style) ? choice.style : 'emoji';
+    const fallback = prefs?.interfaceIconMixDefault || 'marks';
+    style = getArtStyleKeys(prefs).includes(choice?.style) ? choice.style : fallback;
   }
   return interfaceIconForStyle(name, style, prefs);
 }

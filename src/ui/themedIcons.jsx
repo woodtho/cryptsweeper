@@ -133,7 +133,7 @@ function selection(key, prefs) {
   let style = prefs?.interfaceIconStyle || prefs?.mapIconStyle || 'marks';
   if (style === 'mixer') {
     const choice = prefs?.interfaceIconMix?.[key];
-    style = choice?.style || 'emoji';
+    style = choice?.style || prefs?.interfaceIconMixDefault || 'marks';
   }
   return { style };
 }

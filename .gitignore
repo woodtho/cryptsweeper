@@ -2,3 +2,4 @@ node_modules/
 dist/
 tmp/
 release/
+__pycache__/

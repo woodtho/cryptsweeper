@@ -1,5 +1,5 @@
 const KEY = 'cryptsweeper.settings.v1';
-const DELVER_ICON_DEFAULT_VERSION = 1;
+const DELVER_ICON_DEFAULT_VERSION = 2;
 const DEFAULTS = {
   reducedMotion: false,
   highContrast: false,
@@ -9,15 +9,20 @@ const DEFAULTS = {
   compactCards: true,
   showCombatHints: true,
   showBattleBriefings: true,
+  showCleanupPrompt: true,
+  animatedBoardEnemies: false,
   enemyEmojis: {},
-  enemyIconStyle: 'marks',
+  enemyIconStyle: 'sprites',
   mapIconStyle: 'marks',
   mapEmojis: {},
   mapMarks: {},
   mapIconMix: {},
+  mapIconMixDefault: 'marks',
   enemyIconMix: {},
+  enemyIconMixDefault: 'sprites',
   interfaceIconStyle: 'marks',
   interfaceIconMix: {},
+  interfaceIconMixDefault: 'marks',
   customIconSets: {},
   notoEmoji: true,
   pixelAssetVersion: 2,
@@ -36,9 +41,20 @@ export function loadPreferences() {
       migrated = true;
     }
     if ((stored.delverIconDefaultVersion || 0) < DELVER_ICON_DEFAULT_VERSION) {
-      if (!stored.enemyIconStyle || stored.enemyIconStyle === 'pixel') stored.enemyIconStyle = 'marks';
+      const retiredEmojiSets = ['classic', 'crypt', 'dungeon', 'fauna', 'spirits', 'machine', 'feast',
+        'cosmic', 'deepwild', 'sunken', 'arcane', 'gearworks', 'beasts'];
+      const retiredMainSets = ['pixel', 'main-color', 'main-emoji', 'main-line', 'atlas-pixel'];
+      if (!stored.enemyIconStyle || ['marks', 'pixel'].includes(stored.enemyIconStyle)) stored.enemyIconStyle = 'sprites';
+      else if (retiredEmojiSets.includes(stored.enemyIconStyle)) stored.enemyIconStyle = 'emoji';
+      else if (retiredMainSets.includes(stored.enemyIconStyle)) stored.enemyIconStyle = 'main';
       if (!stored.mapIconStyle || stored.mapIconStyle === 'pixel') stored.mapIconStyle = 'marks';
       if (!stored.interfaceIconStyle || stored.interfaceIconStyle === 'pixel') stored.interfaceIconStyle = 'marks';
+      if (retiredEmojiSets.includes(stored.mapIconStyle)) stored.mapIconStyle = 'emoji';
+      if (retiredEmojiSets.includes(stored.interfaceIconStyle)) stored.interfaceIconStyle = 'emoji';
+      if (retiredMainSets.includes(stored.mapIconStyle)) stored.mapIconStyle = 'main';
+      if (retiredMainSets.includes(stored.interfaceIconStyle)) stored.interfaceIconStyle = 'main';
+      if (['sigils', 'atlas-marks'].includes(stored.mapIconStyle)) stored.mapIconStyle = 'marks';
+      if (['sigils', 'atlas-marks'].includes(stored.interfaceIconStyle)) stored.interfaceIconStyle = 'marks';
       stored.delverIconDefaultVersion = DELVER_ICON_DEFAULT_VERSION;
       migrated = true;
     }

@@ -23,6 +23,7 @@ import {
   getInfiniteMusicParams, setInfiniteMusicParam,
 } from '../engine/music.js';
 import { localDateKey, loadDailyRecords } from '../engine/daily.js';
+import { useDialogFocus } from './useDialogFocus.js';
 import { loadPreferences } from '../engine/preferences.js';
 import { decorateMechanics, MECHANICS } from './mechanics.js';
 import { delverPortrait, ratMerchantPortrait } from './portraits.js';
@@ -224,7 +225,7 @@ export function TitleScreen({
           {panel === 'collection' && <div className="home-index-grid" aria-label="Collection indexes">
             <button className="home-action compact" onClick={() => open('delvers')}><span>Delver index</span><small>Runs, wins, depth, and lifetime stats</small></button>
             <button className="home-action compact" onClick={() => open('enemies')}><span>Enemy index</span><small>Encounters, defeats, and custom faces</small></button>
-            <button className="home-action compact" onClick={() => open('items')}><span>Item index</span><small>Trinkets and gadgets discovered</small></button>
+            <button className="home-action compact" onClick={() => open('items')}><span>Item index</span><small>Trinkets and consumables discovered</small></button>
             <button className="home-action compact" onClick={() => open('cards')}><span>Card index</span><small>Cards seen, obtained, and played</small></button>
             <button className="home-action compact" onClick={() => open('achievements')}><span>Achievements</span><small>Carvings earned across every descent</small></button>
             <button className="home-action compact" onClick={() => open('graveyard')}><span>Graveyard</span><small>Completed and fallen builds</small></button>
@@ -242,7 +243,9 @@ export function TitleScreen({
             <InfiniteJukeboxControls />
             <SettingToggle label="Battle previews" detail="Show a full enemy briefing before each fight. Re-enables previews hidden with ‘don’t show again’." checked={preferences.showBattleBriefings} onChange={() => onPreferenceChange('showBattleBriefings', !preferences.showBattleBriefings)} />
             <SettingToggle label="Combat coach" detail="Replay the four-step contextual guide inside the next battle" checked={preferences.showCombatHints} onChange={() => onPreferenceChange('showCombatHints', !preferences.showCombatHints)} />
+            <SettingToggle label="Board cleanup prompt" detail="Show the finish-the-board explanation after the final enemy falls. Re-enables a prompt hidden with ‘don’t show again’." checked={preferences.showCleanupPrompt} onChange={() => onPreferenceChange('showCleanupPrompt', !preferences.showCleanupPrompt)} />
             <SettingToggle label="Reduce motion" detail="Disables shakes, floating effects, and decorative animation" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
+            <SettingToggle label="Animated battle sprites" detail="Use the full character sprite sheets for enemy tokens and expanded battle details" checked={preferences.animatedBoardEnemies} onChange={() => onPreferenceChange('animatedBoardEnemies', !preferences.animatedBoardEnemies)} />
             <SettingToggle label="High contrast" detail="Brightens text, borders, and board information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
             <SettingToggle label="Large tiles" detail="Increases board tiles where the screen has room" checked={preferences.largeTiles} onChange={() => onPreferenceChange('largeTiles', !preferences.largeTiles)} />
             <SettingToggle label="Large text" detail="Increases interface text without enlarging the board" checked={preferences.largeText} onChange={() => onPreferenceChange('largeText', !preferences.largeText)} />
@@ -364,6 +367,8 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
   const styleKey = styles[preferences.mapIconStyle] ? preferences.mapIconStyle : 'marks';
   const style = styles[styleKey];
   const isMixer = styleKey === 'mixer';
+  const mixStyleKeys = Object.keys(styles).filter(key => key !== 'mixer');
+  const mixDefault = mixStyleKeys.includes(preferences.mapIconMixDefault) ? preferences.mapIconMixDefault : 'marks';
   const isMarks = Object.values(style.icons).every(isMarkToken);
   const marks = preferences.mapMarks || {};
   const cycleMark = (type, current) => {
@@ -372,9 +377,15 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
   };
   const mix = preferences.mapIconMix || {};
   const cycleMixed = type => {
-    const keys = getArtStyleKeys(preferences);
-    const current = keys.indexOf(mix[type]?.style || 'emoji');
-    const next = keys[(current + 1) % keys.length];
+    const current = mix[type]?.style;
+    const at = current ? mixStyleKeys.indexOf(current) : -1;
+    if (at === mixStyleKeys.length - 1) {
+      const nextMix = { ...mix };
+      delete nextMix[type];
+      onPreferenceChange('mapIconMix', nextMix);
+      return;
+    }
+    const next = mixStyleKeys[at + 1];
     onPreferenceChange('mapIconMix', { ...mix, [type]: { ...mix[type], style: next, custom: '' } });
   };
   return (
@@ -393,16 +404,22 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
           </button>
         );})}
       </div>
+      {isMixer && <label className="mix-default-picker">
+        <span><b>Default set</b><small>Used by every map icon without an individual override.</small></span>
+        <select value={mixDefault} onChange={event => onPreferenceChange('mapIconMixDefault', event.target.value)}>
+          {mixStyleKeys.map(key => <option key={key} value={key}>{styles[key].label}</option>)}
+        </select>
+      </label>}
       <div className="emoji-map-grid">
         {NODE_TYPE_LABELS.map(([type, label]) => {
           if (isMixer) {
-            const choice = mix[type] || { style: 'emoji', custom: '' };
-            const source = styles[choice.style] || styles.emoji;
+            const choice = mix[type];
+            const source = styles[choice?.style] || styles[mixDefault];
             const shown = source.icons[type];
             return <div key={type} className="emoji-slot mix-icon-slot">
               <small>{label}</small>
               <button type="button" className="mark-slot" onClick={() => cycleMixed(type)} title="Tap to cycle artwork sets">{resolveMapIcon(shown, preferences)}</button>
-              <span>{ART_STYLE_LABELS[choice.style] || 'Emoji'}</span>
+              <span>{choice?.style ? source.label : `Default · ${source.label}`}</span>
             </div>;
           }
           if (isMarks) {
@@ -431,14 +448,21 @@ export function MapIconSettings({ preferences, onPreferenceChange }) {
 
 export function EnemyIconSettings({ preferences, onPreferenceChange }) {
   const styles = getEnemyIconStyles(preferences);
-  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'marks';
+  const active = styles[preferences.enemyIconStyle] ? preferences.enemyIconStyle : 'sprites';
   const previewKeys = ['grubber', 'ossuary', 'nn99'];
   const mix = preferences.enemyIconMix || {};
   const styleKeys = Object.keys(styles).filter(key => key !== 'mixer').sort((a, b) => a === 'main' ? -1 : b === 'main' ? 1 : 0);
+  const mixDefault = styleKeys.includes(preferences.enemyIconMixDefault) ? preferences.enemyIconMixDefault : 'sprites';
   const cycleMixed = key => {
-    const choice = mix[key] || { style: 'classic', custom: '' };
-    const at = styleKeys.indexOf(choice.style);
-    const style = styleKeys[(at + 1) % styleKeys.length];
+    const choice = mix[key];
+    const at = choice?.style ? styleKeys.indexOf(choice.style) : -1;
+    if (at === styleKeys.length - 1) {
+      const nextMix = { ...mix };
+      delete nextMix[key];
+      onPreferenceChange('enemyIconMix', nextMix);
+      return;
+    }
+    const style = styleKeys[at + 1];
     onPreferenceChange('enemyIconMix', { ...mix, [key]: { ...choice, style, custom: '' } });
   };
   return (
@@ -457,36 +481,62 @@ export function EnemyIconSettings({ preferences, onPreferenceChange }) {
           </button>
         );})}
       </div>
-      {active === 'mixer' && <div className="icon-mixer-grid">
+      {active === 'mixer' && <label className="mix-default-picker">
+        <span><b>Default set</b><small>Used by every enemy without an individual override.</small></span>
+        <select value={mixDefault} onChange={event => onPreferenceChange('enemyIconMixDefault', event.target.value)}>
+          {styleKeys.map(key => <option key={key} value={key}>{styles[key].label}</option>)}
+        </select>
+      </label>}
+      <div className="icon-preview-head">All enemy icons · {styles[active].label}</div>
+      <div className="icon-mixer-grid">
         {Object.entries(ENEMIES).map(([key, def]) => {
-          const choice = mix[key] || { style: 'classic', custom: '' };
-          const source = styles[choice.style] || styles.classic;
+          const choice = mix[key];
+          const source = active === 'mixer'
+            ? styles[choice?.style] || styles[mixDefault]
+            : styles[active];
           const shown = source.icons[key] || def.emoji;
           return <div className="mix-icon-slot" key={key}>
             <small>{def.name}</small>
-            <button type="button" className="mark-slot" onClick={() => cycleMixed(key)}>{resolveEnemyIcon(shown, preferences)}</button>
-            <span>{source.label}</span>
+            {active === 'mixer'
+              ? <button type="button" className="mark-slot" onClick={() => cycleMixed(key)}>{resolveEnemyIcon(shown, preferences)}</button>
+              : <span className="mark-slot">{resolveEnemyIcon(shown, preferences)}</span>}
+            <span>{active === 'mixer' && !choice?.style ? `Default · ${source.label}` : source.label}</span>
           </div>;
         })}
-      </div>}
+      </div>
     </div>
   );
 }
 
 export function InterfaceIconSettings({ preferences, onPreferenceChange }) {
-  const active = preferences.interfaceIconStyle || 'main';
+  const styleKeys = getArtStyleKeys(preferences);
+  const active = [...styleKeys, 'mixer'].includes(preferences.interfaceIconStyle)
+    ? preferences.interfaceIconStyle
+    : 'marks';
   const mix = preferences.interfaceIconMix || {};
+  const mixDefault = styleKeys.includes(preferences.interfaceIconMixDefault) ? preferences.interfaceIconMixDefault : 'marks';
   const cycle = key => {
-    const choice = mix[key] || { style: 'emoji', custom: '' };
-    const keys = getArtStyleKeys(preferences);
-    const at = keys.indexOf(choice.style);
-    const style = keys[(at + 1) % keys.length];
+    const choice = mix[key];
+    const at = choice?.style ? styleKeys.indexOf(choice.style) : -1;
+    if (at === styleKeys.length - 1) {
+      const nextMix = { ...mix };
+      delete nextMix[key];
+      onPreferenceChange('interfaceIconMix', nextMix);
+      return;
+    }
+    const style = styleKeys[at + 1];
     onPreferenceChange('interfaceIconMix', { ...mix, [key]: { ...choice, style, custom: '' } });
+  };
+  const previewIcon = (key, style) => {
+    const previewPreferences = { ...preferences, interfaceIconStyle: style };
+    if (key.startsWith('camp:')) return campVector(key.slice(5), previewPreferences);
+    if (key.startsWith('item:')) return itemVector(key.slice(5), previewPreferences);
+    return interfaceIconForStyle(key, style, previewPreferences);
   };
   return <div className="setting-block">
     <span><b>Interface, board, camp & item icons</b><small>Use a matching family everywhere, or mix every icon individually.</small></span>
     <div className="emoji-style-row" role="radiogroup" aria-label="Interface icon set">
-      {[...getArtStyleKeys(preferences), 'mixer'].map(key => {
+      {[...styleKeys, 'mixer'].map(key => {
         return <button key={key} type="button" role="radio" aria-checked={active === key}
         className={`emoji-style ${active === key ? 'active' : ''}`}
         onClick={() => onPreferenceChange('interfaceIconStyle', key)}>
@@ -494,16 +544,27 @@ export function InterfaceIconSettings({ preferences, onPreferenceChange }) {
         <small>{key === 'mixer' ? ART_STYLE_LABELS.mixer : iconSetLabel(key, preferences)}</small>
       </button>;})}
     </div>
-    {active === 'mixer' && <div className="icon-mixer-grid">
+    {active === 'mixer' && <label className="mix-default-picker">
+      <span><b>Default set</b><small>Used by every interface, board, camp, and item icon without an individual override.</small></span>
+      <select value={mixDefault} onChange={event => onPreferenceChange('interfaceIconMixDefault', event.target.value)}>
+        {styleKeys.map(key => <option key={key} value={key}>{iconSetLabel(key, preferences)}</option>)}
+      </select>
+    </label>}
+    <div className="icon-preview-head">All interface, board, camp and item icons · {active === 'mixer' ? ART_STYLE_LABELS.mixer : iconSetLabel(active, preferences)}</div>
+    <div className="icon-mixer-grid">
       {Object.entries(INTERFACE_ICON_CATEGORIES).map(([key, [label]]) => {
-        const choice = mix[key] || { style: 'emoji', custom: '' };
+        const choice = mix[key];
+        const style = active === 'mixer' && styleKeys.includes(choice?.style) ? choice.style
+          : active === 'mixer' ? mixDefault : active;
         return <div className="mix-icon-slot" key={key}>
           <small>{label}</small>
-          <button type="button" className="mark-slot" onClick={() => cycle(key)}>{interfaceIcon(key, preferences)}</button>
-          <span>{ART_STYLE_LABELS[choice.style] || 'Emoji'}</span>
+          {active === 'mixer'
+            ? <button type="button" className="mark-slot" onClick={() => cycle(key)}>{previewIcon(key, style)}</button>
+            : <span className="mark-slot">{previewIcon(key, style)}</span>}
+          <span>{active === 'mixer' && !choice?.style ? `Default · ${iconSetLabel(style, preferences)}` : iconSetLabel(style, preferences)}</span>
         </div>;
       })}
-    </div>}
+    </div>
   </div>;
 }
 
@@ -739,6 +800,8 @@ export function InGameMenu({
   const [musicPaused, setPaused] = useState(isMusicPaused);
   const [musicLoops, setLoops] = useState(isMusicLooping);
   const [saveNames, setSaveNames] = useState(initialSaveNames);
+  const dialogRef = useRef(null);
+  useDialogFocus(dialogRef, onClose);
   const saves = listSaves();
   // back steps from a sub-tab to the main tab first; only then does App close the menu
   useEffect(() => {
@@ -746,7 +809,7 @@ export function InGameMenu({
     return registerBackHandler(() => { setTab('game'); return true; });
   }, [tab]);
   return <div className="overlay game-menu-overlay" onClick={event => event.target === event.currentTarget && onClose()}>
-    <section className="modal game-menu" role="dialog" aria-modal="true" aria-label="Game menu">
+    <section ref={dialogRef} tabIndex="-1" className="modal game-menu" role="dialog" aria-modal="true" aria-label="Game menu">
       <header><h2>Game menu</h2><button className="btn" onClick={onClose}>Close ×</button></header>
       <nav className="game-menu-tabs">
         {['game', 'settings', 'icons'].map(key => <button className={`btn ${tab === key ? 'primary' : ''}`} key={key} onClick={() => setTab(key)}>{key}</button>)}
@@ -786,7 +849,9 @@ export function InGameMenu({
           <InfiniteJukeboxControls />
           <SettingToggle label="Battle previews" detail="Show the enemy lineup and combat stats before each fight" checked={preferences.showBattleBriefings} onChange={() => onPreferenceChange('showBattleBriefings', !preferences.showBattleBriefings)} />
           <SettingToggle label="Combat coach" detail="Highlight enemies, the board, cards, and End Turn in the live battle" checked={preferences.showCombatHints} onChange={() => onPreferenceChange('showCombatHints', !preferences.showCombatHints)} />
+          <SettingToggle label="Board cleanup prompt" detail="Show the finish-the-board explanation after the final enemy falls" checked={preferences.showCleanupPrompt} onChange={() => onPreferenceChange('showCleanupPrompt', !preferences.showCleanupPrompt)} />
           <SettingToggle label="Reduce motion" detail="Disable animation and screen shake" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
+          <SettingToggle label="Animated battle sprites" detail="Use full animated enemy sprites in the battle roster" checked={preferences.animatedBoardEnemies} onChange={() => onPreferenceChange('animatedBoardEnemies', !preferences.animatedBoardEnemies)} />
           <SettingToggle label="High contrast" detail="Brighter board and interface information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
           <SettingToggle label="Large text" detail="Increase interface text" checked={preferences.largeText} onChange={() => onPreferenceChange('largeText', !preferences.largeText)} />
           <SettingToggle label="Compact cards" detail="Fit more cards on narrow screens" checked={preferences.compactCards} onChange={() => onPreferenceChange('compactCards', !preferences.compactCards)} />
@@ -917,11 +982,11 @@ function HowToPlay() {
 
     <HowSection icon={<GameIcon name="bag" preferences={prefs} />} title="Gold, rewards, items, camps, and shops" open={Boolean(search)} visible={sectionVisible.economy}>
       <ul>
-        <li>Combat rewards include Gold and a card choice. Elites can award trinkets, ordinary fights can find gadgets, and bosses offer boss relics before the next stratum.</li>
+        <li>Combat rewards include Gold and a card choice. Elites can award trinkets, ordinary fights can find consumables, and bosses offer boss relics before the next stratum.</li>
         <li>Bosses offer up to three unowned relics, prioritizing relics tied to that guardian. Once every permanent boss relic is owned, Vein bosses offer repeatable boons: relic tempering, maximum Health, deck reforging, card transformation, or a gold-and-gadget cache.</li>
         <li><b>Boss relics:</b> {Object.entries(TRINKETS).filter(([, item]) => item.tier === 'boss').map(([key, item], index, all) => <span key={key}>{item.name} — {item.desc}{index < all.length - 1 ? '; ' : '.'}</span>)}</li>
-        <li><b>Trinkets</b> are passive and last for the run. <b>Gadgets</b> are consumable tools; you can carry at most three gadget copies. Tap the bag to inspect all items and use gadgets.</li>
-        <li>Shops sell cards, trinkets, gadgets, and card removal. Gold is run-specific and prices vary; each removal raises the next removal cost.</li>
+        <li><b>Trinkets</b> are passive and last for the run; inspect them in the Bag. <b>Consumables</b> become zero-cost cards that stay in your combat hand between turns until used. You can carry at most three copies.</li>
+        <li>Shops sell cards, trinkets, consumables, and card removal. Gold is run-specific and prices vary; each removal raises the next removal cost.</li>
         <li>At camp, choose one: Rest heals 30% max Health, Smith upgrades a card, Survey starts the next fight 25% revealed, or Train adds one Max Pick up to the run's +2 training cap.</li>
         <li><b>Honest Puzzles</b> begin with no-guess Minesweeper, 4×4 Sudoku, and 3×3 double word squares whose rows and columns use different answers. Deeper strata unlock larger versions plus number sequences, Lights Out, and nonograms. Minesweeper offers limited scans, flags, and direct Chording by tapping a revealed number with a matching adjacent flag count; other puzzles explain their controls in the room. Solve flawlessly for an upgrade, or abandon without the prize.</li>
       </ul>
@@ -990,7 +1055,8 @@ function mapIcons(prefs) {
   if (styleKey === 'mixer') {
     for (const [type] of NODE_TYPE_LABELS) {
       const choice = prefs?.mapIconMix?.[type];
-      const source = styles[choice?.style] || styles.emoji;
+      const fallback = prefs?.mapIconMixDefault || 'marks';
+      const source = styles[choice?.style] || styles[fallback] || styles.marks;
       icons[type] = source.icons[type];
     }
     return icons;
@@ -1005,7 +1071,9 @@ function mapIcons(prefs) {
 }
 
 function mapIconStyles(prefs) {
-  const custom = Object.fromEntries(Object.keys(customIconSets(prefs)).map(id => {
+  const visibleSets = Object.keys(customIconSets(prefs))
+    .filter(id => id === 'main' || id.startsWith('custom-'));
+  const custom = Object.fromEntries(visibleSets.map(id => {
     const base = customSetBase(id, prefs, 'emoji');
     const source = MAP_ICON_STYLES[base] || MAP_ICON_STYLES.emoji;
     const icons = { ...source.icons };
@@ -1150,7 +1218,13 @@ export function RewardScreen() {
             <p><GameIcon name="bossRelic" preferences={prefs} /> {r.bossKey ? `${ENEMIES[r.bossKey]?.name || 'Boss'} relic` : 'Boss relic'} — choose one:</p>
             <div className="choicelist">
               {r.bossTrinkets.map(k => (
-                <div key={k} className="choice" onClick={() => takeBossTrinket(k)}>
+                <div key={k} className="choice" role="button" tabIndex="0"
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      takeBossTrinket(k);
+                    }
+                  }} onClick={() => takeBossTrinket(k)}>
                   <span className="cname"><span className="inline-vector-icon">{itemVector(k, prefs)}</span> {TRINKETS[k].name}</span>
                   <div className="cdesc">{TRINKETS[k].desc}</div>
                 </div>
@@ -1163,7 +1237,13 @@ export function RewardScreen() {
             <p><GameIcon name="bossRelic" preferences={prefs} /> The permanent relic pool is exhausted. Choose one Vein boon:</p>
             <div className="choicelist">
               {r.veinBoons.map(key => (
-                <div key={key} className="choice" onClick={() => takeVeinBoon(key)}>
+                <div key={key} className="choice" role="button" tabIndex="0"
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      takeVeinBoon(key);
+                    }
+                  }} onClick={() => takeVeinBoon(key)}>
                   <span className="cname">{VEIN_BOONS[key].mark} {VEIN_BOONS[key].name}</span>
                   <div className="cdesc">{VEIN_BOONS[key].desc}</div>
                 </div>
@@ -1172,7 +1252,7 @@ export function RewardScreen() {
           </>
         )}
         {r.gadget && (
-          <p>Found gadget: <b><span className="inline-vector-icon">{itemVector(r.gadget, prefs)}</span> {GADGETS[r.gadget].name}</b> — {GADGETS[r.gadget].desc}{' '}
+          <p>Found consumable: <b><span className="inline-vector-icon">{itemVector(r.gadget, prefs)}</span> {GADGETS[r.gadget].name}</b> — {GADGETS[r.gadget].desc}{' '}
             {run.gadgets.length < 3
               ? <button className="btn" onClick={takeRewardGadget}>Take</button>
               : <span className="dim">(slots full)</span>}
@@ -1204,19 +1284,33 @@ export function CampScreen() {
         <h2><GameIcon name="camp" preferences={prefs} /> Camp</h2>
         <p className="dim">The dark is patient. Choose one.</p>
         <div className="choicelist">
-          <div className="choice camp-choice" onClick={campHeal}><span className="camp-action-icon">{campVector('rest', prefs)}</span>
+          <div className="choice camp-choice" role="button" tabIndex="0"
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); campHeal(); } }}
+            onClick={campHeal}><span className="camp-action-icon">{campVector('rest', prefs)}</span>
             <span className="cname">Rest</span>
             <div className="cdesc">Heal {Math.floor(run.maxHp * 0.3)} HP (30%).</div>
           </div>
-          <div className="choice camp-choice" onClick={campUpgrade}><span className="camp-action-icon">{campVector('smith', prefs)}</span>
+          <div className="choice camp-choice" role="button" tabIndex="0"
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); campUpgrade(); } }}
+            onClick={campUpgrade}><span className="camp-action-icon">{campVector('smith', prefs)}</span>
             <span className="cname">Smith</span>
             <div className="cdesc">Upgrade a card permanently.</div>
           </div>
-          <div className="choice camp-choice" onClick={campSurvey}><span className="camp-action-icon">{campVector('survey', prefs)}</span>
+          <div className="choice camp-choice" role="button" tabIndex="0"
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); campSurvey(); } }}
+            onClick={campSurvey}><span className="camp-action-icon">{campVector('survey', prefs)}</span>
             <span className="cname">Survey</span>
             <div className="cdesc">Your next combat's board starts 25% pre-revealed.</div>
           </div>
-          <div className={`choice camp-choice ${(run.pickBonus || 0) >= 2 ? 'disabled' : ''}`} onClick={campTrainPicks}><span className="camp-action-icon">{campVector('train', prefs)}</span>
+          <div className={`choice camp-choice ${(run.pickBonus || 0) >= 2 ? 'disabled' : ''}`}
+            role="button" tabIndex={(run.pickBonus || 0) >= 2 ? -1 : 0}
+            aria-disabled={(run.pickBonus || 0) >= 2}
+            onKeyDown={event => {
+              if ((run.pickBonus || 0) < 2 && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                campTrainPicks();
+              }
+            }} onClick={(run.pickBonus || 0) < 2 ? campTrainPicks : undefined}><span className="camp-action-icon">{campVector('train', prefs)}</span>
             <span className="cname">Trail Training</span>
             <div className="cdesc">
               {(run.pickBonus || 0) >= 2
@@ -1312,7 +1406,7 @@ export function ShopScreen() {
         </nav>
 
         {shelf === 'items' && <section className="shop-shelf-panel">
-          <div className="shop-section-head"><div><h3>Items</h3><p>Tap an icon to inspect it.</p></div><span>{run.gadgets.length}/3 gadget slots</span></div>
+          <div className="shop-section-head"><div><h3>Items</h3><p>Tap an icon to inspect it.</p></div><span>{run.gadgets.length}/3 consumable slots</span></div>
           <div className="shop-item-tokens">
             {items.map(item => {
               const id = `${item.kind}:${item.index}`;

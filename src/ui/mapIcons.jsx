@@ -231,14 +231,7 @@ export const MARK_NAMES = Object.keys(MARKS);
 /* Native emoji families plus the hand-drawn Delver's Marks. */
 const LEGACY_MAP_ICON_STYLES = {
   emoji: { label: 'Emoji', icons: { dig: '⚔️', elite: '☠️', event: '🔮', shop: '🛒', treasure: '💰', camp: '🏕️', boss: '👑' } },
-  crypt: { label: 'Graveyard', icons: { dig: '⛏️', elite: '🧟', event: '🦇', shop: '🐀', treasure: '⚱️', camp: '🕯️', boss: '😈' } },
-  marks: { label: "Delver's Marks", icons: { dig: 'svg:picks', elite: 'svg:fangskull', event: 'svg:eye', shop: 'svg:scales', treasure: 'svg:gem', camp: 'svg:fire', boss: 'svg:crown' } },
-  dungeon: { label: 'Dungeon', icons: { dig: '🗡️', elite: '👹', event: '🎲', shop: '🧙', treasure: '🏆', camp: '⛺', boss: '🐉' } },
-  deepwild: { label: 'Deep wild', icons: { dig: '🪓', elite: '🦂', event: '🍄', shop: '🐌', treasure: '💎', camp: '🌙', boss: '🕷️' } },
-  sunken: { label: 'Sunken', icons: { dig: '🤿', elite: '🦈', event: '🐚', shop: '🦀', treasure: '🪙', camp: '🏮', boss: '🐙' } },
-  arcane: { label: 'Arcane', icons: { dig: '🪄', elite: '🧛', event: '✨', shop: '🧿', treasure: '📜', camp: '🌛', boss: '🧞' } },
-  gearworks: { label: 'Gearworks', icons: { dig: '🔧', elite: '🤖', event: '🎰', shop: '⚖️', treasure: '🔋', camp: '🔌', boss: '🛸' } },
-  beasts: { label: 'Beasts', icons: { dig: '🐾', elite: '🐺', event: '🦉', shop: '🦝', treasure: '🥚', camp: '🐈‍⬛', boss: '🐻' } },
+  marks: { label: 'Delver Icons', icons: { dig: 'svg:picks', elite: 'svg:fangskull', event: 'svg:eye', shop: 'svg:scales', treasure: 'svg:gem', camp: 'svg:fire', boss: 'svg:crown' } },
 };
 export const MAP_ICON_STYLES = { ...LEGACY_MAP_ICON_STYLES, mixer: { label: 'Mix & Match', icons: LEGACY_MAP_ICON_STYLES.emoji.icons } };
 

@@ -2,17 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { CARDS, GADGETS, TRINKETS } from '../engine/data.js';
 import {
   run, ui, cbt, board, curTarget, effCost, endTurn,
-  clickHandCard, cancelTargeting, selectEnemy, useGadget,
-  openPileModal, LAIR_COLORS,
+  clickHandCard, cancelTargeting, selectEnemy,
+  openPileModal, openMechanicModal, LAIR_COLORS,
   ENEMY_MODIFIERS, ENEMY_EFFECTS,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
-import { enemyIcon } from './enemyIcons.jsx';
+import { enemyIcon, enemySpriteKey } from './enemyIcons.jsx';
 import { itemVector } from './themedIcons.jsx';
 import { BoardView } from './BoardView.jsx';
 import { CardView } from './CardView.jsx';
 import { GameIcon, IconText } from './gameIcons.jsx';
 import { Mark } from './mapIcons.jsx';
+import { SpriteAnimation } from './SpriteAnimation.jsx';
+import { useDialogFocus } from './useDialogFocus.js';
 
 const SPEC_TEXT = {
   hidden: 'a hidden tile', open: 'an empty safe revealed tile', number: 'a revealed number',
@@ -34,7 +36,14 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji, preferen
     hitMode === 'sure' ? 'willhit' : '', hitMode === 'maybe' ? 'willhit-maybe' : '',
     wasHit ? 'ehit' : ''].filter(Boolean).join(' ');
   return (
-    <div className={cls} onClick={() => onFocus(idx)}
+    <div className={cls} onClick={() => onFocus(idx)} role="button" tabIndex="0"
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onFocus(idx);
+        }
+      }}
+      aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} Health, ${e.intent?.label || 'no intent'}`}
       onMouseEnter={() => onHover(idx)} onMouseLeave={() => onHover(-1)}>
       {targeted && !buried && <div className="targetchip">⌖ TARGET</div>}
       {myFx.map((d, k) => (
@@ -43,7 +52,12 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji, preferen
           {d.amount > 0 ? `−${d.amount}` : d.note}
         </span>
       ))}
-      <div className="art">{buried ? <GameIcon name="buried" preferences={preferences} /> : emoji}</div>
+      <div className="art">{buried
+        ? <GameIcon name="buried" preferences={preferences} />
+        : preferences.animatedBoardEnemies
+          ? <SpriteAnimation actorKey={enemySpriteKey(e.key)} motion={focused || targeted ? 'action' : 'idle'}
+            variant="battle" className="battle-enemy-sprite" />
+          : emoji}</div>
       <div className="einfo">
         <div className="ename">
           {e.def.name}
@@ -78,21 +92,51 @@ function EnemyView({ e, idx, hitMode, onHover, focused, onFocus, emoji, preferen
 
 function EnemyToken({ e, idx, selected, onClick, emoji, preferences }) {
   if (e.hp <= 0) return null;
-  const intentName = e.intent?.cls === 'atk' ? 'attack'
-    : e.intent?.cls === 'defend' ? 'defend'
-      : e.intent?.cls === 'resonance' ? 'target' : 'lair';
-  const intentIcon = <GameIcon name={intentName} preferences={preferences} />;
-  return <button type="button" className={`enemy-token ${selected ? 'selected' : ''}`} onClick={() => onClick(idx)}
-    aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} health. ${e.intent?.label || 'No intent'}`}>
-    <span className="enemy-token-art">{e.data.buried ? <GameIcon name="buried" preferences={preferences} /> : emoji}</span>
-    {e.modifier && <span className={`enemy-token-modifier ${e.modifier}`} title={`${ENEMY_MODIFIERS[e.modifier].name}: ${ENEMY_MODIFIERS[e.modifier].desc}`}>{ENEMY_MODIFIERS[e.modifier].mark}</span>}
-    {Object.entries(e.effects || {}).filter(([, stacks]) => stacks > 0).map(([key, stacks], effectIndex) => (
-      <span key={key} className={`enemy-token-effect ${key}`} style={{ left: 3 + effectIndex * 18 }} title={`${ENEMY_EFFECTS[key]?.name}: ${ENEMY_EFFECTS[key]?.desc}`}>{ENEMY_EFFECTS[key]?.mark}{stacks}</span>
-    ))}
-    <span className="enemy-token-hp"><GameIcon name="health" preferences={preferences} /> {e.hp}</span>
-    <span className={`enemy-token-intent ${e.intent?.cls || ''}`} title={e.intent?.detail || e.intent?.label}>{intentIcon}</span>
-    {curTarget() === e && !e.data.buried && <span className="enemy-token-target">⌖</span>}
+  const targeted = curTarget() === e && !e.data.buried;
+  return <button type="button" className={`enemy-token ${selected ? 'selected' : ''} ${targeted ? 'targeted' : ''}`} onClick={() => onClick(idx)}
+    aria-label={`${e.def.name}, ${e.hp} of ${e.maxHp} health${targeted ? ', targeted' : ''}. Open details.`}>
+    <span className="enemy-token-name">{e.def.name}</span>
+    <span className="enemy-token-art">{e.data.buried
+      ? <GameIcon name="buried" preferences={preferences} />
+      : preferences.animatedBoardEnemies
+        ? <SpriteAnimation actorKey={enemySpriteKey(e.key)} motion={selected ? 'action' : 'idle'}
+          variant="battle" className="battle-enemy-sprite" />
+        : emoji}</span>
+    <span className="enemy-token-hp"><GameIcon name="health" preferences={preferences} /> {e.hp}/{e.maxHp}</span>
+    {targeted && <span className="enemy-token-target"><GameIcon name="target" preferences={preferences} /> Target</span>}
   </button>;
+}
+
+function ClassMechanicToken({ mechanic }) {
+  const description = `${mechanic.label}: ${mechanic.value}. ${mechanic.detailLabel}`;
+  return (
+    <button type="button"
+      className={`enemy-token class-mechanic-token ${mechanic.cls} ${Number(mechanic.current ?? mechanic.value) > 0 ? 'charged' : ''}`}
+      onClick={() => openMechanicModal(mechanic)}
+      aria-label={`${description} Tap for help and details.`}
+      title={`${description} · Open mechanic details`}>
+      <span className="class-mechanic-token-label">{mechanic.label}</span>
+      <span className="class-mechanic-token-art" aria-hidden="true">{mechanic.icon}</span>
+      <span className="class-mechanic-token-value">{mechanic.value}</span>
+      <span className="class-mechanic-token-detail" aria-hidden="true">
+        {mechanic.detailIcon}
+        {mechanic.detailValue != null && <small>{mechanic.detailValue}</small>}
+      </span>
+    </button>
+  );
+}
+
+function CombatToolToken({ kind, count, preferences, onClick }) {
+  const label = kind === 'items' ? 'Bag' : 'Log';
+  return (
+    <button type="button" className={`enemy-token combat-tool-token ${kind}`} onClick={onClick}
+      aria-label={`Open ${label}${count != null ? `, ${count}` : ''}`}
+      title={`Open ${label}`}>
+      <span className="combat-tool-token-label">{label}</span>
+      <span className="combat-tool-token-art"><GameIcon name={kind === 'items' ? 'bag' : 'log'} preferences={preferences} /></span>
+      {count != null && <span className="combat-tool-token-count">{count}</span>}
+    </button>
+  );
 }
 
 const COMBAT_COACH_STEPS = [
@@ -138,15 +182,22 @@ function classMechanicReadout(runState, combat, combatBoard) {
   const runes = combatBoard.cells.filter(cell => cell.rune);
   const runePower = runes.reduce((sum, cell) => sum + Number(cell.rune?.value || 0), 0);
   const loadedCap = Number(combat.classState.loadedCap || 3);
-  const resolveCap = Number(combat.classState.resolveCap || 20);
+  const resolveCap = Number(combat.classState.resolveCap || 10);
+  const hasDaisyChain = runState.trinkets?.includes('daisychain');
   const byClass = {
     sapper: {
       mechanic: 'blast chain', label: 'Blast Chain', value: Number(combat.classState.blastChain || 0),
-      detailKey: 'turn', detailLabel: 'This count resets at the start of your next turn.',
+      detailKey: 'turn', detailLabel: hasDaisyChain
+        ? 'Daisy Chain carries up to 2 unused links into your next turn.'
+        : 'This count resets at the start of your next turn.',
+      help: `Controlled mine detonations add links to your Blast Chain. Sapper cards reward building a longer chain during the current turn. ${hasDaisyChain
+        ? 'Daisy Chain retains up to 2 unused links when your next turn begins.'
+        : 'The chain resets when your next turn begins.'}`,
     },
     surveyor: {
       mechanic: 'insight', label: 'Insight', value: Number(combat.insight || 0),
       detailKey: 'banked', detailLabel: 'Insight is banked until a Surveyor effect spends it.',
+      help: 'Gain Insight by surveying safe ground and using Surveyor effects. Insight remains banked between turns until a card spends it for stronger scans, defense, or attacks.',
     },
     terraformer: {
       mechanic: 'construct', label: 'Constructs', value: `${constructs.length}/3`,
@@ -155,6 +206,7 @@ function classMechanicReadout(runState, combat, combatBoard) {
         ? `The hottest active Construct has ${maxHeat} of ${heatCap} Heat.`
         : `No active Construct has Heat; the overload threshold is ${heatCap}.`,
       current: constructs.length, max: 3,
+      help: 'Build up to 3 Constructs on empty safe revealed tiles. Constructs provide repeatable effects at End Turn. Heat-bearing Constructs overload when they reach their Heat threshold.',
     },
     lamplighter: {
       mechanic: 'light', label: 'Light', value: `${Number(combat.classState.light || 0)}/10`,
@@ -164,6 +216,7 @@ function classMechanicReadout(runState, combat, combatBoard) {
         ? `${combat.classState.preserveLight} Light is protected from the next turn-start fade.`
         : 'Half of unpreserved Light fades at the start of your turn.',
       current: Number(combat.classState.light || 0), max: 10,
+      help: 'Gain Light from large safe cascades and Lamplighter cards, then spend it to strengthen your effects. At the start of a turn, half of any unpreserved Light fades.',
     },
     gambler: {
       mechanic: 'loaded', label: 'Loaded', value: `${Number(combat.classState.loaded || 0)}/${loadedCap}`,
@@ -173,29 +226,35 @@ function classMechanicReadout(runState, combat, combatBoard) {
         ? `${combat.classState.riggedWagers} upcoming Wager${combat.classState.riggedWagers === 1 ? ' is' : 's are'} rigged to Heads.`
         : 'No Wager is currently rigged; Loaded can force a future result to Heads.',
       current: Number(combat.classState.loaded || 0), max: loadedCap,
+      help: 'Correct manual flags earn Loaded. Gambler cards can spend Loaded to force uncertain Wagers to Heads, turning risk into a predictable payoff.',
     },
     chirurgeon: {
       mechanic: 'blood', label: 'Untreated Blood', value: Number(combat.classState.untreatedBlood || 0),
       detailKey: 'recoverable', detailLabel: 'This much Blood remains recoverable through treatment.',
+      help: 'Health paid to Chirurgeon cards becomes Untreated Blood. Treatment effects can recover that Health, but each wound can only be treated once.',
     },
     archivist: {
       mechanic: 'archive', label: 'Archive', value: combat.archive.length,
       detailKey: 'citations', detailValue: Number(combat.classState.citations || 0),
       detailLabel: `${Number(combat.classState.citations || 0)} Citations are banked for Archive and Recall effects.`,
+      help: 'Filed cards enter the Archive instead of the discard pile. Recall effects return chosen archived cards to your hand, usually upgraded. The cards currently filed are shown below.',
     },
     warden: {
       mechanic: 'resolve', label: 'Resolve', value: `${Number(combat.classState.resolve || 0)}/${resolveCap}`,
       detailKey: 'riposte', detailLabel: 'Resolve is stored fuel for Riposte effects.',
       current: Number(combat.classState.resolve || 0), max: resolveCap,
+      help: 'Gain Resolve when Block or Plating absorbs enemy damage. Resolve remains stored until Warden cards spend it on Ripostes and defensive payoffs.',
     },
     hexwright: {
       mechanic: 'rune', label: 'Runes', value: runes.length,
       detailKey: 'runePower', detailValue: runePower,
       detailLabel: `Inscribed Runes have ${runePower} total power.`,
+      help: 'Inscribe truthful revealed numbers as Runes without changing the board clue. Hexwright cards use Rune count, values, parity, and sums, and may consume the Runes.',
     },
     revenant: {
       mechanic: 'grave', label: 'Grave', value: combat.grave.length,
       detailKey: 'rise', detailLabel: 'Cards in the Grave are available to Rise effects.',
+      help: 'Grave cards enter the Grave the first time they are played. Rise effects return them upgraded and marked Risen. Risen Attacks deal 50% more damage, and every risen card Exhausts after play. The cards currently buried are shown below.',
     },
   };
   const readout = byClass[runState.cls];
@@ -238,15 +297,27 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
   const [hoverLair, setHoverLair] = useState(-1);             // hovered enemy -> highlight its lair
   const [focusedEnemy, setFocusedEnemy] = useState(-1);
   const [showLog, setShowLog] = useState(false);
-  const [showHand, setShowHand] = useState(false);
+  const [bottomPanel, setBottomPanel] = useState('stats');
+  const showHand = bottomPanel === 'hand';
   const [showItems, setShowItems] = useState(false);
   const [coachStep, setCoachStep] = useState(0);
+  const [mobileWindow, setMobileWindow] = useState(null);
+  const combatWindowRef = useRef(null);
+  useDialogFocus(combatWindowRef, () => setMobileWindow(null), Boolean(mobileWindow));
   if (seenRef.current.combat !== c) {
     seenRef.current = { combat: c, ids: new Set() };
     nodesRef.current = new Map();
     rectsRef.current = new Map();
     prevHandRef.current = [];
   }
+
+  useEffect(() => {
+    setBottomPanel('stats');
+  }, [c]);
+
+  useEffect(() => {
+    if (c.cleanup) setBottomPanel('stats');
+  }, [c.cleanup]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -267,7 +338,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
         setTimeout(() => setGhosts(g => g.filter(x => !spawned.includes(x))), 650);
       }
     }
-    prevHandRef.current = c.hand.map(x => ({ id: x.id, key: x.key, up: x.up }));
+    prevHandRef.current = c.hand.map(x => ({ id: x.id, key: x.key, up: x.up, risen: x.risen }));
     // A closed mobile drawer has no card nodes to animate. Keep unseen cards
     // fresh until the player opens the hand, then deal them into view.
     if (showHand) {
@@ -294,12 +365,23 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
     setFocusedEnemy(current => current === idx ? -1 : idx);
   };
   const enemyRoster = (className, keyPrefix, compact = false) => <div className={`enemy-roster ${className}`}>
-    <div className="enemy-roster-head"><b>Enemies</b><small>Tap to target and focus</small></div>
+    {!compact && <div className="enemy-roster-head"><b>Enemies</b></div>}
     <div className="enemy-roster-list">
-      {compact ? c.enemies.map((e, i) => (
-        <EnemyToken key={`${keyPrefix}-${i}`} e={e} idx={i} selected={focusedEnemy === i} onClick={focusEnemy}
-          emoji={enemyIcon(e.key, e.def, preferences)} preferences={preferences} />
-      )) : c.enemies.map((e, i) => (
+      {compact ? <>
+        <span className="enemy-token-group">
+          {c.enemies.map((e, i) => (
+            <EnemyToken key={`${keyPrefix}-${i}`} e={e} idx={i} selected={focusedEnemy === i} onClick={focusEnemy}
+              emoji={enemyIcon(e.key, e.def, preferences)} preferences={preferences} />
+          ))}
+        </span>
+        <span className="combat-token-group">
+          {classMechanic && <ClassMechanicToken mechanic={classMechanic} />}
+          <CombatToolToken kind="items" count={itemEntries.reduce((sum, item) => sum + item.count, 0)}
+            preferences={preferences} onClick={() => setMobileWindow('items')} />
+          <CombatToolToken kind="log" count={c.log.length} preferences={preferences}
+            onClick={() => setMobileWindow('log')} />
+        </span>
+      </> : c.enemies.map((e, i) => (
         <EnemyView key={`${keyPrefix}-${i}`} e={e} idx={i} hitMode={hitModeFor(e)} onHover={setHoverLair}
           focused={focusedEnemy === i} onFocus={focusEnemy} emoji={enemyIcon(e.key, e.def, preferences)} preferences={preferences} />
       ))}
@@ -313,7 +395,6 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
   </div>;
   const itemEntries = [
     ...run.trinkets.map(key => ({ id: `trinket:${key}`, key, kind: 'trinket', def: TRINKETS[key] })),
-    ...run.gadgets.map(key => ({ id: `gadget:${key}`, key, kind: 'gadget', def: GADGETS[key] })),
   ].reduce((entries, item) => {
     const found = entries.find(entry => entry.id === item.id);
     if (found) found.count++;
@@ -323,37 +404,17 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
 
   return (
     <>
-      <TopBar>
-        <span className="stat" data-mechanic="block"><GameIcon name="block" preferences={preferences} /> <b>{c.block}</b></span>
-        <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}><GameIcon name="plating" preferences={preferences} /> <b>{c.plating}</b></span>
-        {classMechanic && (
-          <span className={`stat class-mechanic-stat ${classMechanic.cls} ${Number(classMechanic.current ?? classMechanic.value) > 0 ? 'charged' : ''}`}
-            data-mechanic={classMechanic.mechanic} tabIndex="0"
-            aria-label={`${classMechanic.label}: ${classMechanic.value}. ${classMechanic.detailLabel}`}
-            title={`${classMechanic.label}: ${classMechanic.value} · ${classMechanic.detailLabel}`}>
-            <i className="class-mechanic-icon" aria-hidden="true">{classMechanic.icon}</i>
-            <span className="class-mechanic-main"><small>{classMechanic.label}</small><strong>{classMechanic.value}</strong></span>
-            <span className="class-mechanic-detail" aria-hidden="true">
-              <i className="class-mechanic-detail-icon">{classMechanic.detailIcon}</i>
-              {classMechanic.detailValue != null && <strong>{classMechanic.detailValue}</strong>}
-            </span>
-            {classMechanic.max && <span className="class-mechanic-meter" aria-hidden="true">
-              <i style={{ width: `${Math.min(100, Math.max(0, classMechanic.current / classMechanic.max * 100))}%` }} />
-            </span>}
-          </span>
-        )}
-        <span className="seg" data-mechanic="mines" tabIndex="0" title="hidden mines − flags"><GameIcon name="mines" preferences={preferences} /> {String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</span>
-        <span className="seg" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a', textShadow: '0 0 7px rgba(90,160,114,.75)' }}><GameIcon name="safe" preferences={preferences} /> {String(safeLeft).padStart(2, '0')}</span>
-        <span className="seg" data-mechanic="max picks" title="current / max picks" style={{ color: '#e8c06a', textShadow: '0 0 7px rgba(201,151,59,.75)' }}><GameIcon name="picks" preferences={preferences} /> {c.picks}/{c.maxPicks}</span>
-        <span className="seg" data-mechanic="turn" tabIndex="0" title="turn"><GameIcon name="turn" preferences={preferences} /> {String(c.turn).padStart(2, '0')}</span>
-        <span className="seg energy-stat" data-mechanic="energy" tabIndex="0"><GameIcon name="energy" preferences={preferences} /> {c.energy}</span>
-        <button className="header-pile" onClick={() => openPileModal('draw')} title="Open draw pile"><GameIcon name="draw" preferences={preferences} /> {c.draw.length}</button>
-        <button className="header-pile" onClick={() => openPileModal('discard')} title="Open discard pile"><GameIcon name="discard" preferences={preferences} /> {c.discard.length}</button>
-        {c.exhaust.length > 0 && <button className="header-pile" onClick={() => openPileModal('exhaust')} title="Open exhaust pile"><GameIcon name="exhaust" preferences={preferences} /> {c.exhaust.length}</button>}
-        {!c.instinctUsed && (
-          <span className="stat dim" data-mechanic="instinct" aria-label="Instinct ready" title="Instinct ready"><GameIcon name="instinct" preferences={preferences} /><span className="stat-label"> instinct ready</span></span>
-        )}
-      </TopBar>
+      <TopBar combatQuickStats={<>
+        <span className="stat combat-quick-stat energy-stat" data-mechanic="energy" tabIndex="0"
+          aria-label={`Energy ${c.cleanup ? 0 : c.energy}`}>
+          <GameIcon name="energy" preferences={preferences} /> <b>{c.cleanup ? 0 : c.energy}</b>
+        </span>
+        <span className="stat combat-quick-stat" data-mechanic="max picks"
+          title={c.cleanup ? 'Unlimited Picks during board cleanup' : 'current / max Picks'}
+          aria-label={c.cleanup ? 'Unlimited Picks' : `Picks ${c.picks} of ${c.maxPicks}`}>
+          <GameIcon name="picks" preferences={preferences} /> <b>{c.cleanup ? '∞' : `${c.picks}/${c.maxPicks}`}</b>
+        </span>
+      </>} />
 
       {enemyRoster('mobile-enemy-roster', 'mobile', true)}
 
@@ -362,14 +423,14 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
           <GameIcon name="target" preferences={preferences} /> {CARDS[c.hand[t.handIdx].key].name}: pick {SPEC_TEXT[spec] || ''} ({t.picked.length}/{t.specs.length})
           {t.optional && t.picked.length > 0 ? ' · click the card again to finish' : ''}
           {' · '}
-          <a style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={cancelTargeting}>cancel</a>
+          <button type="button" className="hint-cancel" onClick={cancelTargeting}>Cancel targeting</button>
         </div>
       )}
       {!t && ui.gadgetTargeting && (
         <div className="hint">
           <GameIcon name="target" preferences={preferences} /> {GADGETS[ui.gadgetTargeting].name}: pick a tile
           {' · '}
-          <a style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={cancelTargeting}>cancel</a>
+          <button type="button" className="hint-cancel" onClick={cancelTargeting}>Cancel targeting</button>
         </div>
       )}
 
@@ -392,13 +453,10 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
             <button className={`btn log-toggle ${showLog ? 'active' : ''}`} onClick={() => setShowLog(x => !x)}><GameIcon name="log" preferences={preferences} /> Log {showLog ? '▲' : '▼'}</button>
           </div>
           {showItems && <div className="item-tray">
-              {itemEntries.map(item => item.kind === 'gadget'
-                ? <button key={item.id} className="item-tray-entry usable" onClick={() => { setShowItems(false); useGadget(item.key); }}>
-                    <span>{itemVector(item.key, preferences)}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count} · Use</i>
-                  </button>
-                : <div key={item.id} className="item-tray-entry">
+              {itemEntries.map(item =>
+                <div key={item.id} className="item-tray-entry">
                     <span>{itemVector(item.key, preferences)}</span><b>{item.def.name}</b><small>{item.def.desc}</small><i>×{item.count}</i>
-                  </div>)}
+                </div>)}
             </div>}
           {c.powersPlayed.length > 0 && (
             <div className="gadgetrow dim">Powers: {c.powersPlayed.map(p => CARDS[p.key].name).join(', ')}</div>
@@ -409,14 +467,32 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
         </div>
       </div>
 
-      <div className={`hand-drawer ${showHand ? 'open' : ''}`}>
-        <div className="combat-primary-actions">
-          <button className="btn hand-toggle" aria-expanded={showHand} onClick={() => setShowHand(x => !x)}>
-            {showHand ? <>▼ Hide cards</> : <><GameIcon name="cards" preferences={preferences} /> Show cards ({c.hand.length})</>}
+      <div className={`combat-bottom-dock hand-drawer panel-${bottomPanel}`}>
+        <nav className="combat-primary-actions combat-bottom-tabs" aria-label="Combat panels">
+          <button type="button" className={`btn ${bottomPanel === 'stats' ? 'primary' : ''}`}
+            aria-pressed={bottomPanel === 'stats'} onClick={() => setBottomPanel('stats')}>Stats</button>
+          <button type="button" className={`btn hand-toggle ${bottomPanel === 'hand' ? 'primary' : ''}`}
+            disabled={c.cleanup} aria-pressed={bottomPanel === 'hand'}
+            onClick={() => setBottomPanel('hand')}>
+            <GameIcon name="cards" preferences={preferences} /> Hand ({c.hand.length})
           </button>
-          <button className="btn primary end-turn" onClick={endTurn}>END TURN ▸</button>
-        </div>
-        {showHand && <div className="handzone"><div className="hand">
+          <button type="button" className="btn primary end-turn" disabled={c.cleanup} onClick={endTurn}>End Turn ▸</button>
+        </nav>
+        {bottomPanel === 'stats' && <section className="combat-bottom-panel combat-stats-panel" aria-label="Combat statistics">
+          <div className="combat-stats-grid">
+            <span className="stat gold" data-mechanic="gold"><GameIcon name="gold" preferences={preferences} /> <b>{run.gold}</b>g</span>
+            <span className="stat" data-mechanic="block"><GameIcon name="block" preferences={preferences} /> <b>{c.block}</b></span>
+            <span className="stat" data-mechanic="plating" style={{ color: 'var(--n4)' }}><GameIcon name="plating" preferences={preferences} /> <b>{c.plating}</b></span>
+            <span className="stat" data-mechanic="mines" title="hidden mines − flags"><GameIcon name="mines" preferences={preferences} /> <b>{String(Math.max(0, minesLeft - flags)).padStart(2, '0')}</b></span>
+            <span className="stat" data-mechanic="full clear" title="safe tiles left" style={{ color: '#7fe89a' }}><GameIcon name="safe" preferences={preferences} /> <b>{String(safeLeft).padStart(2, '0')}</b></span>
+            <span className="stat" data-mechanic="turn" title="turn"><GameIcon name="turn" preferences={preferences} /> <b>{String(c.turn).padStart(2, '0')}</b></span>
+            {!c.cleanup && <button className="header-pile" onClick={() => openPileModal('draw')} title="Open draw pile"><GameIcon name="draw" preferences={preferences} /> {c.draw.length}</button>}
+            {!c.cleanup && <button className="header-pile" onClick={() => openPileModal('discard')} title="Open discard pile"><GameIcon name="discard" preferences={preferences} /> {c.discard.length}</button>}
+            {!c.cleanup && c.exhaust.length > 0 && <button className="header-pile" onClick={() => openPileModal('exhaust')} title="Open exhaust pile"><GameIcon name="exhaust" preferences={preferences} /> {c.exhaust.length}</button>}
+            {!c.cleanup && !c.instinctUsed && <span className="stat dim" data-mechanic="instinct" aria-label="Instinct ready" title="Instinct ready"><GameIcon name="instinct" preferences={preferences} /></span>}
+          </div>
+        </section>}
+        {showHand && !c.cleanup && <div className="handzone"><div className="hand">
           {c.hand.map((card, i) => {
             const def = CARDS[card.key];
             const affordable = def.cost != null && effCost(card) <= c.energy;
@@ -451,11 +527,41 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
       {ghosts.map(g => (
         <div key={`ghost-${g.id}`} className={`cardghost ${g.mode}`}
           style={{ left: g.rect.left, top: g.rect.top, width: g.rect.width }}>
-          <CardView card={{ id: g.id, key: g.key, up: g.up }} />
+          <CardView card={{ id: g.id, key: g.key, up: g.up, risen: g.risen }} />
         </div>
       ))}
+      {mobileWindow && (
+        <div className="overlay combat-tool-overlay" onClick={event => {
+          if (event.target === event.currentTarget) setMobileWindow(null);
+        }}>
+          <section ref={combatWindowRef} tabIndex="-1" className="modal combat-tool-modal" role="dialog" aria-modal="true"
+            aria-label={mobileWindow === 'items' ? 'Bag' : 'Combat log'}>
+            <header>
+              <span><GameIcon name={mobileWindow === 'items' ? 'bag' : 'log'} preferences={preferences} /></span>
+              <div><small>Combat window</small><h2>{mobileWindow === 'items' ? 'Bag' : 'Log'}</h2></div>
+              <button type="button" className="btn" onClick={() => setMobileWindow(null)} aria-label="Close">×</button>
+            </header>
+            {mobileWindow === 'items' ? (
+              <div className="combat-window-items">
+                {itemEntries.length ? itemEntries.map(item =>
+                  <div key={item.id} className="item-tray-entry">
+                      <span>{itemVector(item.key, preferences)}</span><b>{item.def.name}</b>
+                      <small>{item.def.desc}</small><i>×{item.count}</i>
+                  </div>)
+                  : <p className="dim">Your bag is empty.</p>}
+              </div>
+            ) : (
+              <div className="log combat-window-log">
+                {c.log.length ? c.log.map((entry, index) => (
+                  <div key={index} className="entry"><IconText preferences={preferences}>{entry}</IconText></div>
+                )) : <div className="entry">The crypt is quiet.</div>}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
       {preferences.showCombatHints && <CombatCoach step={coachStep} onStep={setCoachStep}
-        onRevealCards={() => setShowHand(true)} onFinish={() => onPreferenceChange('showCombatHints', false)} />}
+        onRevealCards={() => setBottomPanel('hand')} onFinish={() => onPreferenceChange('showCombatHints', false)} />}
     </>
   );
 }

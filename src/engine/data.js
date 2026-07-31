@@ -487,10 +487,6 @@ export const CARDS = {
   },
 
   /* ----- statuses & curses ----- */
-  dud: {
-    name: 'Dud', type: 'Status', rarity: 'special', cls: null, cost: null, unplayable: true,
-    targets: [], text: () => 'Unplayable. Exhausts at end of turn.', play: () => {},
-  },
   rubble: {
     name: 'Rubble', type: 'Status', rarity: 'special', cls: null, cost: null, unplayable: true,
     targets: [], text: () => 'Unplayable. While in hand, your attacks deal 1 less damage.', play: () => {},
@@ -570,7 +566,7 @@ export const TRINKETS = {
   canary:        { name: "Miner's Canary", emoji: '🐤', tier: 'rare',
     desc: 'Once per combat, a single detonation against you is capped at 10 damage.' },
   daisychain:    { name: 'Daisy Chain', emoji: '⛓️', tier: 'uncommon', cls: 'sapper',
-    desc: 'Whenever you add a Blast Chain link, deal 2 damage to a random enemy.' },
+    desc: 'Whenever you add a Blast Chain link, deal 2 damage to a random enemy. Retain up to 2 unused links between turns.' },
   bottomlessledger: { name: 'Bottomless Ledger', emoji: '📒', tier: 'uncommon', cls: 'surveyor',
     desc: 'Start each combat with 3 Insight. Whenever a card spends all your Insight, retain 1.' },
   coolantcell:   { name: 'Coolant Cell', emoji: '🧊', tier: 'uncommon', cls: 'terraformer',
@@ -647,9 +643,26 @@ export const GADGETS = {
     use: () => fleeCombat() },
 };
 
+/* Consumables use the normal card presentation and live in the combat hand.
+   The engine owns their special play/retention rules because their effects must
+   also remove the matching copy from the run inventory. */
+export const consumableCardKey = key => `consumable_${key}`;
+for (const [key, gadget] of Object.entries(GADGETS)) {
+  CARDS[consumableCardKey(key)] = {
+    name: gadget.name, type: 'Item', rarity: 'special', cls: null, cost: [0, 0],
+    targets: [], consumableKey: key,
+    text: () => `Consumable. ${gadget.desc} Stays in your hand between turns until used.`,
+    play: () => {},
+  };
+}
+
 /* ---------------- enemies ----------------
    sc(e,n): scale attack numbers when an enemy appears below its home stratum. */
 const sc = (e, n) => n + 3 * e.scale;
+const halfAttack = (e, n) => Math.ceil(sc(e, n) / 2);
+const finishAbilityWithAttack = (e, intent) => {
+  if (intent.attack > 0 && cbt() && !cbt().over && e.hp > 0) enemyAttack(e, intent.attack);
+};
 
 export const ENEMIES = {
   grubber: {
@@ -668,15 +681,19 @@ export const ENEMIES = {
   },
   minelayer: {
     name: 'Minelayer Imp', emoji: '👺', hp: 26, home: 0,
-    desc: 'Alternates between an 8-damage attack and planting 2 new mines, favoring the column shown in its intent.',
+    desc: 'Alternates between an 8-damage attack and planting 2 new mines while making a half-strength attack, favoring the column shown in its intent.',
     next: e => {
       if (e.step % 2 === 0) return { kind: 'attack', cls: 'atk', n: sc(e, 8), label: `Attack ${sc(e, 8)}` };
       const col = randInt(board().size);
-      return { kind: 'lay', cls: 'board', n: 2, col, label: `Lay 2 mines (col ${col + 1})` };
+      const attack = halfAttack(e, 8);
+      return { kind: 'lay', cls: 'board', n: 2, col, attack, label: `Lay 2 mines · Attack ${attack} (col ${col + 1})` };
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
-      else boardAttack(`${e.def.name} lays mines`, () => layMines(it.n, it.col));
+      else {
+        boardAttack(`${e.def.name} lays mines`, () => layMines(it.n, it.col));
+        finishAbilityWithAttack(e, it);
+      }
     },
   },
   warden: {
@@ -687,49 +704,57 @@ export const ENEMIES = {
   },
   wisp: {
     name: 'Fog Wisp', emoji: '👻', hp: 1, home: 1,
-    desc: 'Alternates between re-hiding 3 revealed tiles with Fog and attacking for 4 damage. Fragile, but disruptive if left alive.',
+    desc: 'Alternates between re-hiding 3 revealed tiles with Fog plus a half-strength attack, and attacking for 4 damage. Fragile, but disruptive if left alive.',
     next: e => e.step % 2 === 0
-      ? { kind: 'fog', cls: 'board', n: 3, label: 'Fog 3 tiles' }
+      ? { kind: 'fog', cls: 'board', n: 3, attack: halfAttack(e, 4), label: `Fog 3 tiles · Attack ${halfAttack(e, 4)}` }
       : { kind: 'attack', cls: 'atk', n: sc(e, 4), label: `Attack ${sc(e, 4)}` },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
-      else boardAttack(`${e.def.name} exhales fog`, () => fogTiles(it.n));
+      else {
+        boardAttack(`${e.def.name} exhales fog`, () => fogTiles(it.n));
+        finishAbilityWithAttack(e, it);
+      }
     },
   },
   shade: {
     name: 'Marsh Shade', emoji: '🌫️', hp: 30, home: 1,
-    desc: 'Alternates between a 9-damage attack and Fog that re-hides 2 revealed tiles.',
+    desc: 'Alternates between a 9-damage attack and Fog that re-hides 2 revealed tiles while making a half-strength attack.',
     next: e => e.step % 2 === 0
       ? { kind: 'attack', cls: 'atk', n: sc(e, 9), label: `Attack ${sc(e, 9)}` }
-      : { kind: 'fog', cls: 'board', n: 2, label: 'Fog 2 tiles' },
+      : { kind: 'fog', cls: 'board', n: 2, attack: halfAttack(e, 9), label: `Fog 2 tiles · Attack ${halfAttack(e, 9)}` },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
-      else boardAttack(`${e.def.name} seeps mist`, () => fogTiles(it.n));
+      else {
+        boardAttack(`${e.def.name} seeps mist`, () => fogTiles(it.n));
+        finishAbilityWithAttack(e, it);
+      }
     },
   },
   tunneler: {
     name: 'Tunneler Grub', emoji: '🐛', hp: 34, home: 1,
-    desc: 'Alternates between an 8-damage attack and excavating 3 new edge tiles containing a mixture of safe ground and mines.',
+    desc: 'Alternates between an 8-damage attack and excavating 3 mixed edge tiles while making a half-strength attack.',
     next: e => e.step % 2 === 0
       ? { kind: 'attack', cls: 'atk', n: sc(e, 8), label: `Attack ${sc(e, 8)}` }
-      : { kind: 'excavate', cls: 'board', n: 3, label: 'Excavate 3 (mined) tiles' },
+      : { kind: 'excavate', cls: 'board', n: 3, attack: halfAttack(e, 8), label: `Excavate 3 (mined) tiles · Attack ${halfAttack(e, 8)}` },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
       else boardAttack(`${e.def.name} chews open new tunnels`, () => {
         const added = annexTiles(it.n, 'mixed');
         if (added.length) toast(`${e.def.name} excavates ${added.length} new tiles!`, true);
       });
+      if (it.kind !== 'attack') finishAbilityWithAttack(e, it);
     },
   },
   clockwork: {
     name: 'Clockwork Sapper', emoji: '🤖', hp: 45, home: 2,
-    desc: 'Cycles through excavating 2 mixed edge tiles, attacking for 12 damage, and planting 2 new mines in the shown column.',
+    desc: 'Cycles through a 12-damage attack and two abilities: excavating mixed edge tiles or planting mines, each paired with a half-strength attack.',
     next: e => {
       const s = e.step % 3;
-      if (s === 0) return { kind: 'excavate', cls: 'board', n: 2, label: 'Excavate 2 (mined) tiles' };
+      if (s === 0) return { kind: 'excavate', cls: 'board', n: 2, attack: halfAttack(e, 12), label: `Excavate 2 (mined) tiles · Attack ${halfAttack(e, 12)}` };
       if (s === 1) return { kind: 'attack', cls: 'atk', n: sc(e, 12), label: `Attack ${sc(e, 12)}` };
       const col = randInt(board().size);
-      return { kind: 'lay', cls: 'board', n: 2, col, label: `Lay 2 mines (col ${col + 1})` };
+      const attack = halfAttack(e, 12);
+      return { kind: 'lay', cls: 'board', n: 2, col, attack, label: `Lay 2 mines · Attack ${attack} (col ${col + 1})` };
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
@@ -738,49 +763,58 @@ export const ENEMIES = {
         if (added.length) toast(`${e.def.name} excavates ${added.length} new tiles!`, true);
       });
       else boardAttack(`${e.def.name} plants charges`, () => layMines(it.n, it.col));
+      if (it.kind !== 'attack') finishAbilityWithAttack(e, it);
     },
   },
   gearhusk: {
     name: 'Gear Husk', emoji: '⚙️', hp: 55, home: 2,
-    desc: 'Alternates between a heavy 14-damage attack and gaining 12 Block.',
+    desc: 'Alternates between a heavy 14-damage attack and gaining 12 Block while making a half-strength attack.',
     next: e => e.step % 2 === 0
       ? { kind: 'attack', cls: 'atk', n: sc(e, 14), label: `Attack ${sc(e, 14)}` }
-      : { kind: 'defend', cls: 'defend', n: 12, label: 'Block 12' },
-    act: (e, it) => { if (it.kind === 'attack') enemyAttack(e, it.n); else e.block += it.n; },
+      : { kind: 'defend', cls: 'defend', n: 12, attack: halfAttack(e, 14), label: `Block 12 · Attack ${halfAttack(e, 14)}` },
+    act: (e, it) => {
+      if (it.kind === 'attack') enemyAttack(e, it.n);
+      else { e.block += it.n; finishAbilityWithAttack(e, it); }
+    },
   },
 
   /* ----- elites ----- */
   ossuary: {
     name: 'Ossuary Warden', emoji: '💀', hp: 62, home: 0, elite: true,
-    desc: 'Cycles through a 10-damage attack, gaining Block equal to half the hidden tiles while attacking for 6, and planting 2 new mines.',
+    desc: 'Cycles through a 10-damage attack, gaining Block while attacking for 6, and planting 2 mines while making a half-strength attack.',
     next: e => {
       const s = e.step % 3;
       if (s === 0) return { kind: 'attack', cls: 'atk', n: sc(e, 10), label: `Attack ${sc(e, 10)}` };
       if (s === 1) return { kind: 'fortify', cls: 'defend', n: sc(e, 6), label: `Attack ${sc(e, 6)} · Block ½ hidden` };
       const col = randInt(board().size);
-      return { kind: 'lay', cls: 'board', n: 2, col, label: `Lay 2 mines (col ${col + 1})` };
+      const attack = halfAttack(e, 10);
+      return { kind: 'lay', cls: 'board', n: 2, col, attack, label: `Lay 2 mines · Attack ${attack} (col ${col + 1})` };
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
       else if (it.kind === 'fortify') { e.block += Math.ceil(hiddenIdx().length / 2); enemyAttack(e, it.n); }
-      else boardAttack(`${e.def.name} lays mines`, () => layMines(it.n, it.col));
+      else {
+        boardAttack(`${e.def.name} lays mines`, () => layMines(it.n, it.col));
+        finishAbilityWithAttack(e, it);
+      }
     },
   },
   miscounter: {
     name: 'The Miscounter', emoji: '🎭', hp: 72, home: 1, elite: true,
-    desc: 'Makes one revealed number lie by ±1 until defeated. It cycles through attacking for 12, re-hiding 3 tiles, and moving 3 unverified mines.',
+    desc: 'Makes one revealed number lie by ±1 until defeated. Fog and mine-scrambling abilities each include a half-strength attack.',
     setup: () => setLie(),
     onDeath: () => { clearLie(); toast('The numbers correct themselves.'); },
     next: e => {
       const s = e.step % 3;
       if (s === 0) return { kind: 'attack', cls: 'atk', n: sc(e, 12), label: `Attack ${sc(e, 12)}` };
-      if (s === 1) return { kind: 'fog', cls: 'board', n: 3, label: 'Fog 3 tiles' };
-      return { kind: 'scramble', cls: 'board', n: 3, label: 'Scramble 3 mines' };
+      if (s === 1) return { kind: 'fog', cls: 'board', n: 3, attack: halfAttack(e, 12), label: `Fog 3 tiles · Attack ${halfAttack(e, 12)}` };
+      return { kind: 'scramble', cls: 'board', n: 3, attack: halfAttack(e, 12), label: `Scramble 3 mines · Attack ${halfAttack(e, 12)}` };
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
       else if (it.kind === 'fog') boardAttack('The Miscounter fogs the board', () => fogTiles(it.n));
       else boardAttack('The Miscounter scrambles mines', () => scrambleMines(it.n));
+      if (it.kind !== 'attack') finishAbilityWithAttack(e, it);
       if (cbt() && !cbt().lie) setLie();
     },
   },
@@ -799,26 +833,29 @@ export const ENEMIES = {
   /* ----- bosses ----- */
   collapser: {
     name: 'The Collapser', emoji: '🕳️', hp: 95, home: 0, boss: true,
-    desc: 'Attacks, devours the board’s outer ring, and periodically uses Resonance to test your Delver’s signature mechanic. Hidden mines in the consumed ring detonate for half damage.',
+    desc: 'Attacks, devours the board’s outer ring, and periodically uses Resonance to test your Delver’s signature mechanic. Unflagged mines in the consumed ring detonate for full damage; flagged mines are safely swallowed.',
     next: e => {
       const s = e.step % 4;
       if (s === 0 || s === 2) return { kind: 'attack', cls: 'atk', n: 10, label: 'Attack 10' };
-      if (s === 1) return { kind: 'devour', cls: 'board', label: 'DEVOUR the outer ring' };
+      if (s === 1) return { kind: 'devour', cls: 'board', attack: halfAttack(e, 10), label: `DEVOUR the outer ring · Attack ${halfAttack(e, 10)}` };
       return bossResonanceIntent(e);
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
       else if (it.kind === 'resonance') resolveBossResonance(e, it);
-      else devourRing();
+      else {
+        devourRing();
+        finishAbilityWithAttack(e, it);
+      }
     },
   },
   fogfather: {
     name: 'The Fogfather', emoji: '🌁', hp: 135, home: 1, boss: true,
-    desc: 'Cycles through re-hiding tiles, moving unverified mines, attacking, and a Resonance that tests your Delver’s signature mechanic.',
+    desc: 'Cycles through re-hiding tiles, moving unverified mines, attacking, and Resonance. Its Fog and Scramble abilities include a half-strength attack.',
     next: e => {
       const s = e.step % 4;
-      if (s === 0) return { kind: 'fog', cls: 'board', n: 5, label: 'Fog 5 tiles' };
-      if (s === 1) return { kind: 'scramble', cls: 'board', n: 4, label: 'Scramble 4 mines' };
+      if (s === 0) return { kind: 'fog', cls: 'board', n: 5, attack: halfAttack(e, 18), label: `Fog 5 tiles · Attack ${halfAttack(e, 18)}` };
+      if (s === 1) return { kind: 'scramble', cls: 'board', n: 4, attack: halfAttack(e, 18), label: `Scramble 4 mines · Attack ${halfAttack(e, 18)}` };
       if (s === 2) return { kind: 'attack', cls: 'atk', n: 18, label: 'Attack 18' };
       return bossResonanceIntent(e);
     },
@@ -827,23 +864,30 @@ export const ENEMIES = {
       else if (it.kind === 'fog') boardAttack('The Fogfather breathes fog', () => fogTiles(it.n));
       else if (it.kind === 'scramble') boardAttack('The Fogfather scrambles mines', () => scrambleMines(it.n));
       else resolveBossResonance(e, it);
+      if (it.kind === 'fog' || it.kind === 'scramble') finishAbilityWithAttack(e, it);
     },
   },
   nn99: {
     name: 'NN-99', emoji: '🛰️', hp: 220, home: 2, boss: true, gated: true,
-    desc: 'Its signal shield weakens damage until you reveal 3 safe tiles or Chord. It deploys mines, shifts through larger phase boards, and periodically uses Resonance against your Delver’s signature mechanic.',
+    desc: 'Its signal shield weakens damage until you reveal 3 safe tiles or Chord. Mine deployment includes a half-strength attack; it also shifts phase boards and uses Resonance.',
     gateNote: 'Signal shield: 50% damage initially; reveal 3 safe tiles or Chord for full damage',
     setup: e => { e.data.phase = 1; },
     next: e => {
       const s = e.step % 4;
       if (s === 0) return { kind: 'attack', cls: 'atk', n: 12, label: 'Attack 12' };
-      if (s === 1) { const col = randInt(board().size); return { kind: 'lay', cls: 'board', n: 3, col, label: `Lay 3 mines (col ${col + 1})` }; }
+      if (s === 1) {
+        const col = randInt(board().size), attack = halfAttack(e, 12);
+        return { kind: 'lay', cls: 'board', n: 3, col, attack, label: `Lay 3 mines · Attack ${attack} (col ${col + 1})` };
+      }
       if (s === 2) return { kind: 'attack', cls: 'atk', n: 16, label: 'Attack 16' };
       return bossResonanceIntent(e);
     },
     act: (e, it) => {
       if (it.kind === 'attack') enemyAttack(e, it.n);
-      else if (it.kind === 'lay') boardAttack('NN-99 deploys mines', () => layMines(it.n, it.col));
+      else if (it.kind === 'lay') {
+        boardAttack('NN-99 deploys mines', () => layMines(it.n, it.col));
+        finishAbilityWithAttack(e, it);
+      }
       else resolveBossResonance(e, it);
     },
   },

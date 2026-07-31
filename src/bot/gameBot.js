@@ -107,7 +107,6 @@ export function legalActions() {
       if (!cell.void && !cell.revealed && !cell.entombed) actions.push({ type: 'flag', tile });
     });
     c.enemies.forEach((enemy, enemyIndex) => { if (enemy.hp > 0 && !enemy.data.buried) actions.push({ type: 'select-enemy', enemyIndex, enemy: enemy.def.name }); });
-    run.gadgets.forEach(key => actions.push({ type: 'use-gadget', key, gadget: GADGETS[key].name }));
     return actions;
   }
   if (ui.screen === 'reward') {

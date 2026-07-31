@@ -8,6 +8,7 @@ import { itemVector } from './themedIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
 import { delverFullPortrait, delverPortrait } from './portraits.js';
 import { FullArtViewer } from './FullArtViewer.jsx';
+import { EnemySpriteViewer } from './EnemySpriteViewer.jsx';
 import { CardView } from './CardView.jsx';
 import { ENEMY_MODIFIERS, ENEMY_EFFECTS, formatRunTime } from '../engine/engine.js';
 
@@ -153,9 +154,17 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
           const stat = collection.enemies[key];
           if (!stat?.discovered) return <UnknownEntry key={key} label="enemy" />;
           const emoji = enemyIcon(key, def, preferences);
-          return <article className="index-entry" key={key}>
-            <button type="button" className="index-icon index-icon-button" onClick={() => setFullArt({ content: emoji, title: def.name })}
-              aria-haspopup="dialog" aria-label={`Zoom artwork for ${def.name}`}>{emoji}</button>
+          const openSprite = () => setFullArt({ enemyKey: key, title: def.name });
+          return <article className="index-entry enemy-index-entry" key={key} role="button" tabIndex="0"
+            aria-haspopup="dialog" aria-label={`View ${def.name} full-size sprite and animation states`}
+            onClick={openSprite}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openSprite();
+              }
+            }}>
+            <div className="index-icon index-icon-button" aria-hidden="true">{emoji}</div>
             <div className="index-copy">
               <b>{def.name}</b>
               <small>{def.boss ? 'Boss' : def.elite ? 'Elite' : STRATA[def.home]?.name || 'The Undermine'} · {def.hp} base HP</small>
@@ -166,7 +175,7 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
         })}
       </div>
       {!entries.length && !modifiers.length && !effects.length && <IndexEmpty kind="enemies" />}
-      {fullArt && <FullArtViewer alt={`${fullArt.title} enlarged icon`} title={fullArt.title} onClose={() => setFullArt(null)}>{fullArt.content}</FullArtViewer>}
+      {fullArt && <EnemySpriteViewer enemyKey={fullArt.enemyKey} title={fullArt.title} onClose={() => setFullArt(null)} />}
     </div>;
   }
 
@@ -196,7 +205,7 @@ export function CollectionIndex({ kind, preferences, onPreferenceChange }) {
 
   const allEntries = named([
     ...Object.entries(TRINKETS).map(([key, def]) => [`trinket:${key}`, def, 'Trinket']),
-    ...Object.entries(GADGETS).map(([key, def]) => [`gadget:${key}`, def, 'Gadget']),
+    ...Object.entries(GADGETS).map(([key, def]) => [`gadget:${key}`, def, 'Consumable']),
   ]);
   const entries = allEntries.filter(([key,def,type]) => !search || (collection.items[key]?.discovered
     && includes(def.name, def.desc, def.tier || '', def.cls ? CLASSES[def.cls]?.name || def.cls : '', type)));

@@ -8,6 +8,7 @@ import { GameIcon } from './gameIcons.jsx';
 import { ENEMIES } from '../engine/data.js';
 import { cutsceneArt } from './cutsceneArt.js';
 import { CutsceneActor } from './CutsceneActor.jsx';
+import { useDialogFocus } from './useDialogFocus.js';
 
 const TYPE_INTERVAL_MS = 22;
 
@@ -137,7 +138,9 @@ function getScene(id, context = {}) {
       art: cutsceneArt(boss.artKey),
       enemyKey: boss.enemyKey,
       actorKey: boss.enemyKey,
-      actorState: phase === 'intro' ? 'threatening' : 'defeated',
+      /* Boss row 3 is a combat action, not dialogue. Keep introductions posed
+         and reserve that row for battle previews or explicitly directed beats. */
+      actorState: phase === 'intro' ? 'idle' : 'defeated',
       markLabel: phase === 'intro' ? 'BOSS AHEAD' : 'DEFEATED',
       finalLabel: phase === 'intro' ? 'Face the boss' : 'Claim the spoils',
       lines: boss[phase],
@@ -146,8 +149,8 @@ function getScene(id, context = {}) {
   return null;
 }
 
-function speakerName(speaker, scene) {
-  if (speaker === 'player') return CLASSES[run.cls].name;
+function speakerName(speaker, scene, delverKey) {
+  if (speaker === 'player') return CLASSES[delverKey].name;
   if (speaker === 'merchant') return 'Rat Merchant';
   if (speaker === 'boss') return scene.title;
   return scene.title;
@@ -160,10 +163,14 @@ function reduceMotion() {
 export function Cutscene() {
   const active = ui.cutscene;
   const scene = active ? getScene(active.id, active.context) : null;
+  const [previewDelver, setPreviewDelver] = useState(run.cls);
   const [beat, setBeat] = useState(0);
   const [shown, setShown] = useState(reduceMotion() ? Infinity : 0);
   const skipTypeRef = useRef(false);
+  const dialogRef = useRef(null);
+  useDialogFocus(dialogRef, closeCutscene);
   const prefs = loadPreferences();
+  const delverKey = run.testMode && CLASSES[previewDelver] ? previewDelver : run.cls;
 
   const [speaker, line] = scene ? scene.lines[beat] : ['narrator', ''];
   const typing = shown < line.length;
@@ -196,7 +203,7 @@ export function Cutscene() {
   useEffect(() => {
     const onKey = (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
-      if (event.target instanceof HTMLElement && event.target.tagName === 'BUTTON') return;
+      if (event.target instanceof HTMLElement && ['BUTTON', 'SELECT'].includes(event.target.tagName)) return;
       event.preventDefault();
       advance();
     };
@@ -207,9 +214,24 @@ export function Cutscene() {
   if (!active || !scene) return null;
 
   return (
-    <div className="cutscene-overlay" role="dialog" aria-modal="true" aria-label={scene.title}>
+    <div ref={dialogRef} tabIndex="-1" className="cutscene-overlay" role="dialog" aria-modal="true" aria-label={scene.title}>
       <section className={`cutscene ${scene.kind}`}>
-        <div className="cutscene-visual" onClick={advance}>
+        {run.testMode && <label className="cutscene-test-delver">
+          <span>Preview Delver</span>
+          <select value={delverKey} onChange={event => setPreviewDelver(event.target.value)}>
+            {Object.entries(CLASSES).map(([key, definition]) => (
+              <option key={key} value={key}>{definition.name}</option>
+            ))}
+          </select>
+        </label>}
+        <div className="cutscene-visual" onClick={advance} role="button" tabIndex="0"
+          aria-label={typing ? 'Reveal all dialogue' : 'Continue cutscene'}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              advance();
+            }
+          }}>
           <img className={`cutscene-main-art ${speaker === 'merchant' || speaker === 'boss' ? 'speaking' : ''}`}
             src={scene.art} alt={`${scene.title} cutscene`} />
           <div className={`cutscene-stage cutscene-stage-${scene.kind}`}>
@@ -218,7 +240,7 @@ export function Cutscene() {
                 speaking={(speaker === 'merchant' || speaker === 'boss')}
                 state={scene.actorState} />
             )}
-            <CutsceneActor actorKey={run.cls} placement="player"
+            <CutsceneActor actorKey={delverKey} placement="player"
               speaking={speaker === 'player'} state="idle" />
           </div>
           {(scene.iconName || scene.enemyKey) && (
@@ -230,7 +252,7 @@ export function Cutscene() {
           <span className="cutscene-tap-hint">{typing ? 'Tap to reveal' : 'Tap scene to continue'}</span>
         </div>
         <div className="cutscene-dialogue">
-          <div className={`cutscene-speaker ${speaker}`}>{speakerName(speaker, scene)}</div>
+          <div className={`cutscene-speaker ${speaker}`}>{speakerName(speaker, scene, delverKey)}</div>
           <p className={speaker === 'narrator' ? 'narration' : ''} aria-live="polite">
             <span aria-hidden="true">
               {typing ? line.slice(0, shown) : line}

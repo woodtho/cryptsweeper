@@ -1,8 +1,11 @@
+import { useRef } from 'react';
 import { run, cbt, closeBattlePreview, ENEMY_MODIFIERS, BOSS_RESONANCE } from '../engine/engine.js';
 import { STRATA, CLASSES } from '../engine/data.js';
 import { decorateMechanics } from './mechanics.js';
-import { enemyIcon } from './enemyIcons.jsx';
+import { enemyIcon, enemySpriteKey } from './enemyIcons.jsx';
 import { GameIcon } from './gameIcons.jsx';
+import { SpriteAnimation } from './SpriteAnimation.jsx';
+import { useDialogFocus } from './useDialogFocus.js';
 
 function Modifier({ enemy }) {
   const modifier = ENEMY_MODIFIERS[enemy.modifier];
@@ -14,6 +17,7 @@ function Modifier({ enemy }) {
 
 function EnemyBrief({ enemy, index, preferences }) {
   const type = enemy.def.boss ? 'Boss' : enemy.def.elite ? 'Elite enemy' : 'Enemy';
+  const showFullSprite = preferences.enemyIconStyle === 'sprites' || preferences.animatedBoardEnemies;
   const lairTiles = enemy.lair?.length || 0;
   const resonance = enemy.def.boss ? BOSS_RESONANCE[run.cls] : null;
   const intentIcon = enemy.intent?.cls === 'atk' ? 'attack'
@@ -22,7 +26,10 @@ function EnemyBrief({ enemy, index, preferences }) {
   return <article className="battle-preview-enemy">
     <div className="battle-preview-type"><span>{type}</span><small>Threat {index + 1}</small></div>
     <div className="battle-preview-art" aria-label={`${enemy.def.name} artwork`}>
-      {enemyIcon(enemy.key, enemy.def, preferences)}
+      {showFullSprite
+        ? <SpriteAnimation actorKey={enemySpriteKey(enemy.key)} motion="idle"
+          className="battle-preview-sprite" />
+        : enemyIcon(enemy.key, enemy.def, preferences)}
       {enemy.modifier && <i title={ENEMY_MODIFIERS[enemy.modifier].name}>{ENEMY_MODIFIERS[enemy.modifier].mark}</i>}
     </div>
     <h2>{enemy.def.name}</h2>
@@ -44,10 +51,12 @@ function EnemyBrief({ enemy, index, preferences }) {
 }
 
 export function BattlePreview({ preferences, onNeverShow }) {
+  const dialogRef = useRef(null);
+  useDialogFocus(dialogRef, closeBattlePreview);
   const combat = cbt();
   if (!run || !combat) return null;
   const stratum = STRATA[run.stratum];
-  return <div className="battle-preview-overlay" role="dialog" aria-modal="true" aria-labelledby="battle-preview-title">
+  return <div ref={dialogRef} tabIndex="-1" className="battle-preview-overlay" role="dialog" aria-modal="true" aria-labelledby="battle-preview-title">
     <section className="battle-preview-screen">
       <header>
         <div><p>{combat.kind === 'boss' ? 'Boss encounter' : combat.kind === 'elite' ? 'Elite encounter' : 'Battle ahead'} · {stratum?.name}</p>

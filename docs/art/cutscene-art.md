@@ -54,9 +54,9 @@ animated Rat Merchant.
 | `descent-2` | The Clockwork Depths | STRATUM III | `cutscenes/clockwork-depths-pixel-coarse.webp` | Environment |
 | `finale` | The Seam Is Silent | FOR NOW | `cutscenes/finale-pixel-coarse.webp` | Environment |
 | `shop` | The Rat Merchant | — | `cutscenes/rat-merchant-shop-pixel-coarse.webp` | Character-free shop environment |
-| `boss-intro-0` / `-aftermath-0` | The Collapser | BOSS AHEAD / DEFEATED | `cutscenes/collapser-pixel-coarse.webp` | Boss → see NPC doc |
-| `boss-intro-1` / `-aftermath-1` | The Fogfather | BOSS AHEAD / DEFEATED | `cutscenes/fogfather-pixel-coarse.webp` | Boss → see NPC doc |
-| `boss-intro-2` / `-aftermath-2` | NN-99 | BOSS AHEAD / DEFEATED | `cutscenes/nn99-pixel-coarse.webp` | Boss → see NPC doc |
+| `boss-intro-0` / `-aftermath-0` | The Collapser | BOSS AHEAD / DEFEATED | `cutscenes/collapser-stage-pixel-coarse.webp` | Character-free arena; animated boss is staged separately |
+| `boss-intro-1` / `-aftermath-1` | The Fogfather | BOSS AHEAD / DEFEATED | `cutscenes/fogfather-stage-pixel-coarse.webp` | Character-free gallery; animated boss is staged separately |
+| `boss-intro-2` / `-aftermath-2` | NN-99 | BOSS AHEAD / DEFEATED | `cutscenes/nn99-stage-pixel-coarse.webp` | Character-free vault; animated boss is staged separately |
 
 > One plate serves both a boss's intro and aftermath scene, so it must read as ominous but
 > not mid-explosion — the "defeated" beat reuses the same image with different dialogue.

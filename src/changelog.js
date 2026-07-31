@@ -1,14 +1,14 @@
 /*
  * Public release notes shown by the website.
  *
- * REQUIRED: update the "Next" entry with every player-facing change before the
- * change is considered complete. Keep player-facing language here;
+ * REQUIRED: record every player-facing change in the newest version section
+ * before the change is considered complete. Keep player-facing language here;
  * implementation details belong in commit messages and development documents.
  */
 export const CHANGELOG_ENTRIES = [
   {
-    version: 'Next',
-    date: 'In development',
+    version: '0.1.6',
+    date: 'July 30, 2026',
     title: 'Sharper puzzles and clearer play',
     sections: [
       {
@@ -25,6 +25,11 @@ export const CHANGELOG_ENTRIES = [
           'Every Delver, enemy, boss, and the Rat Merchant now has a coordinated full-body 2D pixel sprite.',
           'Cutscenes now stage animated full-body Delvers, bosses, and the Rat Merchant over their environments.',
           'The Rat Merchant has a dedicated character-free shop backdrop and a corrected two-arm lantern animation.',
+          'The Undermine test lab now includes an animation viewer for cycling every character, motion row, and playback speed.',
+          'Cutscene actors now face inward: Delvers look toward featured merchants, enemies, and bosses instead of sharing one direction.',
+          'The test lab now includes an exportable Animation Sequence Editor and a multi-sprite Cutscene Composer.',
+          'Boss cutscenes now use character-free Collapser, Fogfather, and NN-99 environment plates.',
+          'Consumable items now appear as zero-cost Item cards that remain in your combat hand until used.',
         ],
       },
       {
@@ -34,6 +39,17 @@ export const CHANGELOG_ENTRIES = [
           'Tapping the selected crossword cell switches between its row and column.',
           'Crossword row and column numbers now align correctly, with the active axis and R/C number marked directly on the board.',
           'Cutscene speakers animate while talking, defeated bosses remain visibly slumped, and reduced-motion mode freezes every actor on a clear pose.',
+          'Character animation playback is smoother, with faster frame stepping and fluid body movement while preserving crisp pixel edges.',
+          'An optional Animated battle sprites setting replaces enemy roster icons with their idle and attack animations.',
+          'The animation viewer can flip any character left or right for direction and silhouette review.',
+          'Cutscene movement is now scene-directed: conversations stay planted, and talking bosses no longer loop their combat animation.',
+          'Every animation sheet has been rebuilt with consistent character anchors, clean cell gutters, and no fragments from neighboring frames.',
+          'Animated cutscene characters are now fully opaque and stand entirely above the scene floor without clipped feet.',
+          'Sprite placement now uses explicit stage anchors and actor-specific horizontal corrections.',
+          'Animations support looping, one-shot, and hold-last playback, with slower character-specific idle and dialogue timing.',
+          'Revenant, Rat Merchant, Minelayer, Miscounter, and boss loops now use curated frame order and clean last-to-first transitions.',
+          'Optional animated enemies now use simplified, outlined battle-scale sprites designed for the 48-pixel combat UI.',
+          'Duds have been replaced by five story-specific Curse cards, and Cursed enemies now add a temporary named Curse.',
         ],
       },
     ],

@@ -775,7 +775,7 @@ export const SIGNATURE_CARDS = {
   unbroken: {
     name: 'Unbroken', type: 'Power', rarity: 'uncommon', cls: 'warden', cost: [2, 1, 0], targets: [],
     text: u => `Retain ${tier(u, [45, 60, 80])}% of Block between turns and increase the Resolve cap by ${tier(u, [4, 7, 10])}.`,
-    play: u => { cbt().powers.blockRetention = tier(u, [.45, .6, .8]); state().resolveCap = 20 + tier(u, [4, 7, 10]); },
+    play: u => { cbt().powers.blockRetention = tier(u, [.45, .6, .8]); state().resolveCap = 10 + tier(u, [4, 7, 10]); },
   },
   citadel: {
     name: 'Citadel', type: 'Attack', rarity: 'rare', cls: 'warden', cost: [2, 2, 1], hits: 'all', targets: [],
@@ -874,13 +874,13 @@ export const SIGNATURE_CARDS = {
   /* Revenant — exhausted cards enter a Grave and Rise once, upgraded. */
   gravestep: {
     name: 'Grave Step', type: 'Attack', rarity: 'starter', cls: 'revenant', cost: [0, 0, 0], hits: 'target', targets: [], grave: true,
-    text: u => `Deal ${tier(u, [10, 14, 19])} damage${u >= 2 ? ' plus 5 at Death’s Door' : ''}. Enter the Grave.`,
-    play: u => hitEnemy(curTarget(), atk(tier(u, [10, 14, 19]) + (u >= 2 && atDeathsDoor() ? 5 : 0))),
+    text: u => `Deal ${tier(u, [7, 10, 14])} damage${u >= 2 ? ' plus 5 at Death’s Door' : ''}. Enter the Grave. Risen: +50% damage.`,
+    play: u => hitEnemy(curTarget(), atk(tier(u, [7, 10, 14]) + (u >= 2 && atDeathsDoor() ? 5 : 0))),
   },
   coldbreath: {
     name: 'Cold Breath', type: 'Attack', rarity: 'common', cls: 'revenant', cost: [1, 1, 0], hits: 'target', targets: ['hidden'], grave: true,
-    text: u => `${reveal('Reveal')} the tile. If safe, deal ${tier(u, [9, 13, 18])} damage${u >= 2 ? ' and draw 1' : ''}. Enter the Grave.`,
-    play: (u, tg) => { if (revealTile(tg[0], 'card-safe').safe) { hitEnemy(curTarget(), atk(tier(u, [9, 13, 18]))); if (u >= 2) drawCards(1); } },
+    text: u => `${reveal('Reveal')} the tile. If safe, deal ${tier(u, [6, 9, 13])} damage${u >= 2 ? ' and draw 1' : ''}. Enter the Grave. Risen: +50% damage.`,
+    play: (u, tg) => { if (revealTile(tg[0], 'card-safe').safe) { hitEnemy(curTarget(), atk(tier(u, [6, 9, 13]))); if (u >= 2) drawCards(1); } },
   },
   secondburial: {
     name: 'Second Burial', type: 'Skill', rarity: 'common', cls: 'revenant', cost: [1, 0, 0], targets: [], grave: true,
@@ -895,8 +895,8 @@ export const SIGNATURE_CARDS = {
   cryptdebt: {
     name: 'Crypt Debt', type: 'Attack', rarity: 'uncommon', cls: 'revenant', cost: [1, 1, 0], hits: 'all', targets: [], grave: true,
     selfDamage: u => tier(u, [4, 3, 2]),
-    text: u => `Lose ${tier(u, [4, 3, 2])} HP. Deal ${tier(u, [18, 24, 32])} damage to all enemies. Enter the Grave.`,
-    play: u => { loseHP(tier(u, [4, 3, 2]), 'Crypt Debt'); if (cbt() && !cbt().over) hitAll(atk(tier(u, [18, 24, 32]))); },
+    text: u => `Lose ${tier(u, [4, 3, 2])} HP. Deal ${tier(u, [14, 19, 26])} damage to all enemies. Enter the Grave. Risen: +50% damage.`,
+    play: u => { loseHP(tier(u, [4, 3, 2]), 'Crypt Debt'); if (cbt() && !cbt().over) hitAll(atk(tier(u, [14, 19, 26]))); },
   },
   wakebell: {
     name: 'Wake Bell', type: 'Skill', rarity: 'common', cls: 'revenant', cost: [1, 1, 0], targets: [],
@@ -911,8 +911,8 @@ export const SIGNATURE_CARDS = {
   },
   notomorrow: {
     name: 'No Tomorrow', type: 'Attack', rarity: 'uncommon', cls: 'revenant', cost: [1, 1, 0], hits: 'target', targets: [],
-    text: u => `Deal ${tier(u, [12, 17, 23])} damage, or ${tier(u, [25, 34, 46])} at Death’s Door.`,
-    play: u => hitEnemy(curTarget(), atk(atDeathsDoor() ? tier(u, [25, 34, 46]) : tier(u, [12, 17, 23]))),
+    text: u => `Deal ${tier(u, [9, 13, 18])} damage, or ${tier(u, [20, 27, 37])} at Death’s Door.`,
+    play: u => hitEnemy(curTarget(), atk(atDeathsDoor() ? tier(u, [20, 27, 37]) : tier(u, [9, 13, 18]))),
   },
   afterlife: {
     name: 'Afterlife', type: 'Skill', rarity: 'rare', cls: 'revenant', cost: [2, 1, 0], targets: [], exhaust: true,

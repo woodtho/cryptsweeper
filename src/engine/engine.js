@@ -2,7 +2,7 @@
    every exported action mutates state then notify()s. Content data lives in data.js. */
 import {
   STRATA, CLASSES, CARDS, TRINKETS, GADGETS, ENEMIES, FIGHTS, NN99_PHASES, PERSISTENT_CURSES,
-  NEUTRAL_REWARD_POOL, SIGNATURE_RELICS,
+  NEUTRAL_REWARD_POOL, SIGNATURE_RELICS, consumableCardKey,
 } from './data.js';
 import { sfx } from './sfx.js';
 import { haptic } from './haptics.js';
@@ -60,8 +60,27 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 function effectiveHealing(n) { return run?.challenge === 'brittle' ? Math.ceil(n / 2) : n; }
 let _cardId = 0;
 function mkCard(key, up = 0) { return { id: ++_cardId, key, up }; }
+function isConsumableCard(card) { return Boolean(CARDS[card?.key]?.consumableKey); }
+function syncConsumableHand() {
+  const c = run?.combat;
+  if (!c) return;
+  const remaining = new Map();
+  for (const key of run.gadgets || []) remaining.set(key, (remaining.get(key) || 0) + 1);
+  c.hand = (c.hand || []).filter(card => {
+    const key = CARDS[card.key]?.consumableKey;
+    if (!key) return true;
+    const count = remaining.get(key) || 0;
+    if (count <= 0) return false;
+    remaining.set(key, count - 1);
+    return true;
+  });
+  for (const [key, count] of remaining) {
+    for (let i = 0; i < count; i++) c.hand.push(mkCard(consumableCardKey(key)));
+  }
+}
 
 const RETIRED_CARD_REPLACEMENTS = {
+  dud: 'exhaustion',
   bigred: 'killzone', markedcharge: 'controlled', blastdividend: 'powderkeg',
   wholepicture: 'knownquantity', crosssection: 'surveystakes',
   landslide: 'citybelow', lastlight: 'bandage', gravemoss: 'bandage',
@@ -250,6 +269,7 @@ export function loadRun(slot) {
           run.combat[pile] = run.combat[pile].map(card => migrateCardDefinition(card, run.cls)).filter(Boolean);
         }
       }
+      syncConsumableHand();
     }
     run.seenEvents = (run.seenEvents || []).filter(key => EVENT_CATALOG[key]);
     run.eventThreads = Object.fromEntries(
@@ -298,7 +318,7 @@ export function loadRun(slot) {
         triageRecoveryUsed: false, triageLineRecovery: 0, triageLineHealing: 0, operatingUses: 0,
         leechKit: hasT('leechkit'), cinderbrand: hasT('cinderbrand'),
         deathsDoorThreshold: hasT('secondshroud') ? 0.4 : 0.25,
-        citations: 0, resolve: 0, resolveCap: 20,
+        citations: 0, resolve: 0, resolveCap: 10,
         ...run.combat.classState,
       };
       run.combat.archive ??= [];
@@ -374,7 +394,7 @@ export const VEIN_BOONS = {
   vitality: { name: 'Living Ore', mark: '♥', desc: 'Permanently gain 8 maximum Health and recover 8 Health.' },
   reforge: { name: 'Deep Reforge', mark: '⟡', desc: 'Upgrade two random cards in your deck. If every card is upgraded, gain 100 gold.' },
   transmute: { name: 'Vein Transmutation', mark: '⇄', desc: 'Transform one random non-Curse card into an upgraded rare card for your Delver or the neutral pool.' },
-  cache: { name: 'Bottomless Cache', mark: '◆', desc: 'Gain 75 gold and a random gadget. If your gadget slots are full, gain 25 additional gold.' },
+  cache: { name: 'Bottomless Cache', mark: '◆', desc: 'Gain 75 gold and a random consumable. If your consumable slots are full, gain 25 additional gold.' },
 };
 
 function bossRelicOffer(bossKey) {
@@ -509,6 +529,23 @@ export function openPileModal(which) {
   const c = cbt();
   const cards = which === 'draw' ? shuffle(c.draw) : c[which].slice();
   openModal({ kind: 'pile', which, cards });
+}
+export function openMechanicModal(details) {
+  const c = cbt();
+  const pile = details.mechanic === 'grave' ? 'grave'
+    : details.mechanic === 'archive' ? 'archive'
+      : null;
+  openModal({
+    kind: 'mechanic',
+    cls: details.cls,
+    mechanic: details.mechanic,
+    label: details.label,
+    value: details.value,
+    detailValue: details.detailValue,
+    detailLabel: details.detailLabel,
+    help: details.help,
+    cards: pile ? c[pile].slice() : null,
+  });
 }
 
 /* ================= map ================= */
@@ -1291,8 +1328,9 @@ export function addConstruct(i, kind, opts = {}) {
   return true;
 }
 
-/* Full Clear is a payoff, not a win condition: the collapse deals heavy damage to
-   everyone, then the crypt re-seals with a fresh board. Only kills end a combat. */
+/* Before the last enemy falls, Full Clear is a payoff: the collapse deals heavy
+   damage and the crypt re-seals if anything survives. Once every enemy is dead,
+   clearing the remaining safe ground becomes the combat's final win condition. */
 const FULL_CLEAR_DMG = 50;
 
 function checkFullClear() {
@@ -1311,6 +1349,13 @@ function checkFullClear() {
   toast(`★ FULL CLEAR — the board collapses: ${FULL_CLEAR_DMG} damage to ALL enemies!`);
   log('★ FULL CLEAR! The ceiling comes down on everyone.');
   hitAll(FULL_CLEAR_DMG, { bypassGate: true });
+  if (run?.combat === c && c.cleanup) {
+    c.over = true;
+    toast('★ BOARD COMPLETE — the descent is secure.');
+    log('★ Every safe tile is open. The cleared board is secured.');
+    combatVictory();
+    return;
+  }
   if (!c.over && aliveEnemies().length) {
     toast('The crypt re-seals — fresh stone rises. Finish them.', true);
     log('▦ The crypt re-seals: a fresh board rises.');
@@ -1551,8 +1596,8 @@ export function devourRing() {
     }
     if (cell.grub) { cell.grub = false; unburyAt(i); }
     if (c.primed === i) { c.primed = null; cell.primed = false; }
-    if (!cell.revealed && !cell.entombed && cell.mine) {
-      detonatePlayer(i, { half: true });
+    if (!cell.revealed && !cell.entombed && cell.mine && !cell.flag) {
+      detonatePlayer(i);
       if (!run?.combat || c.over) return;
     }
     cell.void = true; cell.mine = false; cell.flag = 0; cell.construct = null; cell.entombed = false;
@@ -1567,8 +1612,12 @@ export function devourRing() {
 
 /* ================= player effects ================= */
 export function atk(n) {
-  const rubble = cbt()?.hand.filter(c => c.key === 'rubble').length || 0;
-  return Math.max(0, n - rubble);
+  const c = cbt();
+  const rubble = c?.hand.filter(card => card.key === 'rubble').length || 0;
+  const activeCard = c?.activeCard;
+  const risenBonus = activeCard?.risen && CARDS[activeCard.key]?.cls === 'revenant';
+  const damage = risenBonus ? Math.ceil(n * 1.5) : n;
+  return Math.max(0, damage - rubble);
 }
 export function gainBlock(n) { if (!run?.combat) return; cbt().block += n; sfx('block'); log(`🛡 +${n} Block`); }
 export const MAX_PLATING = 40;
@@ -1735,7 +1784,10 @@ export function drawCards(n) {
       c.draw = shuffle(c.discard); c.discard = [];
     }
     const card = c.draw.pop();
-    if (c.hand.length >= 10) { c.discard.push(card); continue; }
+    if (c.hand.filter(handCard => !isConsumableCard(handCard)).length >= 10) {
+      c.discard.push(card);
+      continue;
+    }
     c.hand.push(card);
     drew++;
     if (card.key === 'shrapnel') {
@@ -1786,7 +1838,7 @@ export function enemyAttack(e, n) {
   if (run.cls === 'warden' && blockSoak + platingSoak > 0) {
     const bonus = rest === 0 ? Number(c.powers.interlock || 0) : 0;
     const gained = Math.max(1, Math.ceil((blockSoak + platingSoak) / 6)) + bonus;
-    const cap = Number(c.classState.resolveCap || 20);
+    const cap = Number(c.classState.resolveCap || 10);
     c.classState.resolve = Math.min(cap, Number(c.classState.resolve || 0) + gained);
     log(`◆ Warden gains ${gained} Resolve (${c.classState.resolve}/${cap}).`);
   }
@@ -1828,7 +1880,7 @@ export const ENEMY_MODIFIERS = {
   armoured: { name: 'Armoured', mark: '⛨', desc: 'Starts with 8 Block, plus 4 for each deeper stratum. Its opening Block expires when it takes its first action.' },
   burrowing: { name: 'Burrowing', mark: '⌄', desc: 'Starts underground: untargetable and unable to act. Reveal three safe tiles in one turn to force it above ground.' },
   unstable: { name: 'Unstable', mark: '※', desc: 'Explodes when defeated for 3 damage, plus 2 per deeper stratum. It bypasses Block, but Plating can absorb it.' },
-  cursed: { name: 'Cursed', mark: '◈', desc: 'Adds an unplayable Dud to the combat discard pile. The Dud can enter later hands and exhausts at end of turn.' },
+  cursed: { name: 'Cursed', mark: '◈', desc: 'Adds a temporary named Curse to the combat discard pile. It can enter a later hand and exhausts at end of turn.' },
 };
 
 export const ENEMY_EFFECTS = {
@@ -2133,8 +2185,9 @@ function setupEnemyModifier(e) {
   if (e.modifier === 'armoured') e.block += 8 + (run.stratum + veinThreatTier()) * 4;
   if (e.modifier === 'burrowing') { e.data.buried = true; e.data.modifierBuried = true; }
   if (e.modifier === 'cursed') {
-    cbt().discard.push(mkCard('dud'));
-    log(`◈ ${e.def.name}'s curse adds a Dud to the discard pile.`);
+    const key = randPick(Object.keys(PERSISTENT_CURSES));
+    cbt().discard.push({ ...mkCard(key), temporaryCurse: true });
+    log(`◈ ${e.def.name}'s curse adds ${CARDS[key].name} to the discard pile.`);
   }
 }
 export function aliveEnemies() { return run?.combat ? cbt().enemies.filter(e => e.hp > 0) : []; }
@@ -2208,10 +2261,29 @@ export function checkNNPhase(e) {
 function checkWin() {
   const c = cbt();
   if (!c || c.over) return;
-  if (aliveEnemies().length === 0) {
+  if (aliveEnemies().length !== 0 || c.cleanup) return;
+  c.cleanup = true;
+  c.targetIdx = -1;
+  c.hand = [];
+  c.draw = [];
+  c.discard = [];
+  c.archive = [];
+  c.grave = [];
+  c.energy = 0;
+  ui.targeting = null;
+  ui.gadgetTargeting = null;
+  ui.flagMode = false;
+  if (loadPreferences().showCleanupPrompt) {
+    openModal({ kind: 'cleanup' });
+  }
+  log('☠ All enemies are down. Cleanup phase: unlimited Picks, no cards, no enemy turns.');
+  if (board().cleared) {
     c.over = true;
     combatVictory();
+    return;
   }
+  checkFullClear();
+  if (run?.combat === c) notify();
 }
 
 /* ================= combat setup & turns ================= */
@@ -2238,7 +2310,8 @@ export function startCombat(kind) {
   const b = genBoard(st.size, st.mines + veinMines + minePenalty());
   run.combat = {
     kind, board: b, boardSpec: { size: st.size, mines: st.mines + veinMines + minePenalty() },
-    enemies: [], hand: [], discard: [], exhaust: [], powersPlayed: [], archive: [], grave: [],
+    enemies: [], hand: run.gadgets.map(key => mkCard(consumableCardKey(key))),
+    discard: [], exhaust: [], powersPlayed: [], archive: [], grave: [],
     draw: shuffle(run.deck.map(c => ({ ...c }))),
     energy: 0, maxEnergy: 3 + (hasT('lamp') ? 1 : 0) + (hasT('emberjar') ? 1 : 0) + (run.challenge === 'wardenroad' ? 1 : 0),
     block: 0, plating: (run.challenge === 'wardenroad' ? 6 : 0)
@@ -2264,11 +2337,11 @@ export function startCombat(kind) {
       triageRecoveryUsed: false, triageLineRecovery: 0, triageLineHealing: 0, operatingUses: 0,
       leechKit: hasT('leechkit'), cinderbrand: hasT('cinderbrand'),
       deathsDoorThreshold: hasT('secondshroud') ? 0.4 : 0.25,
-      citations: 0, resolve: 0, resolveCap: 20,
+      citations: 0, resolve: 0, resolveCap: 10,
     },
     instinctUsed: 0, gogglesUsed: false, compassUsed: false, canaryUsed: false, keystoneUsed: false,
     nitro: 0, nitroBoost: 0, lie: null, primed: null, targetIdx: 0,
-    fullCleared: false, over: false, setup: true, log: [],
+    fullCleared: false, cleanup: false, over: false, setup: true, log: [],
   };
   const c = cbt();
   openSafe(b.opening);
@@ -2370,7 +2443,13 @@ function startTurn() {
   c.classState.painUsed = false;
   c.classState.exhaustUsed = false;
   c.classState.constructBuiltThisTurn = false;
-  c.classState.blastChain = 0;
+  const retainedBlastChain = run.cls === 'sapper' && hasT('daisychain') && c.turn > 1
+    ? Math.min(2, Number(c.classState.blastChain || 0))
+    : 0;
+  c.classState.blastChain = retainedBlastChain;
+  if (retainedBlastChain > 0) {
+    log(`⛓ Daisy Chain carries ${retainedBlastChain} Blast Chain link${retainedBlastChain === 1 ? '' : 's'} forward.`);
+  }
   c.classState.lightGainedThisTurn = 0;
   c.classState.bloodSpentThisTurn = 0;
   c.classState.twoHeadedCoinUsed = false;
@@ -2386,12 +2465,13 @@ function startTurn() {
   c.silverThreadUsesThisTurn = 0;
   if (run.cls === 'warden' && c.powers.wallBelow) {
     gainBlock(c.plating * c.powers.wallBelow.blockPerPlating);
-    c.classState.resolve = Math.min(Number(c.classState.resolveCap || 20),
+    c.classState.resolve = Math.min(Number(c.classState.resolveCap || 10),
       Number(c.classState.resolve || 0) + c.powers.wallBelow.resolve);
   }
   const normalDraw = 5 + (hasT('indexcard') && c.turn === 1 ? 1 : 0) - (hasT('emberjar') && c.turn > 1 ? 1 : 0)
     + persistentCurseTotal('cardsPerTurn');
   drawCards(Math.max(PERSISTENT_CURSES.exhaustion.minimum, normalDraw));
+  syncConsumableHand();
   applyDowsingReading();
   notify();
 }
@@ -2446,13 +2526,19 @@ function provablySafe() {
 export function endTurn() {
   const c = cbt();
   if (c.over) return;
+  if (c.cleanup) {
+    toast('No more turns — finish clearing the board with unlimited Picks.');
+    return;
+  }
   sfx('turn');
   ui.targeting = null; ui.gadgetTargeting = null;
+  const retainedConsumables = [];
   for (const card of c.hand) {
-    if (card.key === 'dud') c.exhaust.push(card);
+    if (CARDS[card.key]?.consumableKey) retainedConsumables.push(card);
+    else if (card.temporaryCurse) c.exhaust.push(card);
     else c.discard.push(card);
   }
-  c.hand = [];
+  c.hand = retainedConsumables;
   const b = board();
   for (let i = 0; i < b.cells.length; i++) {
     const con = b.cells[i].construct;
@@ -2558,12 +2644,20 @@ export function isPlayLethal(card) {
 export function clickHandCard(handIdx) {
   const c = cbt();
   if (c.over) return;
+  if (c.cleanup) {
+    toast('Cards are closed. Finish the board with unlimited Picks.');
+    return;
+  }
   if (ui.targeting) {
     if (ui.targeting.handIdx === handIdx && ui.targeting.optional && ui.targeting.picked.length) { finishTargeting(); return; }
     ui.targeting = null; notify(); return;
   }
   const card = c.hand[handIdx];
   const def = CARDS[card.key];
+  if (def.consumableKey) {
+    useGadget(def.consumableKey, handIdx);
+    return;
+  }
   if (def.unplayable) { invalidCardFeedback(card, `${def.name} is a ${def.type} and cannot be played.`); return; }
   const cost = effCost(card);
   if (cost > c.energy) { invalidCardFeedback(card, `${def.name} needs ${cost} Energy; you have ${c.energy}.`); return; }
@@ -2620,7 +2714,12 @@ function resolveCard(handIdx, picked) {
   c.energy -= cost;
   c.hand.splice(handIdx, 1);
   sfx('play');
-  def.play(card.up || 0, picked); // real tier (0/1/2); cards read it as a boolean, level-scaling cards use the number
+  c.activeCard = card;
+  try {
+    def.play(card.up || 0, picked); // real tier (0/1/2); cards read it as a boolean, level-scaling cards use the number
+  } finally {
+    c.activeCard = null;
+  }
   if (!c.over) {
     if (def.type === 'Power') c.powersPlayed.push(card);
     else if (def.file && card.recalledTurn !== c.turn) {
@@ -2661,7 +2760,7 @@ export function clickTile(i) {
   if (ui.gadgetTargeting) {
     const key = ui.gadgetTargeting;
     ui.gadgetTargeting = null;
-    run.gadgets.splice(run.gadgets.indexOf(key), 1);
+    consumeGadgetCard(key);
     GADGETS[key].use(i);
     notify();
     return;
@@ -2671,8 +2770,8 @@ export function clickTile(i) {
   if (cell.void || cell.revealed || cell.entombed) return;
   if (ui.flagMode) { toggleFlag(i); return; }
   if (cell.flag) return; // classic: click on flag does nothing
-  if (c.picks <= 0) { toast('Out of picks ⛏ — cards still dig, or end turn.', true); return; }
-  c.picks--;
+  if (!c.cleanup && c.picks <= 0) { toast('Out of picks ⛏ — cards still dig, or end turn.', true); return; }
+  if (!c.cleanup) c.picks--;
   revealTile(i, 'reveal');
   notify();
 }
@@ -2706,9 +2805,24 @@ export function selectEnemy(idx) {
   if (e && e.hp > 0 && !e.data.buried) { cbt().targetIdx = idx; notify(); }
 }
 
-export function useGadget(key) {
+function consumeGadgetCard(key, handIdx = -1) {
+  const inventoryIdx = run.gadgets.indexOf(key);
+  if (inventoryIdx < 0) return false;
+  run.gadgets.splice(inventoryIdx, 1);
+  const c = run.combat;
+  if (c) {
+    const expectedCardKey = consumableCardKey(key);
+    const cardIdx = c.hand[handIdx]?.key === expectedCardKey
+      ? handIdx
+      : c.hand.findIndex(card => card.key === expectedCardKey);
+    if (cardIdx >= 0) c.hand.splice(cardIdx, 1);
+  }
+  return true;
+}
+
+export function useGadget(key, handIdx = -1) {
   const g = GADGETS[key];
-  if (!run.combat || cbt().over) return;
+  if (!g || !run.combat || cbt().over || !run.gadgets.includes(key)) return;
   if (key === 'smokebomb' && cbt().kind === 'boss') { toast('No escape from a boss!', true); return; }
   if (g.target) {
     ui.gadgetTargeting = key;
@@ -2717,7 +2831,7 @@ export function useGadget(key) {
     notify();
     return;
   }
-  run.gadgets.splice(run.gadgets.indexOf(key), 1);
+  consumeGadgetCard(key, handIdx);
   g.use();
   notify();
 }
@@ -3053,7 +3167,7 @@ export function buyShopTrinket(i) {
 export function buyShopGadget(i) {
   const it = run.shop.gadgets[i];
   if (it.sold || run.gold < it.price) { toast('Not enough gold.', true); return; }
-  if (run.gadgets.length >= 3) { toast('Gadget slots full (3).', true); return; }
+  if (run.gadgets.length >= 3) { toast('Consumable slots full (3).', true); return; }
   run.gold -= it.price; it.sold = true;
   run.gadgets.push(it.key);
   recordItemOwned(`gadget:${it.key}`);

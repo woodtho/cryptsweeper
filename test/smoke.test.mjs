@@ -19,7 +19,10 @@ import {
   rewardPoolFor, toast, TOAST_DURATION_MS, BOSS_RESONANCE,
   bossResonanceIntent, resolveBossResonance,
 } from '../src/engine/engine.js';
-import { CARDS, CLASSES, TRINKETS, SIGNATURE_RELICS, STRATA, ENEMIES, PERSISTENT_CURSES } from '../src/engine/data.js';
+import {
+  CARDS, CLASSES, TRINKETS, GADGETS, SIGNATURE_RELICS, STRATA, ENEMIES,
+  PERSISTENT_CURSES, consumableCardKey,
+} from '../src/engine/data.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import {
@@ -241,7 +244,7 @@ startCombat('dig');
   }
 }
 
-/* 7 — full clear: heavy AoE + board re-seal; kills are still required to win */
+/* 7 — full clear: heavy AoE + board re-seal; kills lead to mandatory cleanup */
 if (ui.screen === 'reward') { takeRewardCard(0); finishReward(); }
 if (R().combat) fleeCombat();
 startCombat('dig');
@@ -260,9 +263,34 @@ startCombat('dig');
   T('collapse + lair digging damaged enemies', hpAfter < hpBefore);
   T('crypt re-seals with a fresh board', R().combat && cbt().board !== bRef
     && cbt().board.cells.some(x => !x.revealed && !x.mine && !x.void));
-  T('killing is still required to win', ui.screen === 'combat' && !!R().combat);
+  T('living enemies keep combat active after a Full Clear', ui.screen === 'combat' && !!R().combat);
   for (const e of cc.enemies.slice()) if (e.hp > 0) hitEnemy(e, 99999, { bypassGate: true });
-  T('reward after all enemies are dead', ui.screen === 'reward');
+  T('killing all enemies begins board cleanup without cards or enemy turns',
+    ui.screen === 'combat' && cbt().cleanup
+      && cbt().hand.length === 0 && cbt().draw.length === 0);
+  T('board cleanup begins with a dismissible explanation',
+    ui.modal?.kind === 'cleanup');
+  closeModal();
+  cbt().picks = 0;
+  const cleanupTile = hiddenIdx().find(i => !board().cells[i].mine && numAt(i) > 0)
+    ?? hiddenIdx().find(i => !board().cells[i].mine);
+  if (cleanupTile != null) {
+    clickTile(cleanupTile);
+    T('cleanup grants unlimited Picks even when the normal counter is empty',
+      !R().combat || board().cells[cleanupTile].revealed);
+  }
+  const cleanupBoard = R().combat ? board() : null;
+  if (cleanupBoard) {
+    for (let i = 0; i < cleanupBoard.cells.length; i++) {
+      if (!R().combat || cbt().board !== cleanupBoard) break;
+      const cell = cleanupBoard.cells[i];
+      if (!cell.mine && !cell.void && !cell.revealed && !cell.entombed) {
+        cell.flag = 0;
+        revealTile(i, 'reveal');
+      }
+    }
+  }
+  T('reward opens only after the post-kill board is finished', ui.screen === 'reward');
 }
 if (ui.screen === 'reward') {
   T('card reward offered', R().reward.cards.length >= 1);
@@ -437,10 +465,33 @@ T('stratum-1 boss is the Collapser', boss.key === 'collapser');
 T('boss combat queues its introduction once', ui.cutscene?.id === 'boss-intro-0');
 closeCutscene();
 const preVoid = board().cells.filter(x => x.void).length;
+const playable = board().cells.map((cell, i) => cell.void ? null : i).filter(i => i !== null);
+const rows = playable.map(i => Math.floor(i / board().size));
+const cols = playable.map(i => i % board().size);
+const minRow = Math.min(...rows), maxRow = Math.max(...rows);
+const minCol = Math.min(...cols), maxCol = Math.max(...cols);
+const consumedRing = playable.filter(i => {
+  const row = Math.floor(i / board().size), col = i % board().size;
+  return row === minRow || row === maxRow || col === minCol || col === maxCol;
+});
+board().cells.forEach(cell => { cell.mine = false; });
+const [unflaggedMine, flaggedMine] = consumedRing;
+Object.assign(board().cells[unflaggedMine], { mine: true, revealed: false, entombed: false, flag: 0 });
+Object.assign(board().cells[flaggedMine], { mine: true, revealed: false, entombed: false, flag: 1 });
+cbt().plating = 0;
+cbt().gogglesUsed = true;
+const hpBeforeDevour = R().hp;
 devourRing();
 if (R().combat && !cbt().over) {
   T('devour voids the outer ring', board().cells.filter(x => x.void).length > preVoid);
+  T('Collapser Devour deals full mine damage only for unflagged mines',
+    R().hp === hpBeforeDevour - STRATA[0].mineDmg
+      && board().cells[flaggedMine].void && !board().cells[flaggedMine].mine);
 } else console.log('skip  devour assert (combat ended)');
+T('enemy utility abilities telegraph half-strength follow-up attacks',
+  ENEMIES.minelayer.next({ step: 1, scale: 0 }).attack === 4
+    && ENEMIES.gearhusk.next({ step: 1, scale: 0 }).attack === 7
+    && ENEMIES.fogfather.next({ step: 0, scale: 0 }).attack === 9);
 
 R().stratum = 2;
 startCombat('boss');
@@ -925,10 +976,15 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
     filed && cbt().archive.length === 0 && cbt().hand.some(card => card.key === 'footnote' && card.up === 1));
 
   newRun('warden'); startCombat('dig');
+  T('Warden starts combat with a 10 Resolve cap',
+    cbt().classState.resolveCap === 10);
   cbt().block = 10;
   enemyAttack(cbt().enemies[0], 10);
   T('Warden turns absorbed attacks into Resolve',
     cbt().block === 0 && cbt().classState.resolve > 0);
+  CARDS.unbroken.play(0);
+  T('Unbroken increases the new Resolve baseline by its listed amount',
+    cbt().classState.resolveCap === 14);
 
   newRun('hexwright'); startCombat('dig');
   let clue = board().cells.findIndex((cell, i) => cell.revealed && !cell.mine && numAt(i) > 0);
@@ -951,6 +1007,12 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   T('Revenant cards enter the Grave and Rise once upgraded',
     buried && cbt().grave.length === 0
       && cbt().hand.some(card => card.key === 'gravestep' && card.up === 1 && card.risen));
+  const risenIndex = cbt().hand.findIndex(card => card.key === 'gravestep' && card.risen);
+  const hpBeforeRisen = cbt().enemies[0].hp;
+  clickHandCard(risenIndex);
+  T('Risen Revenant attacks gain 50% damage and exhaust after play',
+    cbt().enemies[0].hp === hpBeforeRisen - 15
+      && cbt().exhaust.some(card => card.key === 'gravestep' && card.risen));
 }
 
 /* 16c — class-locked signature relics hook each Delver's real engine */
@@ -961,6 +1023,11 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   detonateForCards(chainMine);
   T('Daisy Chain damages a random enemy when a Blast Chain link is created',
     cbt().classState.blastChain === 1 && cbt().log.some(entry => String(entry).includes('Daisy Chain')));
+  cbt().classState.blastChain = 4;
+  endTurn();
+  T('Daisy Chain retains up to 2 unused Blast Chain links between turns',
+    cbt().classState.blastChain === 2
+      && cbt().log.some(entry => String(entry).includes('carries 2 Blast Chain links forward')));
 
   newRun('surveyor'); R().trinkets.push('bottomlessledger'); startCombat('dig');
   const ledgerSpent = spendInsight();
@@ -1188,6 +1255,7 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   const curseKeys = Object.keys(PERSISTENT_CURSES);
   T('five persistent curse types have unplayable Curse cards', curseKeys.length === 5 && curseKeys.every(key =>
     CARDS[key]?.type === 'Curse' && CARDS[key].unplayable && CARDS[key].cost == null));
+  T('Duds have been replaced by the named curse family', !CARDS.dud);
 
   newRun('sapper'); R().deck.push({ key:'claustrophobia', up:0 }); startCombat('dig');
   T('Claustrophobia adds two mines to each combat board', cbt().boardSpec.mines === STRATA[0].mines + 2);
@@ -1219,7 +1287,32 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   newRun('sapper', { daily:'fiction-burden', testMode:true }); closeCutscene(); startSpecificEvent('markedledger');
   eventChoice('amount');
   T('event burdens come from their stories instead of a random curse table',
-    academicCurseRollRemoved && cartographersFearApplied && R().deck.some(card => card.key === 'dud'));
+    academicCurseRollRemoved && cartographersFearApplied && R().deck.some(card => card.key === 'paranoia'));
+}
+
+/* ================= consumable cards ================= */
+{
+  newRun('sapper');
+  R().gadgets.push('platingdraught', 'nitro');
+  R().hp = R().maxHp = 999;
+  startCombat('dig');
+  const itemKeys = R().gadgets.map(consumableCardKey);
+  T('every carried consumable appears as a zero-cost Item card in hand',
+    itemKeys.every(key => cbt().hand.some(card => card.key === key))
+      && itemKeys.every(key => CARDS[key]?.type === 'Item' && CARDS[key].cost[0] === 0));
+  const normalCardsBefore = cbt().hand.filter(card => !CARDS[card.key].consumableKey).length;
+  endTurn();
+  T('consumable cards stay in hand between turns without reducing the normal draw',
+    itemKeys.every(key => cbt().hand.some(card => card.key === key))
+      && cbt().hand.filter(card => !CARDS[card.key].consumableKey).length === normalCardsBefore);
+  const platingCard = cbt().hand.findIndex(card => card.key === consumableCardKey('platingdraught'));
+  const platingBefore = cbt().plating;
+  clickHandCard(platingCard);
+  T('playing a consumable card applies it and removes only that carried copy',
+    cbt().plating === platingBefore + 8
+      && !R().gadgets.includes('platingdraught')
+      && !cbt().hand.some(card => card.key === consumableCardKey('platingdraught'))
+      && R().gadgets.includes('nitro'));
 }
 
 /* ================= single free edition: no purchase or paywall gates ================= */
@@ -1341,7 +1434,8 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
     newRun('sapper', { challenge:'afflicted', daily:`modifier-proof-${i}` }); startCombat('dig');
     const enemy = cbt().enemies[0];
     if (enemy.modifier === 'armoured') modifierProof.armoured = enemy.block >= 8;
-    if (enemy.modifier === 'cursed') modifierProof.cursed = cbt().discard.some(card => card.key === 'dud');
+    if (enemy.modifier === 'cursed') modifierProof.cursed = cbt().discard.some(card =>
+      Object.hasOwn(PERSISTENT_CURSES, card.key) && card.temporaryCurse);
     if (enemy.modifier === 'burrowing') {
       const startedBuried = enemy.data.modifierBuried && enemy.data.buried;
       enemy.maxHp += 500; enemy.hp += 500;

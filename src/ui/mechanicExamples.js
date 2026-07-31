@@ -239,9 +239,9 @@ export const MECHANIC_EXAMPLES = {
     result: 'It explodes on death for a blast that bypasses Block — but your Plating can absorb it, so hold Plating before the kill.',
   },
   cursed: {
-    card: 'Dud',
-    setup: 'A Cursed enemy slips an unplayable Dud into your combat discard.',
-    action: 'The Dud later turns up in your hand, taking a slot.',
+    card: 'Temporary Curse',
+    setup: 'A Cursed enemy slips one of the five named Curse cards into your combat discard.',
+    action: 'The temporary Curse later turns up in your hand, taking a slot.',
     result: 'You cannot play it, but it Exhausts itself at end of turn — gone for the rest of the fight.',
   },
   claustrophobia: {

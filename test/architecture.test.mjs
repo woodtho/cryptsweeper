@@ -27,11 +27,12 @@ test('balance runner requires 100 oracle simulations per class and includes hone
     && balance.includes('stopAtCoreVictory: true'));
 
 const board = source('src/ui/BoardView.jsx');
-test('battle boards expose touch inspection and basic keyboard controls',
-  board.includes('Inspect tiles') && board.includes('ArrowUp') && board.includes("toLowerCase() === 'f'")
+test('battle boards expose accessible tiles and basic keyboard controls without an inspection toolbar',
+  !board.includes('Inspect tiles') && board.includes('ArrowUp') && board.includes("toLowerCase() === 'f'")
     && board.includes("toLowerCase() === 'i'") && board.includes('data-board-tile'));
 
 const combat = source('src/ui/CombatScreen.jsx');
+const battlePreview = source('src/ui/BattlePreview.jsx');
 const mechanicsSource = source('src/ui/mechanics.js');
 const styles = source('src/styles.css');
 const engine = source('src/engine/engine.js');
@@ -49,6 +50,17 @@ const animationSheets = readdirSync(new URL('sheets/', animationRoot))
   .filter(name => name.endsWith('.webp'));
 const cutsceneSprites = source('src/ui/cutsceneSprites.js');
 const cutsceneActor = source('src/ui/CutsceneActor.jsx');
+const spriteAnimation = source('src/ui/SpriteAnimation.jsx');
+const spritePlayback = source('src/ui/spritePlayback.js');
+const animationTestPanel = source('src/ui/AnimationTestPanel.jsx');
+const animationSequenceEditor = source('src/ui/AnimationSequenceEditor.jsx');
+const cutsceneComposer = source('src/ui/CutsceneComposer.jsx');
+const enemyIconsSource = source('src/ui/enemyIcons.jsx');
+const animationNormalizer = source('scripts/normalize-animation-sheets.py');
+const battleSpriteBuilder = source('scripts/build-battle-sprites.py');
+const battleSpriteRoot = new URL('../src/assets/sprites/battle/', import.meta.url);
+const battleSpriteSheets = readdirSync(new URL('sheets/', battleSpriteRoot))
+  .filter(name => name.endsWith('.webp'));
 const cutsceneComponent = source('src/ui/Cutscene.jsx');
 test('full-body sprite production covers every Delver, enemy, boss, and merchant',
   fullbodySprites.length === 25
@@ -58,25 +70,64 @@ test('full-body sprite production covers every Delver, enemy, boss, and merchant
 test('cutscenes use compressed frame sheets for the complete character cast',
   animationSheets.length === 25
     && (cutsceneSprites.match(/animations\/sheets\/[^']+\.webp/g) || []).length === 25
-    && cutsceneSprites.includes("defeated: '100%'")
+    && cutsceneSprites.includes('defeated: 3')
     && cutsceneActor.includes('cutscene-actor-sheet')
-    && cutsceneActor.includes("'--cutscene-sprite-row'")
+    && cutsceneActor.includes('<SpriteAnimation')
+    && cutsceneActor.includes('playbackMode={actor.playback[motion]}')
+    && cutsceneActor.includes('allowMovement = false')
+    && cutsceneActor.includes("actor.role === 'delver' || actor.role === 'npc'")
+    && spritePlayback.includes("['loop', 'once', 'hold']")
+    && spriteAnimation.includes('backgroundPosition:')
+    && spritePlayback.includes("mode === 'once'")
+    && spriteAnimation.includes("'--sprite-facing-scale'")
+    && cutsceneActor.includes("placement === 'featured' ? 'right' : 'left'")
     && cutsceneComponent.includes('cutscene-stage')
+    && cutsceneComponent.includes("actorState: phase === 'intro' ? 'idle' : 'defeated'")
     && cutsceneComponent.includes("actorKey: 'rat-merchant'")
     && cutsceneComponent.includes("cutsceneArt('merchantShop')")
-    && styles.includes('@keyframes cutscene-sprite-frames')
+    && styles.includes('--actor-stage-x:')
+    && cutsceneActor.includes("'--actor-offset-x'")
     && styles.includes('.cutscene-actor[data-motion="defeated"]')
     && statSync(new URL('review/cutscene-animation-sheets.webp', animationRoot)).size > 100_000
     && source('src/assets/sprites/animations/README.md').includes('transparent, lossless **768×512 WebP**'));
-test('every Delver has an obvious class-resource panel with useful secondary state',
+test('animation assets have a repeatable alignment and spill-cleanup pipeline',
+  animationNormalizer.includes('detect_source_columns')
+    && animationNormalizer.includes('group_row_frames')
+    && animationNormalizer.includes('SAFE_PAD = 4')
+    && animationNormalizer.includes('verify_runtime_sheet')
+    && animationNormalizer.includes('source_columns')
+    && source('src/assets/sprites/animations/README.md').includes('detects whether the generated master contains six or seven columns'));
+test('battle sprites use purpose-built coarse animation sheets',
+  battleSpriteSheets.length === 14
+    && battleSpriteBuilder.includes('LOGICAL_CELL = 24')
+    && battleSpriteBuilder.includes('RUNTIME_CELL = 48')
+    && battleSpriteBuilder.includes('ACTION_SELECTION_OVERRIDES')
+    && combat.includes('variant="battle"')
+    && (cutsceneSprites.match(/sprites\/battle\/sheets\/[^']+\.webp/g) || []).length === 14
+    && statSync(new URL('review/battle-sprites.webp', battleSpriteRoot)).size > 10_000);
+test('weak animation loops use curated sequences and actor-specific timing',
+  cutsceneSprites.includes('const PING_PONG = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1]')
+    && cutsceneSprites.includes("revenant, 'The Revenant'")
+    && cutsceneSprites.includes("minelayer, 'Minelayer Imp'")
+    && cutsceneSprites.includes("miscounter, 'The Miscounter'")
+    && cutsceneSprites.includes("ratMerchant, 'Rat Merchant'")
+    && cutsceneSprites.includes('sequences: { idle: PING_PONG, moving: PING_PONG, speaking: PING_PONG, offer: PING_PONG }')
+    && ['collapser', 'fogfather', 'nn99'].every(key =>
+      cutsceneSprites.includes(`${key}: sprite(`))
+    && cutsceneSprites.includes("defeated: 'hold'")
+    && cutsceneSprites.includes('idle: 4')
+    && cutsceneSprites.includes('speaking: 6'));
+test('every Delver has an obvious class-resource tile in the enemies and tools strip',
   ['sapper:', 'surveyor:', 'terraformer:', 'lamplighter:', 'gambler:',
     'chirurgeon:', 'archivist:', 'warden:', 'hexwright:', 'revenant:']
     .every(cls => combat.includes(cls))
     && combat.includes('DELVER_RESOURCE_MARKS')
     && combat.includes('DELVER_MODIFIER_MARKS')
-    && combat.includes('class-mechanic-detail')
-    && combat.includes('class-mechanic-detail-icon')
-    && combat.includes('class-mechanic-meter')
+    && combat.includes('function ClassMechanicToken')
+    && combat.includes('{classMechanic && <ClassMechanicToken')
+    && combat.includes('class-mechanic-token-detail')
+    && combat.includes('combat-token-group')
+    && !combat.includes('combat-bottom-mechanic')
     && ['turn', 'banked', 'heat', 'fading', 'preserved', 'ready', 'rigged',
       'recoverable', 'citations', 'riposte', 'runePower', 'rise']
       .every(modifier => combat.includes(`${modifier}: <Mark`))
@@ -85,11 +136,20 @@ test('every Delver has an obvious class-resource panel with useful secondary sta
       'mending-drop symbol', 'quotation-mark symbol', 'shield-and-arrow symbol',
       'star-rune symbol', 'upward grave-arrow symbol', 'flame symbol']
       .every(documentation => mechanicsSource.includes(documentation))
-    && styles.includes('.class-mechanic-stat {')
-    && styles.includes('grid-column: span 2;')
-    && styles.includes('.class-mechanic-main small')
-    && styles.includes('.class-mechanic-detail-icon')
-    && styles.includes('.class-mechanic-stat.charged'));
+    && styles.includes('.class-mechanic-token {')
+    && styles.includes('.class-mechanic-token-art')
+    && styles.includes('.class-mechanic-token-detail')
+    && styles.includes('.class-mechanic-token.charged'));
+test('Mix & Match icon families expose saved default sets with per-icon overrides',
+  source('src/engine/preferences.js').includes("mapIconMixDefault: 'marks'")
+    && source('src/engine/preferences.js').includes("enemyIconMixDefault: 'sprites'")
+    && source('src/engine/preferences.js').includes("interfaceIconMixDefault: 'marks'")
+    && source('src/ui/screens.jsx').includes("onPreferenceChange('mapIconMixDefault'")
+    && source('src/ui/screens.jsx').includes("onPreferenceChange('enemyIconMixDefault'")
+    && source('src/ui/screens.jsx').includes("onPreferenceChange('interfaceIconMixDefault'")
+    && source('src/ui/gameIcons.jsx').includes('prefs?.interfaceIconMixDefault')
+    && source('src/ui/enemyIcons.jsx').includes('prefs?.enemyIconMixDefault')
+    && source('src/ui/screens.jsx').includes('prefs?.mapIconMixDefault'));
 test('notifications stay longer, coalesce active duplicates, and log expanded details',
   engine.includes('TOAST_DURATION_MS = 4000')
     && engine.includes("ui.toasts.find(item => item.msg === text)")
@@ -104,7 +164,7 @@ test('bosses periodically use documented class-reactive Resonance intents',
     && runtime.includes("call('bossResonanceIntent'")
     && bossData.includes('e.step % 4')
     && bossData.includes("it.kind === 'resonance'")
-    && combat.includes("e.intent?.cls === 'resonance'")
+    && combat.includes("className={`intent ${e.intent ? e.intent.cls : ''}`}")
     && bossRules.includes('Boss Resonance by Delver')
     && mechanicsSource.includes("resonance: { name: 'Resonance'"));
 test('card review sheets use the live CardView and cover every Delver deck plus shared cards',
@@ -123,7 +183,9 @@ test('mobile hands retain their compact look with deal and flying-card animation
     && styles.includes('.card.selected { transform: translateY(-4px); }')
     && styles.includes('.handslot, .handslot:hover { z-index: var(--hand-order, 1); }')
     && styles.includes('.cardghost { z-index: 19; }')
-    && styles.includes('max-height: none; overflow: hidden; overscroll-behavior: none;')
+    && styles.includes('max-height: none; overflow: clip;')
+    && styles.includes('overscroll-behavior-x: contain; overscroll-behavior-y: auto;')
+    && styles.includes('touch-action: pan-x pan-y;')
     && styles.includes('position: relative; z-index: 30; isolation: isolate;')
     && styles.includes('position: relative; z-index: 1; isolation: isolate;'));
 test('mobile card selections use one full-width card per row and battle cards are twenty percent wider',
@@ -155,10 +217,10 @@ const pixelDelvers = readdirSync(new URL('../src/assets/delvers/', import.meta.u
 const pixelCutscenes = readdirSync(new URL('../src/assets/cutscenes/', import.meta.url))
   .filter(name => name.endsWith('-pixel-coarse.webp'));
 test('every runtime illustration category uses the coarse pixel-art masters',
-  pixelDelvers.length === 10 && pixelCutscenes.length === 9
+  pixelDelvers.length === 10 && pixelCutscenes.length === 12
     && (portraits.match(/-pixel-coarse\.webp/g) || []).length === 11
     && (cutsceneArt.match(/-pixel-coarse\.webp/g) || []).length === 9
-    && atlasSets.includes("'pixel-icons-coarse.webp'"));
+    && (cutsceneArt.match(/-stage-pixel-coarse\.webp/g) || []).length === 3);
 test('Delver archive exposes full-resolution masters and both live card decks',
   (portraits.match(/assets\/delvers\/[^']+\.webp/g) || []).filter(path => !path.includes('-pixel-coarse')).length === 10
     && portraits.includes('delverFullPortrait')
@@ -168,14 +230,54 @@ test('Delver archive exposes full-resolution masters and both live card decks',
     && collectionIndex.includes('cardKeys={def.rewardPool}')
     && collectionIndex.includes('Preview card upgrade level')
     && styles.includes('.delver-index-decks'));
-test('Delver marks and bestiary artwork are the coordinated default icon family',
-  preferences.includes("enemyIconStyle: 'marks'")
+test('curated icon families use sprites for enemies and Delver artwork elsewhere',
+  preferences.includes("enemyIconStyle: 'sprites'")
     && preferences.includes("mapIconStyle: 'marks'")
     && preferences.includes("interfaceIconStyle: 'marks'")
     && preferences.includes('delverIconDefaultVersion: DELVER_ICON_DEFAULT_VERSION')
-    && preferences.includes("stored.enemyIconStyle === 'pixel'")
+    && preferences.includes("stored.enemyIconStyle")
     && preferences.includes("stored.mapIconStyle === 'pixel'")
-    && preferences.includes("stored.interfaceIconStyle === 'pixel'"));
+    && preferences.includes("stored.interfaceIconStyle === 'pixel'")
+    && source('src/ui/iconSets.js').includes("['marks', 'Delver Icons']")
+    && source('src/ui/iconSets.js').includes("['main', 'Main Icons']")
+    && source('src/ui/screens.jsx').includes('All enemy icons')
+    && source('src/ui/screens.jsx').includes('All interface, board, camp and item icons'));
+test('animation studio edits sequences, exports corrections, and composes cutscenes',
+  preferences.includes('animatedBoardEnemies: false')
+    && (source('src/ui/screens.jsx').match(/label="Animated battle sprites"/g) || []).length === 2
+    && combat.includes('preferences.animatedBoardEnemies')
+    && combat.includes('<SpriteAnimation actorKey={enemySpriteKey(e.key)}')
+    && source('src/ui/testCatalog.js').includes("label: 'Animation studio'")
+    && source('src/ui/testCatalog.js').includes("'Cutscene composer'")
+    && source('src/ui/testCatalog.js').includes("'cryptsweeper:open-animation-test'")
+    && source('src/ui/App.jsx').includes('<AnimationTestPanel')
+    && animationTestPanel.includes('<AnimationSequenceEditor')
+    && animationTestPanel.includes('<CutsceneComposer')
+    && animationSequenceEditor.includes('Frame order')
+    && animationSequenceEditor.includes('Duplicate')
+    && animationSequenceEditor.includes('Remove')
+    && animationSequenceEditor.includes('Compare against')
+    && animationSequenceEditor.includes('Inspection zoom')
+    && animationSequenceEditor.includes('Last ↔ First')
+    && animationSequenceEditor.includes('flag-the-deep.animation-edit/v1')
+    && animationSequenceEditor.includes('Copy correction JSON')
+    && cutsceneComposer.includes('＋ Add sprite')
+    && cutsceneComposer.includes('Background')
+    && cutsceneComposer.includes('flag-the-deep.cutscene-composition/v1')
+    && cutsceneComposer.includes('Copy composition JSON'));
+test('test cutscenes can preview every Delver with authored facing',
+  cutsceneComponent.includes('Preview Delver')
+    && cutsceneComponent.includes('actorKey={delverKey}')
+    && cutsceneActor.includes('actor.motionFacing?.[motion]'));
+test('enemy icon families include animated battle sprites',
+  enemyIconsSource.includes("label: 'Sprites'")
+    && enemyIconsSource.includes("startsWith('sprite:')")
+    && enemyIconsSource.includes('variant="battle"')
+    && enemyIconsSource.includes("warden: 'stone-warden'")
+    && battlePreview.includes('className="battle-preview-sprite"')
+    && !battlePreview.includes('variant="battle"')
+    && combat.includes('variant="battle"')
+    && board.includes('className="board-enemy-sprite"'));
 
 const tutorial = source('src/ui/InteractiveTutorial.jsx');
 test('Mechanics Lab unlocks progressively after the guided tutorial',
@@ -191,9 +293,9 @@ test('home screen presents Learn, Archive, and Settings as its secondary hierarc
 test('the website exposes release notes from one versioned changelog source',
   screens.includes("open('changelog')") && screens.includes('<ChangelogPanel />')
     && source('src/ui/ChangelogPanel.jsx').includes("from '../changelog.js'")
-    && source('src/changelog.js').includes("version: 'Next'")
+    && source('src/changelog.js').includes("version: '0.1.6'")
     && source('src/changelog.js').includes("version: '0.1.5'")
-    && source('src/changelog.js').includes('REQUIRED: update the "Next" entry with every player-facing change')
+    && source('src/changelog.js').includes('REQUIRED: record every player-facing change in the newest version section')
     && source('src/changelog.js').includes('Abandoning any Honest Puzzle now reveals its solution'));
 test('home navigation styles Continue as forward and Back as the red return action',
   screens.includes('className="home-action" onClick={() => loadRun(\'auto\')}><span>Continue descent</span>')

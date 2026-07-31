@@ -1,11 +1,15 @@
+import { useRef } from 'react';
 import { CARDS } from '../engine/data.js';
 import { run, ui, closeModal, doUpgrade, doRemove } from '../engine/engine.js';
 import { CardView } from './CardView.jsx';
 import { decorateMechanics } from './mechanics.js';
 import { GameIcon, IconText } from './gameIcons.jsx';
+import { useDialogFocus } from './useDialogFocus.js';
 
-export function ModalHost() {
+export function ModalHost({ onPreferenceChange = () => {} }) {
   const m = ui.modal;
+  const modalRef = useRef(null);
+  useDialogFocus(modalRef, closeModal, Boolean(m));
   if (!m) return null;
   let body = null;
   if (m.kind === 'info') {
@@ -14,6 +18,21 @@ export function ModalHost() {
         <h2><IconText>{m.title}</IconText></h2>
         <div dangerouslySetInnerHTML={{ __html: decorateMechanics(m.html) }} />
         <button className="btn primary" onClick={closeModal}>{m.btn || 'Continue'}</button>
+      </>
+    );
+  } else if (m.kind === 'cleanup') {
+    body = (
+      <>
+        <h2><GameIcon name="safe" /> Finish the board</h2>
+        <p>Every enemy is defeated. Cards and enemy turns are now closed.</p>
+        <p>Use your unlimited Picks to reveal every remaining safe tile. The reward opens when the board is complete.</p>
+        <div className="modal-actions">
+          <button className="btn primary" onClick={closeModal}>Continue clearing</button>
+          <button className="btn" onClick={() => {
+            onPreferenceChange('showCleanupPrompt', false);
+            closeModal();
+          }}>Don’t show again</button>
+        </div>
       </>
     );
   } else if (m.kind === 'deck') {
@@ -36,6 +55,36 @@ export function ModalHost() {
             : <p className="dim">Empty.</p>}
         </div>
         <button className="btn" onClick={closeModal}>Close</button>
+      </>
+    );
+  } else if (m.kind === 'mechanic') {
+    body = (
+      <>
+        <header className={`mechanic-page-head ${m.cls}`}>
+          <small>Delver mechanic</small>
+          <h2>{m.label}</h2>
+          <strong>{m.value}</strong>
+        </header>
+        <section className="mechanic-page-help">
+          <h3>How it works</h3>
+          <p dangerouslySetInnerHTML={{ __html: decorateMechanics(m.help || m.detailLabel) }} />
+          <div className="mechanic-page-state">
+            <b>Current state</b>
+            <span>{m.detailLabel}</span>
+            {m.detailValue != null && <strong>{m.detailValue}</strong>}
+          </div>
+        </section>
+        {Array.isArray(m.cards) && (
+          <section className="mechanic-page-cards">
+            <h3>{m.label} cards ({m.cards.length})</h3>
+            <div className="cardpick">
+              {m.cards.length
+                ? m.cards.map((card, index) => <CardView key={card.id || `${card.key}-${index}`} card={card} />)
+                : <p className="dim">No cards are here yet.</p>}
+            </div>
+          </section>
+        )}
+        <button className="btn primary mechanic-page-close" onClick={closeModal}>Back to battle</button>
       </>
     );
   } else if (m.kind === 'upgrade') {
@@ -69,7 +118,9 @@ export function ModalHost() {
   }
   return (
     <div className="overlay" onClick={ev => { if (ev.target === ev.currentTarget) closeModal(); }}>
-      <div className="modal">{body}</div>
+      <div ref={modalRef} role="dialog" aria-modal="true" tabIndex="-1"
+        aria-label={m.kind === 'mechanic' ? `${m.label} mechanic details` : `${m.kind} dialog`}
+        className={`modal ${m.kind === 'mechanic' ? 'mechanic-modal' : ''}`}>{body}</div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 {
   "name": "flag-the-deep",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,7 @@
     "deploy": "gh-pages -d dist",
     "preview": "vite preview",
     "cards:render": "npm run build && node scripts/render-card-sheets.mjs",
-    "test": "node test/smoke.test.mjs && node test/events.test.mjs && node test/puzzles.test.mjs && node test/architecture.test.mjs",
+    "test": "node test/smoke.test.mjs && node test/events.test.mjs && node test/puzzles.test.mjs && node test/sprite-playback.test.mjs && node test/architecture.test.mjs",
     "bot": "node src/bot/cli.mjs",
     "balance": "node src/bot/balance.mjs --runs=100 --honest-runs=20 --output=balance-report.json"
   },

@@ -5,6 +5,7 @@
 
 import { Mark } from './mapIcons.jsx';
 import { customIconSets, customSetBase, customSetIcon, iconSetLabel, resolveAtlasIcon } from './iconSets.js';
+import { SpriteAnimation } from './SpriteAnimation.jsx';
 
 export const BEAST_MARKS = {
   /* the burrowers — grubbers and tunneler grubs */
@@ -153,7 +154,7 @@ const LEGACY_ENEMY_ICON_STYLES = {
     },
   },
   marks: {
-    label: "Delver's Bestiary",
+    label: 'Delver Icons',
     icons: {
       grubber: 'svg:worm', minelayer: 'svg:imp', warden: 'svg:golem', wisp: 'svg:wisp',
       shade: 'svg:shade', tunneler: 'svg:grub', clockwork: 'svg:cog', gearhusk: 'svg:husk',
@@ -224,16 +225,31 @@ const ENEMY_BASE = {
   clockwork: 'cog', gearhusk: 'husk', ossuary: 'skull', miscounter: 'mask', detonata: 'bomb',
   collapser: 'spiral', fogfather: 'bell', nn99: 'lens',
 };
+const ENEMY_SPRITE_KEYS = {
+  ...Object.fromEntries(Object.keys(ENEMY_BASE).map(key => [key, key])),
+  warden: 'stone-warden',
+};
+export function enemySpriteKey(key) {
+  return ENEMY_SPRITE_KEYS[key] || key;
+}
 /* Native bestiaries plus the hand-drawn Delver's Bestiary. */
 export const ENEMY_ICON_STYLES = {
-  ...LEGACY_ENEMY_ICON_STYLES,
+  emoji: { ...LEGACY_ENEMY_ICON_STYLES.classic, label: 'Emoji' },
+  marks: LEGACY_ENEMY_ICON_STYLES.marks,
+  sprites: {
+    label: 'Sprites',
+    icons: Object.fromEntries(Object.entries(ENEMY_SPRITE_KEYS)
+      .map(([key, actorKey]) => [key, `sprite:${actorKey}`])),
+  },
   mixer: { label: 'Mix & Match', icons: {} },
 };
 
 export function getEnemyIconStyles(prefs) {
-  const custom = Object.fromEntries(Object.keys(customIconSets(prefs)).map(id => {
+  const visibleSets = Object.keys(customIconSets(prefs))
+    .filter(id => id === 'main' || id.startsWith('custom-'));
+  const custom = Object.fromEntries(visibleSets.map(id => {
     const base = customSetBase(id, prefs, 'emoji');
-    const source = ENEMY_ICON_STYLES[base] || ENEMY_ICON_STYLES.classic;
+    const source = ENEMY_ICON_STYLES[base] || ENEMY_ICON_STYLES.emoji;
     const icons = { ...source.icons };
     for (const key of Object.keys(ENEMY_BASE)) icons[key] = customSetIcon(id, 'enemy', key, prefs) || icons[key];
     return [id, { label: iconSetLabel(id, prefs), icons }];
@@ -244,6 +260,10 @@ export function getEnemyIconStyles(prefs) {
 export function resolveEnemyIcon(icon, prefs = null) {
   if (typeof icon === 'string' && icon.startsWith('atlas:')) return resolveAtlasIcon(icon, prefs);
   if (typeof icon === 'string' && icon.startsWith('svg:')) return BEAST_MARKS[icon.slice(4)] || '?';
+  if (typeof icon === 'string' && icon.startsWith('sprite:')) {
+    return <SpriteAnimation actorKey={icon.slice(7)} motion="idle" variant="battle"
+      className="enemy-icon-sprite" />;
+  }
   return icon;
 }
 
@@ -251,14 +271,15 @@ export function resolveEnemyIcon(icon, prefs = null) {
    first (emoji text or an 'svg:' mark token), then the chosen style, then
    the enemy's own emoji from data. */
 export function enemyIcon(key, def, prefs) {
-  let styleKey = prefs?.enemyIconStyle || 'marks';
+  let styleKey = prefs?.enemyIconStyle || 'sprites';
   if (styleKey === 'mixer') {
     const choice = prefs?.enemyIconMix?.[key];
-    styleKey = choice?.style && choice.style !== 'mixer' ? choice.style : 'classic';
+    const fallback = prefs?.enemyIconMixDefault || 'sprites';
+    styleKey = choice?.style && choice.style !== 'mixer' ? choice.style : fallback;
   }
   const customArt = customSetIcon(styleKey, 'enemy', key, prefs);
-  const base = customSetBase(styleKey, prefs, 'classic');
-  const style = ENEMY_ICON_STYLES[base] || ENEMY_ICON_STYLES.classic;
+  const base = ENEMY_ICON_STYLES[styleKey] ? styleKey : customSetBase(styleKey, prefs, 'emoji');
+  const style = ENEMY_ICON_STYLES[base] || ENEMY_ICON_STYLES.emoji;
   const styled = customArt || style.icons[key];
   return styled ? resolveEnemyIcon(styled, prefs) : (def?.emoji ?? '?');
 }

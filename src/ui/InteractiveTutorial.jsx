@@ -17,7 +17,7 @@ const LESSONS = [
   { title:'Layer your defenses', goal:'Play Brace, then End Turn.', copy:'Enemy attacks spend Block first, then persistent Plating, then Health. Mines and hostile blasts bypass Block but still consume Plating; voluntary Health costs bypass both.' },
   { title:'Know the rooms', goal:'Inspect every room type.', copy:'Camps offer one recovery or improvement action. Shops spend run Gold. Events create lasting choices, puzzles award upgrades, and bosses guard each deeper stratum.' },
   { title:'Break a boss rule', goal:'Choose how to disable NN-99’s signal shield.', copy:'Bosses have unique mechanics, phase changes, and periodic Resonance intents that test your Delver’s signature mechanic. Read the battle preview, intent, and rule text before committing cards or Picks.' },
-  { title:'Take a reward', goal:'Choose one card reward.', copy:'After combat, choose or skip a card. Elites can award trinkets, gadgets are consumable, and boss rewards alter the rest of the descent.' },
+  { title:'Take a reward', goal:'Choose one card reward.', copy:'After combat, choose or skip a card. Elites can award trinkets, consumable items become persistent hand cards, and boss rewards alter the rest of the descent.' },
 ];
 
 const ROOM_TYPES = ['Camp','Shop','Event','Puzzle','Boss'];

@@ -110,14 +110,14 @@ const AUTHORED_EVENTS = {
     actions: [action('share', 'Cut one careful handful'), action('strip', 'Strip every mature cap')],
     build: context => ({
       share: outcome('You leave the young caps and spread their spores across the wet stone.', { heal: 7, gold: 8 }, 'Recover 7 Health and gain 8 gold.'),
-      strip: outcome('Your sack fills. Behind you, the shelf goes dark and the slate accusation follows.', { gold: scaled(context, 50), curse: 'dud' }, 'Gain a large purse, but add a Dud to your deck.'),
+      strip: outcome('Your sack fills. Behind you, the shelf goes dark and every later step feels heavier.', { gold: scaled(context, 50), curse: 'exhaustion' }, 'Gain a large purse, but add Exhaustion to your deck.'),
     }),
     followup: {
       text: thread => thread.choice === 'share'
         ? 'The tended glowcaps now illuminate a whole refugee camp. Its keeper recognizes your careful cut marks.'
         : 'You return to the shelf in darkness. A hungry camp has settled beside the bare stone.',
       actions: [
-        { key: 'help', label: 'Share supplies with the camp', result: 'The camp cooks what remains, patches your wounds, and burns one piece of dead weight from your pack.', effect: { gold: -10, heal: 8, removeCard: 'dud' } },
+        { key: 'help', label: 'Share supplies with the camp', result: 'The camp cooks what remains, patches your wounds, and lifts the exhaustion from your pack.', effect: { gold: -10, heal: 8, removeCard: 'exhaustion' } },
         { key: 'pass', label: 'Follow the dark shelf onward', result: 'In the black beyond the camp, your fingers find a coin crack everyone else missed.', effect: { gold: 18 } },
       ],
     },
@@ -195,7 +195,7 @@ const AUTHORED_EVENTS = {
         ? 'The toll-keeper rings from inside your pack. It asks you to carry a leaden bell until the next camp—or settle the debt in blood.'
         : 'The bronze door’s keeper finds you again and returns one of your coins: “An honest toll buys an honest road.”',
       actions: [
-        { key: 'carry', label: 'Carry the leaden bell', result: 'The bell drags at every step, then cracks open at camp to reveal a tempered card-rivet.', effect: { curse: 'dud', upgrade: true } },
+        { key: 'carry', label: 'Carry the leaden bell', result: 'Its off-balance toll follows every climb, then the bell cracks open at camp to reveal a tempered card-rivet.', effect: { curse: 'vertigo', upgrade: true } },
         { key: 'settle', label: 'Settle the account now', result: 'The keeper takes exactly what the old inscription promised and leaves no second debt.', effect: { damage: 8, gold: 12 } },
       ],
     },
@@ -229,7 +229,7 @@ const AUTHORED_EVENTS = {
     build: (context, rolls) => ({
       eat: rolls[0] < .65
         ? outcome('The broth tastes of childhood kitchens. Warmth returns to places the crypt had numbed.', { heal: 15, maxHp: 1 }, 'The feast is usually nourishing, but its diners offer no reassurance.')
-        : outcome('The skeletons turn their clean bowls toward you as the bitter caps take hold.', { damage: scaled(context, 8, .12), curse: 'dud' }, 'The feast is usually nourishing, but its diners offer no reassurance.'),
+        : outcome('The skeletons turn their clean bowls toward you as the bitter caps seed nightmares behind your eyes.', { damage: scaled(context, 8, .12), curse: 'nightterrors' }, 'The feast is usually nourishing, but a bad meal adds Night Terrors.'),
       burn: outcome('Blue fire races across the caps. Beneath the table you find the diners’ untouched purses.', { gold: scaled(context, 38) }, 'Destroy the feast and take the dead diners’ gold.'),
     }),
   },
@@ -252,7 +252,7 @@ const AUTHORED_EVENTS = {
     actions: [action('names', 'Copy the victims’ names and expose the theft'), action('amount', 'Write in your price and sign')],
     build: context => ({
       names: outcome('At the next camp, the names buy testimony, gratitude, and a careful repair to your deck.', { gold: 16, upgrade: true }, 'Gain 16 gold and upgrade a card.'),
-      amount: outcome('The ink supplies every coin you demand, then writes DUD across one card in your pack.', { gold: scaled(context, 62), curse: 'dud' }, 'Gain a large payment and add a Dud to your deck.'),
+      amount: outcome('The ink supplies every coin you demand, then begins annotating your every doubt.', { gold: scaled(context, 62), curse: 'paranoia' }, 'Gain a large payment and add Paranoia to your deck.'),
     }),
     followup: {
       text: thread => thread.choice === 'names'
@@ -260,7 +260,7 @@ const AUTHORED_EVENTS = {
         : 'The ledger’s foreman finds your signature and offers a final payment to swear the book never existed.',
       actions: [
         { key: 'testify', label: 'Put your name beneath the evidence', result: 'The foreman falls. The recovered wages are divided among every surviving name.', effect: { gold: 34, maxHp: 1 } },
-        { key: 'deal', label: 'Take the foreman’s private settlement', result: 'The purse is heavy. The silence is heavier, though it fits inside the pack.', effect: { gold: 48, curse: 'dud' } },
+        { key: 'deal', label: 'Take the foreman’s private settlement', result: 'The purse is heavy. The tunnels seem to close around the secret in your pack.', effect: { gold: 48, curse: 'claustrophobia' } },
       ],
     },
   },

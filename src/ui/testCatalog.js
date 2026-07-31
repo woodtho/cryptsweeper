@@ -30,6 +30,10 @@ export const TEST_LAB_SECTIONS = [
   { label: 'Honest puzzles', testAllLabel: 'Test all puzzles', entries: puzzles.map(([key, label]) => entry(label, 'puzzle', key)) },
   { label: 'Events', testAllLabel: 'Test all events', eventButtons: true, entries: Object.entries(EVENT_CATALOG).map(([key, event]) => entry(event.title, 'event', key)) },
   { label: 'Cutscenes', testAllLabel: 'Test all cutscenes', entries: TEST_CUTSCENES.map(([id, label]) => entry(label, 'cutscene', id)) },
+  { label: 'Animation studio', testAllLabel: 'Test animation tools', entries: [
+    entry('Animation sequence editor', 'animation', 'animation', 'primary'),
+    entry('Cutscene composer', 'animation', 'cutscene'),
+  ] },
 ];
 
 export const TEST_ALL_CASES = TEST_LAB_SECTIONS.flatMap(section =>
@@ -40,6 +44,9 @@ export function testCasesForSection(section) {
 }
 
 export function runTestCase(item) {
-  if (item.kind === 'refill') testRefill();
+  if (item.kind === 'animation') window.dispatchEvent(new CustomEvent('cryptsweeper:open-animation-test', {
+    detail: { tab: item.value || 'animation' },
+  }));
+  else if (item.kind === 'refill') testRefill();
   else testLaunch(item.kind, item.value);
 }

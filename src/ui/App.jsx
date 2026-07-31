@@ -22,6 +22,7 @@ import { Cutscene } from './Cutscene.jsx';
 import { BattlePreview } from './BattlePreview.jsx';
 import { TEST_ALL_CASES, runTestCase } from './testCatalog.js';
 import { runBackHandlers } from './backNav.js';
+import { AnimationTestPanel } from './AnimationTestPanel.jsx';
 
 /* One ordered back-intent handler for both the Android hardware back button and
    the Escape key. Dismisses the topmost thing first; returns true if it consumed
@@ -29,6 +30,10 @@ import { runBackHandlers } from './backNav.js';
    title (Escape does not, so it never abandons a run or exits). */
 function handleBack(allowLeave) {
   // topmost transient popover
+  if (document.querySelector('.animation-test-overlay')) {
+    window.dispatchEvent(new Event('cryptsweeper:close-animation-test'));
+    return true;
+  }
   if (document.querySelector('.mechanic-tooltip')) {
     window.dispatchEvent(new Event('cryptsweeper:close-tooltip'));
     return true;
@@ -79,6 +84,8 @@ export function App() {
   const [hapticsOn, setHapticsOn] = useState(isHapticsEnabled());
   const [preferences, setPreferences] = useState(loadPreferences);
   const [gameMenuOpen, setGameMenuOpen] = useState(false);
+  const [animationTestOpen, setAnimationTestOpen] = useState(false);
+  const [animationTestTab, setAnimationTestTab] = useState('animation');
   const [testTour, setTestTour] = useState(null);
   const shakeRef = useRef(ui.shakeSeq);
   const startTestTour = cases => {
@@ -98,6 +105,20 @@ export function App() {
     return () => {
       window.removeEventListener('cryptsweeper:open-game-menu', open);
       window.removeEventListener('cryptsweeper:close-game-menu', close);
+    };
+  }, []);
+
+  useEffect(() => {
+    const open = event => {
+      setAnimationTestTab(event.detail?.tab || 'animation');
+      setAnimationTestOpen(true);
+    };
+    const close = () => setAnimationTestOpen(false);
+    window.addEventListener('cryptsweeper:open-animation-test', open);
+    window.addEventListener('cryptsweeper:close-animation-test', close);
+    return () => {
+      window.removeEventListener('cryptsweeper:open-animation-test', open);
+      window.removeEventListener('cryptsweeper:close-animation-test', close);
     };
   }, []);
 
@@ -123,7 +144,22 @@ export function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    const main = document.getElementById('main-content');
+    requestAnimationFrame(() => main?.focus({ preventScroll: true }));
   }, [ui.screen]);
+
+  useEffect(() => {
+    const keyboard = event => {
+      if (event.key === 'Tab') document.documentElement.classList.add('keyboard-nav');
+    };
+    const pointer = () => document.documentElement.classList.remove('keyboard-nav');
+    window.addEventListener('keydown', keyboard);
+    window.addEventListener('pointerdown', pointer, { passive: true });
+    return () => {
+      window.removeEventListener('keydown', keyboard);
+      window.removeEventListener('pointerdown', pointer);
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = ev => {
@@ -205,9 +241,10 @@ export function App() {
   return (
     <>
       <div id="app" className={run?.maxHp && run.hp / run.maxHp <= 0.25 ? 'critical-health' : ''}>
-        {screen}
+        <a className="skip-link" href="#main-content">Skip to main content</a>
+        <main id="main-content" tabIndex="-1">{screen}</main>
         <Toasts />
-        <ModalHost />
+        <ModalHost onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))} />
       </div>
       {ui.cutscene && <Cutscene key={ui.cutscene.id} />}
       {ui.battlePreview && !ui.cutscene && <BattlePreview preferences={preferences} onNeverShow={() => {
@@ -223,6 +260,8 @@ export function App() {
         hapticsOn={hapticsOn} onHapticsChange={() => setHapticsOn(setHapticsEnabled(!hapticsOn))}
         onPreferenceChange={(key, value) => setPreferences(prev => savePreferences({ ...prev, [key]: value }))}
         onClose={() => setGameMenuOpen(false)} />}
+      {animationTestOpen && <AnimationTestPanel initialTab={animationTestTab}
+        onClose={() => setAnimationTestOpen(false)} />}
       <MechanicTooltip />
       <MetaFeedback />
       {testTour && <TestTour tour={testTour} onStop={() => setTestTour(null)} onMove={delta => {
