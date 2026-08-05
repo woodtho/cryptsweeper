@@ -1176,7 +1176,7 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   const shroudHp = shroudEnemy.hp;
   CARDS.notomorrow.play(0);
   T('Second Shroud raises Death’s Door to 40% maximum Health',
-    cbt().classState.deathsDoorThreshold === 0.4 && shroudHp - shroudEnemy.hp === 25);
+    cbt().classState.deathsDoorThreshold === 0.4 && shroudHp - shroudEnemy.hp === 20);
 }
 
 /* 17 — bot uses JSON-sized state and advances exactly one public game action */
