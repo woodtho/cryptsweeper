@@ -4,7 +4,7 @@ import {
   run, ui, cbt, board, curTarget, effCost, endTurn,
   clickHandCard, cancelTargeting, selectEnemy,
   openPileModal, openMechanicModal, LAIR_COLORS,
-  ENEMY_MODIFIERS, ENEMY_EFFECTS,
+  ENEMY_MODIFIERS, ENEMY_EFFECTS, MAX_INSIGHT,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { enemyIcon, enemySpriteKey } from './enemyIcons.jsx';
@@ -195,9 +195,10 @@ function classMechanicReadout(runState, combat, combatBoard) {
         : 'The chain resets when your next turn begins.'}`,
     },
     surveyor: {
-      mechanic: 'insight', label: 'Insight', value: Number(combat.insight || 0),
-      detailKey: 'banked', detailLabel: 'Insight is banked until a Surveyor effect spends it.',
-      help: 'Gain Insight by surveying safe ground and using Surveyor effects. Insight remains banked between turns until a card spends it for stronger scans, defense, or attacks.',
+      mechanic: 'insight', label: 'Insight', value: `${Number(combat.insight || 0)}/${MAX_INSIGHT}`,
+      current: Number(combat.insight || 0), max: MAX_INSIGHT,
+      detailKey: 'banked', detailLabel: `Insight is banked until spent, up to its ${MAX_INSIGHT}-point cap.`,
+      help: `Gain Insight by surveying safe ground and using Surveyor effects. Insight remains banked between turns until a card spends it for stronger scans, defense, or attacks. You cannot bank more than ${MAX_INSIGHT} Insight.`,
     },
     terraformer: {
       mechanic: 'construct', label: 'Constructs', value: `${constructs.length}/3`,

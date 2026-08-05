@@ -14,7 +14,7 @@ import {
   toggleLightsCell, toggleNonogramCell, answerSequence,
   clickHandCard, toggleFlag, campHeal, ENEMY_MODIFIERS, ENEMY_EFFECTS,
   applyEnemyEffect, enemyAttack, fogTiles, effCost, BOSS_RELIC_KEYS, VEIN_BOONS,
-  loseHP, gainLight, spendInsight, recallArchived, riseGraves, isTrinketEligible,
+  loseHP, gainLight, gainInsight, spendInsight, MAX_INSIGHT, recallArchived, riseGraves, isTrinketEligible,
   runElapsedMs, formatRunTime, setRunTimerActive,
   rewardPoolFor, toast, TOAST_DURATION_MS, BOSS_RESONANCE,
   bossResonanceIntent, resolveBossResonance,
@@ -23,6 +23,9 @@ import {
   CARDS, CLASSES, TRINKETS, GADGETS, SIGNATURE_RELICS, STRATA, ENEMIES,
   PERSISTENT_CURSES, consumableCardKey,
 } from '../src/engine/data.js';
+import {
+  MAX_OFFENSIVE_BLOCK, MAX_PROOF_RUNE_POWER, MAX_RIGGED_WAGERS, MAX_SHOCKWAVE_CHAIN,
+} from '../src/engine/balanceCaps.js';
 import { loadProgression, recordProgress, isDelverUnlocked, resetProgressionForTests } from '../src/engine/progression.js';
 import { loadDailyRecords, recordDailyAttempt, recordDailyResult, localDateKey as dailyDateKey } from '../src/engine/daily.js';
 import {
@@ -868,6 +871,14 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   mines.forEach(detonateForCards);
   T('Sapper controlled detonations build a Blast Chain',
     cbt().classState.blastChain === mines.length && mines.length === 2);
+  cbt().classState.blastChain = 99;
+  const shockwaveBefore = cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  const shockwaveTargets = cbt().enemies.filter(enemy => enemy.hp > 0 && !enemy.data.buried).length;
+  CARDS.shockwave.play(2);
+  T('Shockwave counts no more than 10 Blast Chain links',
+    MAX_SHOCKWAVE_CHAIN === 10
+      && shockwaveBefore - cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0)
+        === shockwaveTargets * (16 + 7 * MAX_SHOCKWAVE_CHAIN));
 
   newRun('lamplighter'); startCombat('dig');
   cbt().enemies.forEach(enemy => {
@@ -887,6 +898,11 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   toggleFlag(honestMine);
   T('Gambler earns Loaded from a correct manual flag',
     honestMine != null && cbt().classState.loaded === 1);
+  cbt().classState.loaded = 10;
+  CARDS.stackeddeck.play(2);
+  CARDS.stackeddeck.play(2);
+  T('Gambler can queue no more than 5 Rigged Wagers',
+    MAX_RIGGED_WAGERS === 5 && cbt().classState.riggedWagers === MAX_RIGGED_WAGERS);
 
   newRun('chirurgeon'); startCombat('dig');
   cbt().enemies[0].hp += 100; cbt().enemies[0].maxHp += 100;
@@ -985,6 +1001,24 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   CARDS.unbroken.play(0);
   T('Unbroken increases the new Resolve baseline by its listed amount',
     cbt().classState.resolveCap === 14);
+  const watchEnemy = cbt().enemies.find(enemy => enemy.hp > 0);
+  watchEnemy.hp += 200; watchEnemy.maxHp += 200; watchEnemy.block = 0; watchEnemy.data.buried = false;
+  cbt().targetIdx = cbt().enemies.indexOf(watchEnemy);
+  cbt().block = 200;
+  const watchHp = watchEnemy.hp;
+  CARDS.watchpost.play(2);
+  T('Watch Post counts no more than 40 Block for offense',
+    MAX_OFFENSIVE_BLOCK === 40 && watchHp - watchEnemy.hp === 15 + MAX_OFFENSIVE_BLOCK / 2);
+  cbt().plating = 0;
+  cbt().enemies.forEach(enemy => {
+    enemy.hp += 200; enemy.maxHp += 200; enemy.block = 0; enemy.data.buried = false;
+  });
+  const citadelBefore = cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  const citadelTargets = cbt().enemies.filter(enemy => enemy.hp > 0).length;
+  CARDS.citadel.play(2);
+  T('Citadel counts no more than 40 Block for offense',
+    citadelBefore - cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0)
+      === citadelTargets * (MAX_OFFENSIVE_BLOCK / 2));
 
   newRun('hexwright'); startCombat('dig');
   let clue = board().cells.findIndex((cell, i) => cell.revealed && !cell.mine && numAt(i) > 0);
@@ -997,6 +1031,21 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   CARDS.chalkthree.play(0, [clue]);
   T('Hexwright Inscribes a mutable Rune without changing the truthful clue',
     clue >= 0 && board().cells[clue].rune?.value === truthfulClue && numAt(clue) === truthfulClue);
+  const runeSites = board().cells.filter(cell => !cell.void).slice(0, 10);
+  runeSites.forEach((cell, index) => { cell.rune = index < 5 ? { value:9 } : null; });
+  cbt().enemies.forEach(enemy => {
+    enemy.hp += 1000; enemy.maxHp += 1000; enemy.block = 0; enemy.data.buried = false;
+  });
+  const proofBefore = cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  CARDS.proofofharm.play(2);
+  const proofDamageAtCap = proofBefore - cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  runeSites.slice(5).forEach(cell => { cell.rune = { value:9 }; });
+  const proofOverBefore = cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  CARDS.proofofharm.play(2);
+  const proofDamageOverCap = proofOverBefore - cbt().enemies.reduce((sum, enemy) => sum + enemy.hp, 0);
+  T('Proof of Harm counts no more than 45 Rune Power and preserves upgraded Runes',
+    MAX_PROOF_RUNE_POWER === 45 && proofDamageAtCap === proofDamageOverCap
+      && runeSites.every(cell => cell.rune));
 
   newRun('revenant'); startCombat('dig');
   cbt().enemies[0].hp += 100; cbt().enemies[0].maxHp += 100;
@@ -1033,6 +1082,12 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   const ledgerSpent = spendInsight();
   T('Bottomless Ledger starts with 3 Insight and retains 1 after an all-Insight spend',
     ledgerSpent === 3 && cbt().insight === 1);
+
+  newRun('surveyor'); startCombat('dig');
+  gainInsight(40);
+  const cappedInsightSpent = spendInsight();
+  T('Surveyor Insight is capped at 10 for storage and spend scaling',
+    MAX_INSIGHT === 10 && cappedInsightSpent === MAX_INSIGHT && cbt().insight === 0);
 
   newRun('terraformer'); R().trinkets.push('coolantcell'); startCombat('dig');
   const constructSites = board().cells.map((cell, i) => !cell.void && !cell.mine ? i : -1).filter(i => i >= 0);

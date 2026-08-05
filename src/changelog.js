@@ -50,6 +50,8 @@ export const CHANGELOG_ENTRIES = [
           'Revenant, Rat Merchant, Minelayer, Miscounter, and boss loops now use curated frame order and clean last-to-first transitions.',
           'Optional animated enemies now use simplified, outlined battle-scale sprites designed for the 48-pixel combat UI.',
           'Duds have been replaced by five story-specific Curse cards, and Cursed enemies now add a temporary named Curse.',
+          'Surveyor Insight is now capped at 10, preventing extreme Deduction damage after unusually long combats.',
+          'Extreme scaling is now bounded on Proof of Harm, Shockwave, Block-powered attacks, and queued Rigged Wagers while leaving their underlying resources useful.',
         ],
       },
     ],

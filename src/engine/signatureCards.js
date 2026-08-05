@@ -8,6 +8,9 @@ import {
   neighborsOf, outerRingIndices, annexTiles, addMineAt, toast, log, healthState, recallArchived, riseGraves,
   gainLight, consumeUntreatedBlood, addTemporaryCard,
 } from './runtime.js';
+import {
+  MAX_OFFENSIVE_BLOCK, MAX_PROOF_RUNE_POWER, MAX_RIGGED_WAGERS, MAX_SHOCKWAVE_CHAIN,
+} from './balanceCaps.js';
 
 const tier = (u, values) => values[Math.max(0, Math.min(2, Number(u) || 0))];
 const kw = (name, cls = 'gridk') => `<span class="kw ${cls}">${name}</span>`;
@@ -251,8 +254,9 @@ export const SIGNATURE_CARDS = {
   },
   shockwave: {
     name: 'Shockwave', type: 'Attack', rarity: 'uncommon', cls: 'sapper', cost: [2, 2, 1], hits: 'all', targets: [],
-    text: u => `Deal ${tier(u, [8, 12, 16])} plus ${tier(u, [3, 5, 7])} damage per Blast Chain link to all enemies.`,
-    play: u => hitAll(atk(tier(u, [8, 12, 16]) + tier(u, [3, 5, 7]) * Number(state().blastChain || 0))),
+    text: u => `Deal ${tier(u, [8, 12, 16])} plus ${tier(u, [3, 5, 7])} damage per Blast Chain link to all enemies (up to ${MAX_SHOCKWAVE_CHAIN} links).`,
+    play: u => hitAll(atk(tier(u, [8, 12, 16])
+      + tier(u, [3, 5, 7]) * Math.min(MAX_SHOCKWAVE_CHAIN, Number(state().blastChain || 0)))),
   },
   killzone: {
     name: 'Kill Zone', type: 'Attack', rarity: 'rare', cls: 'sapper', cost: [3, 2, 1], hits: 'all', targets: [],
@@ -528,14 +532,14 @@ export const SIGNATURE_CARDS = {
   },
   doubledown: {
     name: 'Double Down', type: 'Skill', rarity: 'uncommon', cls: 'gambler', cost: [1, 1, 0], targets: [],
-    text: u => `Flip now. Heads: gain ${tier(u, [1, 2, 3])} Loaded and force the next Wager to Heads. Tails: lose ${tier(u, [1, 0, 0])} HP, gain 1 Loaded, and gain ${tier(u, [6, 9, 12])} Block.`,
-    play: u => { if (wager()) { addResource('loaded', tier(u, [1, 2, 3]), loadedCap()); addResource('riggedWagers', 1); } else { loseHP(tier(u, [1, 0, 0]), 'Double Down'); addResource('loaded', 1, loadedCap()); gainBlock(tier(u, [6, 9, 12])); } },
+    text: u => `Flip now. Heads: gain ${tier(u, [1, 2, 3])} Loaded and force the next Wager to Heads (maximum ${MAX_RIGGED_WAGERS} queued). Tails: lose ${tier(u, [1, 0, 0])} HP, gain 1 Loaded, and gain ${tier(u, [6, 9, 12])} Block.`,
+    play: u => { if (wager()) { addResource('loaded', tier(u, [1, 2, 3]), loadedCap()); addResource('riggedWagers', 1, MAX_RIGGED_WAGERS); } else { loseHP(tier(u, [1, 0, 0]), 'Double Down'); addResource('loaded', 1, loadedCap()); gainBlock(tier(u, [6, 9, 12])); } },
   },
   stackeddeck: {
     name: 'Stacked Deck', type: 'Skill', rarity: 'common', cls: 'gambler', cost: [1, 0, 0], targets: [],
     can: () => Number(state().loaded || 0) > 0, canMsg: 'No Loaded coins.',
-    text: u => `Spend 1 Loaded. Force the next ${tier(u, [1, 2, 3])} Wager${u ? 's' : ''} to Heads.`,
-    play: u => { spendResource('loaded', 1); addResource('riggedWagers', tier(u, [1, 2, 3])); },
+    text: u => `Spend 1 Loaded. Force the next ${tier(u, [1, 2, 3])} Wager${u ? 's' : ''} to Heads (maximum ${MAX_RIGGED_WAGERS} queued).`,
+    play: u => { spendResource('loaded', 1); addResource('riggedWagers', tier(u, [1, 2, 3]), MAX_RIGGED_WAGERS); },
   },
   snakeeyes: {
     name: 'Snake Eyes', type: 'Attack', rarity: 'uncommon', cls: 'gambler', cost: [1, 1, 0], hits: 'all', targets: [],
@@ -757,8 +761,9 @@ export const SIGNATURE_CARDS = {
   },
   watchpost: {
     name: 'Watch Post', type: 'Attack', rarity: 'common', cls: 'warden', cost: [1, 1, 0], hits: 'target', targets: [],
-    text: u => `Deal ${tier(u, [8, 11, 15])} plus your Block divided by ${tier(u, [3, 2, 2])}, rounded down.`,
-    play: u => hitEnemy(curTarget(), atk(tier(u, [8, 11, 15]) + Math.floor(cbt().block / tier(u, [3, 2, 2])))),
+    text: u => `Deal ${tier(u, [8, 11, 15])} plus up to ${MAX_OFFENSIVE_BLOCK} Block divided by ${tier(u, [3, 2, 2])}, rounded down.`,
+    play: u => hitEnemy(curTarget(), atk(tier(u, [8, 11, 15])
+      + Math.floor(Math.min(MAX_OFFENSIVE_BLOCK, cbt().block) / tier(u, [3, 2, 2])))),
   },
   holdthedoor: {
     name: 'Hold the Door', type: 'Skill', rarity: 'uncommon', cls: 'warden', cost: [1, 1, 0], hits: 'target', targets: [],
@@ -779,8 +784,9 @@ export const SIGNATURE_CARDS = {
   },
   citadel: {
     name: 'Citadel', type: 'Attack', rarity: 'rare', cls: 'warden', cost: [2, 2, 1], hits: 'all', targets: [],
-    text: u => `Deal your Plating × ${tier(u, [2, 4, 5])} plus your Block divided by ${tier(u, [4, 3, 2])} to all enemies.`,
-    play: u => hitAll(atk(cbt().plating * tier(u, [2, 4, 5]) + Math.floor(cbt().block / tier(u, [4, 3, 2])))),
+    text: u => `Deal your Plating × ${tier(u, [2, 4, 5])} plus up to ${MAX_OFFENSIVE_BLOCK} Block divided by ${tier(u, [4, 3, 2])} to all enemies.`,
+    play: u => hitAll(atk(cbt().plating * tier(u, [2, 4, 5])
+      + Math.floor(Math.min(MAX_OFFENSIVE_BLOCK, cbt().block) / tier(u, [4, 3, 2])))),
   },
   lastbastion: {
     name: 'Last Bastion', type: 'Skill', rarity: 'rare', cls: 'warden', cost: [2, 1, 0], targets: [], exhaust: true,
@@ -861,8 +867,8 @@ export const SIGNATURE_CARDS = {
   proofofharm: {
     name: 'Proof of Harm', type: 'Attack', rarity: 'rare', cls: 'hexwright', cost: [2, 1, 0], hits: 'all', targets: [],
     can: () => runeEntries().length > 0, canMsg: 'No Runes are inscribed.',
-    text: u => `Deal the sum of all Rune values × ${tier(u, [3, 5, 7])} to all enemies. Keep ${u >= 2 ? 'all' : u ? 'one' : 'no'} Runes.`,
-    play: u => { const entries = runeEntries(); hitAll(atk(entries.reduce((sum, entry) => sum + entry.value, 0) * tier(u, [3, 5, 7]))); if (u < 2) entries.slice(u ? 1 : 0).forEach(({ cell }) => { cell.rune = null; }); },
+    text: u => `Deal up to ${MAX_PROOF_RUNE_POWER} total Rune Power × ${tier(u, [3, 5, 7])} to all enemies. Keep ${u >= 2 ? 'all' : u ? 'one' : 'no'} Runes.`,
+    play: u => { const entries = runeEntries(); const power = Math.min(MAX_PROOF_RUNE_POWER, entries.reduce((sum, entry) => sum + entry.value, 0)); hitAll(atk(power * tier(u, [3, 5, 7]))); if (u < 2) entries.slice(u ? 1 : 0).forEach(({ cell }) => { cell.rune = null; }); },
   },
   finalanswer: {
     name: 'Final Answer', type: 'Skill', rarity: 'rare', cls: 'hexwright', cost: [2, 1, 0], targets: [], exhaust: true,

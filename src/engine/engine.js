@@ -15,6 +15,7 @@ import { recordDailyAttempt, recordDailyResult } from './daily.js';
 import { evaluateAchievements, recordRunHistory, recordSpeedrun } from './legacy.js';
 import { loadPreferences } from './preferences.js';
 import { bindRuntime } from './runtime.js';
+import { MAX_RIGGED_WAGERS } from './balanceCaps.js';
 import {
   FICTION_EVENT_CATALOG, createFictionEventState, fictionEventView,
   fictionEventFollowup, resolveFictionEvent, resolveFictionEventFollowup,
@@ -269,6 +270,7 @@ export function loadRun(slot) {
           run.combat[pile] = run.combat[pile].map(card => migrateCardDefinition(card, run.cls)).filter(Boolean);
         }
       }
+      run.combat.insight = Math.min(MAX_INSIGHT, Math.max(0, Number(run.combat.insight || 0)));
       syncConsumableHand();
     }
     run.seenEvents = (run.seenEvents || []).filter(key => EVENT_CATALOG[key]);
@@ -321,6 +323,8 @@ export function loadRun(slot) {
         citations: 0, resolve: 0, resolveCap: 10,
         ...run.combat.classState,
       };
+      run.combat.classState.riggedWagers = Math.min(MAX_RIGGED_WAGERS,
+        Math.max(0, Number(run.combat.classState.riggedWagers || 0)));
       run.combat.archive ??= [];
       run.combat.grave ??= [];
     }
@@ -1638,11 +1642,18 @@ function absorbPlating(n) {
   return { soak, rest: n - soak };
 }
 export function gainEnergy(n) { if (run?.combat) cbt().energy += n; }
-export function gainInsight(n) { if (run?.combat) cbt().insight += n; }
+export const MAX_INSIGHT = 10;
+export function gainInsight(n) {
+  if (!run?.combat || n <= 0) return 0;
+  const c = cbt();
+  const before = Math.min(MAX_INSIGHT, Math.max(0, Number(c.insight || 0)));
+  c.insight = Math.min(MAX_INSIGHT, before + n);
+  return c.insight - before;
+}
 export function spendInsight(n = Infinity) {
   if (!run?.combat) return 0;
   const c = cbt();
-  const available = Math.max(0, Number(c.insight || 0));
+  const available = Math.min(MAX_INSIGHT, Math.max(0, Number(c.insight || 0)));
   const spent = Math.min(available, Number.isFinite(n) ? Math.max(0, n) : available);
   c.insight = available - spent;
   if (run.cls === 'surveyor' && hasT('bottomlessledger') && available > 0 && spent >= available) {
