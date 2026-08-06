@@ -293,6 +293,7 @@ test('home screen presents Learn, Archive, and Settings as its secondary hierarc
 test('the website exposes release notes from one versioned changelog source',
   screens.includes("open('changelog')") && screens.includes('<ChangelogPanel />')
     && source('src/ui/ChangelogPanel.jsx').includes("from '../changelog.js'")
+    && source('src/changelog.js').includes("version: '0.1.7'")
     && source('src/changelog.js').includes("version: '0.1.6'")
     && source('src/changelog.js').includes("version: '0.1.5'")
     && source('src/changelog.js').includes('REQUIRED: record every player-facing change in the newest version section')

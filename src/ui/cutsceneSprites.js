@@ -179,9 +179,9 @@ export const CUTSCENE_SPRITES = {
     playback: { signature: 'once' },
   }),
   warden: sprite(warden, 'The Warden', 'delver', 'riposte', wardenSheet, {
-    fps: { signature: 9 },
-    sequences: { signature: [0, 1, 2, 3, 4] },
-    playback: { signature: 'once' },
+    fps: { speaking: 6, signature: 9 },
+    sequences: { speaking: [0, 2, 5, 2], signature: [0, 1, 2, 3, 4] },
+    playback: { speaking: 'loop', signature: 'once' },
   }),
   hexwright: sprite(hexwright, 'The Hexwright', 'delver', 'inscribe', hexwrightSheet, {
     fps: { signature: 9 },

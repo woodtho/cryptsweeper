@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { useGame } from './useGame.js';
 import {
-  run, ui, cbt, endTurn, cancelTargeting, closeModal, closeCutscene, closeBattlePreview, goHome,
+  run, ui, cbt, requestEndTurn, cancelTargeting, closeModal, closeCutscene, closeBattlePreview, goHome,
   setRunTimerActive,
 } from '../engine/engine.js';
 import { getSfxVolume, isMuted, setSfxVolume, toggleMuted } from '../engine/sfx.js';
@@ -164,10 +164,10 @@ export function App() {
   useEffect(() => {
     const onKey = ev => {
       if (ev.key === 'Escape') { if (handleBack(false)) ev.preventDefault(); return; }
-      if (ui.cutscene || ui.battlePreview) return;
+      if (ui.cutscene || ui.battlePreview || ui.modal) return;
       if (!run) return;
       const k = ev.key.toLowerCase();
-      if (k === 'e' && ui.screen === 'combat' && run.combat && !cbt().over) endTurn();
+      if (k === 'e' && ui.screen === 'combat' && run.combat && !cbt().over) requestEndTurn();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);

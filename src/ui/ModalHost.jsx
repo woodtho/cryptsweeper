@@ -1,6 +1,9 @@
 import { useRef } from 'react';
 import { CARDS } from '../engine/data.js';
-import { run, ui, closeModal, doUpgrade, doRemove } from '../engine/engine.js';
+import {
+  run, ui, closeModal, doUpgrade, doRemove, confirmEndTurn,
+  confirmLogicPuzzleCheck, confirmSequenceAnswer, confirmAbandonPuzzle,
+} from '../engine/engine.js';
 import { CardView } from './CardView.jsx';
 import { decorateMechanics } from './mechanics.js';
 import { GameIcon, IconText } from './gameIcons.jsx';
@@ -32,6 +35,60 @@ export function ModalHost({ onPreferenceChange = () => {} }) {
             onPreferenceChange('showCleanupPrompt', false);
             closeModal();
           }}>Don’t show again</button>
+        </div>
+      </>
+    );
+  } else if (m.kind === 'endTurn') {
+    const f = m.forecast;
+    body = (
+      <>
+        <h2>{f.lethal ? 'Lethal damage forecast' : 'End Turn forecast'}</h2>
+        <div className={`turn-forecast ${f.lethal ? 'lethal' : ''}`} role="status">
+          <div><small>Known attacks</small><b>{f.raw}</b></div>
+          <div><small>Known attack HP loss</small><b>{f.hpLoss}</b></div>
+          <div><small>Health afterward</small><b>{Math.max(0, run.hp - f.hpLoss)}/{run.maxHp}</b></div>
+        </div>
+        {f.boardEffects.length > 0 && <div className="forecast-effects"><b>Other enemy actions</b>{f.boardEffects.map(effect => <span key={effect}>{effect}</span>)}</div>}
+        {(f.energy > 0 || f.picks > 0 || f.playableCards > 0) && <p className="forecast-unused">
+          You still have {f.energy} Energy, {f.picks} Picks, and {f.playableCards} playable non-item card{f.playableCards === 1 ? '' : 's'}.
+        </p>}
+        <div className="modal-actions">
+          <button className="btn" onClick={closeModal}>Keep playing</button>
+          <button className="btn primary" onClick={confirmEndTurn}>{f.lethal ? 'End Turn anyway' : 'Confirm End Turn'}</button>
+          <button className="btn" onClick={() => { onPreferenceChange('showEndTurnWarnings', false); confirmEndTurn(); }}>Don’t warn again</button>
+        </div>
+      </>
+    );
+  } else if (m.kind === 'puzzleCheck') {
+    body = (
+      <>
+        <h2>Submit this puzzle?</h2>
+        <p>This is the final check. An incorrect solution ends the puzzle and forfeits its upgrade reward.</p>
+        <div className="modal-actions">
+          <button className="btn" onClick={closeModal}>Review answers</button>
+          <button className="btn primary" onClick={confirmLogicPuzzleCheck}>Submit final answer</button>
+        </div>
+      </>
+    );
+  } else if (m.kind === 'sequenceCheck') {
+    body = (
+      <>
+        <h2>Lock in {m.value}?</h2>
+        <p>An incorrect answer ends the puzzle and forfeits its upgrade reward.</p>
+        <div className="modal-actions">
+          <button className="btn" onClick={closeModal}>Review sequence</button>
+          <button className="btn primary" onClick={() => confirmSequenceAnswer(m.value)}>Submit {m.value}</button>
+        </div>
+      </>
+    );
+  } else if (m.kind === 'abandonPuzzle') {
+    body = (
+      <>
+        <h2>Reveal the solution?</h2>
+        <p>This ends the puzzle and permanently forfeits its upgrade reward. The solution will remain visible for review.</p>
+        <div className="modal-actions">
+          <button className="btn" onClick={closeModal}>Keep solving</button>
+          <button className="btn danger" onClick={confirmAbandonPuzzle}>Abandon and reveal</button>
         </div>
       </>
     );

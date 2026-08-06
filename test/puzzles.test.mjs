@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import {
-  run, newRun, closeCutscene, startPuzzle, neighborsOf, solveScore,
+  run, ui, newRun, closeCutscene, startPuzzle, neighborsOf, solveScore,
   puzzleClick, puzzleChordAt, puzzleToggleFlag, setLogicPuzzleCell, toggleSudokuNoteMode, toggleLightsCell, toggleNonogramCell,
   answerSequence, checkLogicPuzzle, saveRun, loadRun, deleteSave, setCrosswordDirection, selectCrosswordCell, abandonPuzzle,
+  logicPuzzleConflicts, requestLogicPuzzleCheck, requestAbandonPuzzle, closeModal,
 } from '../src/engine/engine.js';
 import {
   isValidSudoku, countSudokuSolutions, nonogramClues, countNonogramSolutions,
@@ -167,6 +168,27 @@ for (const type of ['mines-hard','sudoku-hard','crossword-hard','sequence-hard',
 }
 fresh('incomplete'); startPuzzle('sudoku-medium'); checkLogicPuzzle();
 test('incomplete logic answers do not resolve or fail', !run.puzzle.solved && !run.puzzle.failed);
+
+fresh('safeguarded-sudoku'); startPuzzle('sudoku-medium');
+{
+  let pair = null;
+  for (let row = 0; row < run.puzzle.size && !pair; row++) {
+    const editable = Array.from({ length: run.puzzle.size }, (_, col) => row * run.puzzle.size + col)
+      .filter(index => !run.puzzle.givens.includes(index));
+    if (editable.length >= 2) pair = editable.slice(0, 2);
+  }
+  if (pair) {
+    setLogicPuzzleCell(pair[0], 1); setLogicPuzzleCell(pair[1], 1);
+    test('Sudoku safeguards identify conflicting squares before submission', pair.every(index => logicPuzzleConflicts().has(index)));
+  } else test('Sudoku safeguards identify conflicting squares before submission', false);
+  run.puzzle.solution.forEach((value, index) => setLogicPuzzleCell(index, value));
+  requestLogicPuzzleCheck();
+  test('a complete puzzle opens a final submission confirmation', ui.modal?.kind === 'puzzleCheck' && !run.puzzle.solved);
+  closeModal();
+}
+fresh('safeguarded-abandon'); startPuzzle('sequence'); requestAbandonPuzzle();
+test('revealing a puzzle solution requires confirmation', ui.modal?.kind === 'abandonPuzzle' && !run.puzzle.failed);
+closeModal();
 
 fresh('wrong-sudoku'); startPuzzle('sudoku');
 const wrongSudoku = run.puzzle.values.findIndex((value, index) => !value && !run.puzzle.givens.includes(index));

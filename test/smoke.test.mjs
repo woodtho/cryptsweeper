@@ -6,7 +6,7 @@ import {
   takeRewardCard, takeBossTrinket, takeVeinBoon, finishReward, genShop, buyShopCard, buyShopTrinket,
   startPuzzle, puzzleClick, devourRing, hitEnemy, checkNNPhase,
   detonateForCards, fleeCombat,
-  SHAPES, annexTiles, addMineAt, clickTile, basePicksFor,
+  SHAPES, annexTiles, addMineAt, layMines, clickTile, basePicksFor,
   saveRun, listSaves, loadRun, deleteSave, goHome,
   scanTile, addConstruct, tileEligible, gainPlating, MAX_CONSTRUCTS, MAX_PLATING,
   campTrainPicks, closeCutscene, closeBattlePreview, closeModal,
@@ -18,6 +18,7 @@ import {
   runElapsedMs, formatRunTime, setRunTimerActive,
   rewardPoolFor, toast, TOAST_DURATION_MS, BOSS_RESONANCE,
   bossResonanceIntent, resolveBossResonance,
+  endTurnForecast, requestEndTurn, cardPlayability,
 } from '../src/engine/engine.js';
 import {
   CARDS, CLASSES, TRINKETS, GADGETS, SIGNATURE_RELICS, STRATA, ENEMIES,
@@ -39,6 +40,7 @@ import {
   loadSpeedrunCategories, speedrunEligibility,
 } from '../src/engine/legacy.js';
 import { loadPreferences, savePreferences } from '../src/engine/preferences.js';
+import { loadCollection, recordDelverProgress } from '../src/engine/collection.js';
 import { readFileSync } from 'node:fs';
 
 let failures = 0;
@@ -97,6 +99,17 @@ T('combat started with enemies', !!cbt() && cbt().enemies.length > 0);
 T('drew 5', cbt().hand.length === 5);
 T('3 energy', cbt().energy === 3);
 T('opening cascade revealed tiles', board().cells.filter(x => x.revealed).length >= 1);
+{
+  const forecast = endTurnForecast();
+  T('End Turn forecast reports known damage and remaining actions without mutating combat',
+    forecast && forecast.raw >= 0 && forecast.hpLoss >= 0 && forecast.energy === cbt().energy && forecast.picks === cbt().picks);
+  const status = cardPlayability(cbt().hand[0]);
+  T('combat cards expose a specific readiness or blocked reason', typeof status.reason === 'string' && status.reason.length > 4);
+  requestEndTurn();
+  T('risky End Turn opens a reviewable forecast before committing', ui.modal?.kind === 'endTurn');
+  closeModal();
+}
+T('new play boards always use the full square layout', SHAPES.length === 1 && SHAPES[0] === 'rect');
 {
   const message = 'Notification lifecycle audit';
   const logBefore = cbt().log.filter(line => line.includes(message)).length;
@@ -220,6 +233,7 @@ startCombat('dig');
   const cc = cbt();
   T('every living enemy has a lair', cc.enemies.every(e => e.hp <= 0 || (e.lair && e.lair.length >= 9)));
   const e = cc.enemies.find(x => x.hp > 0 && x.lair && x.lair.length);
+  e.block = 0; // Random Armoured modifiers must not absorb the lair-damage assertions.
   // pick a numbered lair tile so the reveal doesn't cascade (deterministic damage)
   const safeLair = e.lair.find(i => isHiddenUsable(i) && !board().cells[i].mine && numAt(i) > 0)
     ?? e.lair.find(i => isHiddenUsable(i) && !board().cells[i].mine);
@@ -249,6 +263,24 @@ startCombat('dig');
 
 /* 7 — full clear: heavy AoE + board re-seal; kills lead to mandatory cleanup */
 if (ui.screen === 'reward') { takeRewardCard(0); finishReward(); }
+if (R().combat) fleeCombat();
+startCombat('dig');
+{
+  const hostileClear = cbt();
+  hostileClear.enemies.forEach(enemy => { enemy.maxHp += 500; enemy.hp += 500; });
+  const hostileBoard = board();
+  const finalSafe = hiddenIdx().find(i => !hostileBoard.cells[i].mine);
+  hostileBoard.cells.forEach((cell, i) => {
+    if (!cell.void && !cell.mine) {
+      cell.revealed = i !== finalSafe;
+      cell.entombed = false;
+    }
+  });
+  layMines(1, finalSafe % hostileBoard.size);
+  T('enemy mine placement completes a board when it consumes the final unresolved safe tile',
+    hostileBoard.cells[finalSafe].mine && hostileBoard.cleared && hostileClear.fullCleared
+      && cbt().board !== hostileBoard);
+}
 if (R().combat) fleeCombat();
 startCombat('dig');
 {
@@ -560,6 +592,15 @@ T('NN-99 phase 2 regenerates a denser board (12+2 grid)', board().size === 14);
 
 /* 11 — construct fix regression: Sentry can be built (addConstruct exists now) */
 {
+  const hidden = board().cells
+    .map((cell, i) => ({ cell, i }))
+    .filter(({ cell }) => !cell.void && !cell.revealed && !cell.entombed)
+    .map(({ i }) => i);
+  if (hidden.length >= 2) {
+    T('multi-tile scans cannot select the same tile more than once',
+      !tileEligible(hidden[0], 'hidden', [hidden[0]])
+      && tileEligible(hidden[1], 'hidden', [hidden[0]]));
+  }
   const mined = board().cells.findIndex(c => c.mine && !c.void && !c.construct);
   if (mined >= 0) {
     const wasRevealed = board().cells[mined].revealed;
@@ -1048,7 +1089,10 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
       && runeSites.every(cell => cell.rune));
 
   newRun('revenant'); startCombat('dig');
-  cbt().enemies[0].hp += 100; cbt().enemies[0].maxHp += 100;
+  const revenantEnemy = cbt().enemies[0];
+  revenantEnemy.hp += 100; revenantEnemy.maxHp += 100;
+  revenantEnemy.block = 0; revenantEnemy.data.buried = false; revenantEnemy.data.modifierBuried = false;
+  cbt().targetIdx = 0;
   cbt().hand = [{ key:'gravestep', up:0 }];
   clickHandCard(0);
   const buried = cbt().grave.length === 1 && cbt().grave[0].key === 'gravestep';
@@ -1057,10 +1101,10 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
     buried && cbt().grave.length === 0
       && cbt().hand.some(card => card.key === 'gravestep' && card.up === 1 && card.risen));
   const risenIndex = cbt().hand.findIndex(card => card.key === 'gravestep' && card.risen);
-  const hpBeforeRisen = cbt().enemies[0].hp;
+  const hpBeforeRisen = revenantEnemy.hp;
   clickHandCard(risenIndex);
   T('Risen Revenant attacks gain 50% damage and exhaust after play',
-    cbt().enemies[0].hp === hpBeforeRisen - 15
+    revenantEnemy.hp === hpBeforeRisen - 15
       && cbt().exhaust.some(card => card.key === 'gravestep' && card.risen));
 }
 
@@ -1278,8 +1322,8 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
       && battleStorySource.includes('scrollIntoView')
       && battleStorySource.includes('story-focus')
       && battleStorySource.includes('Perform the highlighted'));
-  T('the optional combat coach teaches directly on the live battle UI and can be replayed from settings',
-    preferenceSource.includes('showCombatHints: true')
+  T('the optional combat coach stays closed by default and can be replayed from settings',
+    preferenceSource.includes('showCombatHints: false')
       && combatScreenSource.includes('COMBAT_COACH_STEPS')
       && combatScreenSource.includes('combat-coach-focus')
       && rulebookSource.includes('Combat coach'));
@@ -1588,6 +1632,17 @@ T('Chord, Resonant Tap, and Stone Chorus are 0-Energy Chord cards',
   const fresh = evaluateAchievements(R(), 'map');
   T('achievement ledger persists independently earned milestones',
     fresh.length >= 3 && Object.keys(loadAchievements()).every(key => ACHIEVEMENTS[key]));
+
+  storage.delete('cryptsweeper.collection.v1');
+  const veinScoreRun = {
+    cls: 'surveyor', floors: 30, stratum: 2, veinDepth: 0, fullClears: 4, gold: 100, hp: 50,
+  };
+  recordDelverProgress(veinScoreRun, 'victory');
+  Object.assign(veinScoreRun, { floors: 60, stratum: 3, veinDepth: 20, fullClears: 10, gold: 200, hp: 0 });
+  recordDelverProgress(veinScoreRun, 'gameover');
+  const veinScoreStats = loadCollection().delvers.surveyor;
+  T('a later Vein burial updates best score with Vein Depth without double-counting the completed descent',
+    veinScoreStats.bestScore === 1400 && veinScoreStats.completed === 1 && veinScoreStats.wins === 1);
 
   newRun('sapper', { testMode:true, daily:'post-combat-self-damage' });
   closeCutscene();

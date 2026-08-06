@@ -552,6 +552,99 @@ export function openMechanicModal(details) {
   });
 }
 
+export function openHelpModal(title, html, btn = 'Got it') {
+  openModal({ kind: 'info', title, html, btn });
+}
+
+export function cardPlayability(card) {
+  const c = run?.combat;
+  const def = CARDS[card?.key];
+  if (!c || !def) return { playable: false, reason: 'Unavailable outside combat.', cost: null };
+  const cost = def.cost == null ? null : effCost(card);
+  if (def.unplayable) return { playable: false, reason: `${def.type} cards cannot be played.`, cost };
+  if (cost != null && cost > c.energy) {
+    return { playable: false, reason: `Needs ${cost} Energy; you have ${c.energy}.`, cost };
+  }
+  if (def.can && !def.can(card.up || 0)) {
+    return { playable: false, reason: def.canMsg || 'Its condition is not currently met.', cost };
+  }
+  return { playable: true, reason: cost === 0 ? 'Ready · free to play.' : `Ready · costs ${cost} Energy.`, cost };
+}
+
+function forecastEnemyAttack(enemy, sealAvailable) {
+  if (!enemy || enemy.hp <= 0 || enemy.data?.modifierBuried) return { amount: 0, sealAvailable };
+  let amount = enemy.intent?.kind === 'attack'
+    ? Number(enemy.intent.n || 0)
+    : Number(enemy.intent?.attack || 0);
+  if (enemy.effects?.jammed > 0) amount = Math.max(0, Math.floor(amount * 0.6));
+  if (amount > 0 && sealAvailable) {
+    amount = Math.max(0, amount - 6 - relicLevel('wardenseal') * 2);
+    sealAvailable = false;
+  }
+  return { amount, sealAvailable };
+}
+
+export function endTurnForecast() {
+  const c = run?.combat;
+  if (!c) return null;
+  let block = Math.max(0, Number(c.block || 0));
+  let plating = Math.max(0, Number(c.plating || 0));
+  let sealAvailable = hasT('wardenseal') && !c.wardenSealUsed;
+  const sources = [];
+  let raw = 0, hpLoss = 0;
+  for (const enemy of c.enemies || []) {
+    const forecast = forecastEnemyAttack(enemy, sealAvailable);
+    sealAvailable = forecast.sealAvailable;
+    if (forecast.amount <= 0) continue;
+    raw += forecast.amount;
+    const blockSoak = Math.min(block, forecast.amount);
+    block -= blockSoak;
+    const afterBlock = forecast.amount - blockSoak;
+    const platingSoak = Math.min(plating, afterBlock);
+    plating -= platingSoak;
+    const loss = afterBlock - platingSoak;
+    hpLoss += loss;
+    sources.push({ name: enemy.def?.name || 'Enemy', amount: forecast.amount, hpLoss: loss });
+  }
+  const playable = (c.hand || []).filter(card => cardPlayability(card).playable && !CARDS[card.key]?.consumableKey);
+  const boardEffects = (c.enemies || []).filter(enemy => enemy.hp > 0 && enemy.intent && enemy.intent.kind !== 'attack')
+    .map(enemy => `${enemy.def?.name || 'Enemy'}: ${enemy.intent.label}`);
+  return {
+    raw, hpLoss, sources, boardEffects,
+    energy: Math.max(0, Number(c.energy || 0)), picks: Math.max(0, Number(c.picks || 0)),
+    playableCards: playable.length,
+    lethal: hpLoss >= Number(run.hp || 0),
+  };
+}
+
+export function requestEndTurn() {
+  const forecast = endTurnForecast();
+  if (!forecast) return;
+  const shouldWarn = loadPreferences().showEndTurnWarnings
+    && (forecast.lethal || forecast.hpLoss > 0 || forecast.energy > 0 || forecast.picks > 0 || forecast.playableCards > 0 || forecast.boardEffects.length > 0);
+  if (shouldWarn) openModal({ kind: 'endTurn', forecast });
+  else endTurn();
+}
+
+export function confirmEndTurn() {
+  ui.modal = null;
+  endTurn();
+}
+
+export function explainCombatLog(message) {
+  const plain = String(message || 'Combat event');
+  const lower = plain.toLowerCase();
+  let explanation = 'This entry records a resolved combat effect in the order it happened.';
+  if (lower.includes('absorbed') || lower.includes('blocked') || lower.includes('plating')) explanation = 'Incoming attacks consume Block first, then Plating. Any damage left reduces Health.';
+  else if (lower.includes('mine') || lower.includes('lay')) explanation = 'Enemy-laid mines alter unresolved board tiles. Their incoming positions are telegraphed before End Turn when possible.';
+  else if (lower.includes('full clear')) explanation = 'A Full Clear occurs when every safe tile is resolved. It damages all enemies and grants an upgraded reward card.';
+  else if (lower.includes('risen') || lower.includes('grave')) explanation = 'A Risen card is upgraded, Risen Attacks deal 50% more damage, and the card Exhausts after play.';
+  else if (lower.includes('resolve')) explanation = 'Resolve is stored Warden fuel earned when defenses absorb enemy damage, up to the current cap.';
+  else if (lower.includes('insight')) explanation = 'Insight is stored Surveyor fuel. It remains between turns and cannot exceed 10.';
+  const safeMessage = plain.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  openHelpModal('Why did this happen?', `<p>${safeMessage}</p><p>${explanation}</p>`, 'Back to battle');
+}
+
 /* ================= map ================= */
 export const MAP_ROWS = 12, MAP_W = 5;
 export function veinThreatTier() {
@@ -770,7 +863,9 @@ export function solveScore(mines, size, opening, voidSet = null) {
 
 /* ---- board shapes: boards live on a (size+2)² grid; the playable region is a
    shape mask, everything else is void. The void margin is the growth reserve. */
-export const SHAPES = ['rect', 'cross', 'diamond', 'donut', 'cavern'];
+// Every newly generated play board uses the complete square layout. The
+// generator still understands legacy shape names so existing saves remain valid.
+export const SHAPES = ['rect'];
 
 function shapeMask(shape, grid) {
   const playable = new Set();
@@ -1496,7 +1591,14 @@ export function layMines(n, col) {
   for (const i of cand.slice(0, n)) {
     b.cells[i].mine = true; b.cells[i].scan = null; laid++;
   }
-  if (laid) { sfx('boardattack'); log(`☣ ${laid} new mine${laid > 1 ? 's' : ''} laid (column ${col + 1}).`); toast(`${laid} mines laid in column ${col + 1}!`, true); }
+  if (laid) {
+    sfx('boardattack');
+    log(`☣ ${laid} new mine${laid > 1 ? 's' : ''} laid (column ${col + 1}).`);
+    toast(`${laid} mines laid in column ${col + 1}!`, true);
+    /* Hostile placement can turn the final unresolved safe tile into a mine.
+       Re-evaluate now so the completed board is not left with nothing to click. */
+    checkFullClear();
+  }
 }
 
 export function fogTiles(n) {
@@ -3907,6 +4009,61 @@ export function answerSequence(value) {
   notify();
 }
 
+export function logicPuzzleConflicts() {
+  const p = run?.puzzle;
+  const conflicts = new Set();
+  if (!p || p.type !== 'sudoku') return conflicts;
+  const groups = [];
+  for (let row = 0; row < p.size; row++) groups.push(Array.from({ length: p.size }, (_, col) => row * p.size + col));
+  for (let col = 0; col < p.size; col++) groups.push(Array.from({ length: p.size }, (_, row) => row * p.size + col));
+  for (let boxRow = 0; boxRow < p.size; boxRow += p.boxRows) {
+    for (let boxCol = 0; boxCol < p.size; boxCol += p.boxCols) {
+      const group = [];
+      for (let row = 0; row < p.boxRows; row++) for (let col = 0; col < p.boxCols; col++) {
+        group.push((boxRow + row) * p.size + boxCol + col);
+      }
+      groups.push(group);
+    }
+  }
+  for (const group of groups) {
+    const seen = new Map();
+    for (const index of group) {
+      const value = Number(p.values[index] || 0);
+      if (!value) continue;
+      if (seen.has(value)) { conflicts.add(index); conflicts.add(seen.get(value)); }
+      else seen.set(value, index);
+    }
+  }
+  return conflicts;
+}
+
+export function requestLogicPuzzleCheck() {
+  const p = run?.puzzle;
+  if (!p || p.failed || p.solved) return;
+  if (p.type !== 'nonogram' && p.values.some(value => value === 0 || value === '')) {
+    toast('Every square needs an answer first.', true); return;
+  }
+  const conflicts = logicPuzzleConflicts();
+  if (conflicts.size) { toast(`Resolve ${conflicts.size} conflicting Sudoku squares first.`, true); return; }
+  if (loadPreferences().showPuzzleSafeguards) openModal({ kind: 'puzzleCheck', puzzleType: p.type });
+  else checkLogicPuzzle();
+}
+
+export function confirmLogicPuzzleCheck() {
+  ui.modal = null;
+  checkLogicPuzzle();
+}
+
+export function requestSequenceAnswer(value) {
+  if (loadPreferences().showPuzzleSafeguards) openModal({ kind: 'sequenceCheck', value });
+  else answerSequence(value);
+}
+
+export function confirmSequenceAnswer(value) {
+  ui.modal = null;
+  answerSequence(value);
+}
+
 export function checkLogicPuzzle() {
   const p = run.puzzle;
   if (!p || p.type === 'mines' || p.failed || p.solved) return;
@@ -3947,6 +4104,16 @@ export function abandonPuzzle() {
   }
   toast('Solution revealed. No puzzle reward earned.', true);
   notify();
+}
+
+export function requestAbandonPuzzle() {
+  if (!run?.puzzle || run.puzzle.failed || run.puzzle.solved) return;
+  openModal({ kind: 'abandonPuzzle' });
+}
+
+export function confirmAbandonPuzzle() {
+  ui.modal = null;
+  abandonPuzzle();
 }
 
 /* ================= hidden QA lab ================= */

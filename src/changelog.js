@@ -7,6 +7,45 @@
  */
 export const CHANGELOG_ENTRIES = [
   {
+    version: '0.1.7',
+    date: 'August 6, 2026',
+    title: 'Deeper polish',
+    sections: [
+      {
+        label: 'New',
+        items: [
+          'End Turn now previews known incoming damage, remaining Health, enemy utility actions, and unused Energy, Picks, or playable cards before a risky commitment.',
+          'Reachable map rooms now open a route preview before entry, including the room’s purpose and how many later nodes remain reachable.',
+          'Combat cards now state why they are ready or unavailable, and combat-log entries can be opened for a plain-language explanation.',
+          'Run endings now include a detailed descent recap covering the build, exploration, bosses, events, records, and cause of defeat.',
+        ],
+      },
+      {
+        label: 'Improved',
+        items: [
+          'Multi-tile Scan targeting now numbers each selected tile and clearly prevents selecting the same tile more than once.',
+          'Map route confirmation now appears only when more than one room is available to choose from.',
+          'The map now has an always-visible Deck button for reviewing every card in the current run.',
+          'The Vein map now displays the run’s live score beside the Deck button.',
+          'The Warden now uses a tighter four-pose speaking loop in dialogue scenes.',
+          'New combat boards now always use a complete square playable grid.',
+          'Honest Puzzles now warn before final submission or solution reveal, track completion, and highlight obvious Sudoku conflicts.',
+          'Card rewards show existing copies and resulting deck size; camps preview exact healing and the number of eligible upgrades before committing.',
+          'Settings now provide individual controls for the new confirmations and safeguards.',
+        ],
+      },
+      {
+        label: 'Fixed',
+        items: [
+          'Enemy-laid mines now trigger a Full Clear when they consume the final unresolved safe tile, preventing completed boards from becoming stranded.',
+          'The live combat coach now stays closed when battles begin unless a one-time replay was explicitly requested in Settings.',
+          'Deck buttons now open the card list directly instead of being intercepted by the Deck glossary definition.',
+          'Scores earned after the core victory now update Delver records on a later Vein burial, including Vein Depth, so score achievements unlock correctly.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.1.6',
     date: 'July 30, 2026',
     title: 'Sharper puzzles and clearer play',

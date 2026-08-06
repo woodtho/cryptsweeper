@@ -65,15 +65,18 @@ export function recordDelverProgress(run, screen) {
   if (mostGold > (stat.mostGold || 0)) { stat.mostGold = mostGold; changed = true; }
 
   const terminal = screen === 'victory' || screen === 'gameover';
-  if (terminal && !recorded.finished) {
-    const won = screen === 'victory';
-    stat.completed = (stat.completed || 0) + 1;
-    stat[won ? 'wins' : 'losses'] = (stat[won ? 'wins' : 'losses'] || 0) + 1;
+  if (terminal) {
     const finalScore = (run.floors || 0) * 10 + (run.stratum || 0) * 50
-      + (run.fullClears || 0) * 25 + Math.floor((run.gold || 0) / 2) + (run.hp || 0);
-    stat.bestScore = Math.max(stat.bestScore || 0, finalScore);
-    recorded.finished = true;
-    changed = true;
+      + (run.veinDepth || 0) * 15 + (run.fullClears || 0) * 25
+      + Math.floor((run.gold || 0) / 2) + (run.hp || 0);
+    if (finalScore > (stat.bestScore || 0)) { stat.bestScore = finalScore; changed = true; }
+    if (!recorded.finished) {
+      const won = screen === 'victory';
+      stat.completed = (stat.completed || 0) + 1;
+      stat[won ? 'wins' : 'losses'] = (stat[won ? 'wins' : 'losses'] || 0) + 1;
+      recorded.finished = true;
+      changed = true;
+    }
   }
   if (!changed) return;
   collection.delvers[run.cls] = stat;

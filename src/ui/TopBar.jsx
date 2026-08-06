@@ -60,7 +60,7 @@ export function TopBar({ children, combatQuickStats = null }) {
           {CLASSES[run.cls].name.replace('THE ', '')}
         </span>
         <span className="stat hud-secondary">
-          <button type="button" className="pile pile-button" data-mechanic="deck" onClick={openDeckModal}>Deck: {run.deck.length}</button>
+          <button type="button" className="pile pile-button" onClick={openDeckModal}>Deck: {run.deck.length}</button>
         </span>
         <span className="trinketrow hud-secondary">
           {run.trinkets.map(t => (

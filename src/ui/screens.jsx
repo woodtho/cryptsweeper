@@ -5,13 +5,13 @@ import {
   takeRewardCard, takeRewardTrinket, takeBossTrinket, takeVeinBoon, takeRewardGadget, finishReward,
   campHeal, campUpgrade, campSurvey, campTrainPicks, basePicksFor,
   buyShopCard, buyShopTrinket, buyShopGadget, buyRemoval, gotoMap,
-  EVENT_CATALOG, eventChoice, togglePuzzleScan, setLogicPuzzleCell, checkLogicPuzzle,
-  toggleLightsCell, toggleNonogramCell, toggleSudokuNoteMode, answerSequence,
-  setCrosswordDirection, selectCrosswordCell, abandonPuzzle,
+  EVENT_CATALOG, eventChoice, togglePuzzleScan, setLogicPuzzleCell, requestLogicPuzzleCheck,
+  toggleLightsCell, toggleNonogramCell, toggleSudokuNoteMode, requestSequenceAnswer,
+  setCrosswordDirection, selectCrosswordCell, requestAbandonPuzzle, logicPuzzleConflicts,
   currentEventView,
   listSaves, loadRun, saveRun, deleteSave, goHome,
   ENEMY_MODIFIERS, ENEMY_EFFECTS, BOSS_RESONANCE, VEIN_BOONS,
-  formatRunTime, runElapsedMs,
+  formatRunTime, runElapsedMs, openDeckModal,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { CardView } from './CardView.jsx';
@@ -244,6 +244,9 @@ export function TitleScreen({
             <SettingToggle label="Battle previews" detail="Show a full enemy briefing before each fight. Re-enables previews hidden with ‘don’t show again’." checked={preferences.showBattleBriefings} onChange={() => onPreferenceChange('showBattleBriefings', !preferences.showBattleBriefings)} />
             <SettingToggle label="Combat coach" detail="Replay the four-step contextual guide inside the next battle" checked={preferences.showCombatHints} onChange={() => onPreferenceChange('showCombatHints', !preferences.showCombatHints)} />
             <SettingToggle label="Board cleanup prompt" detail="Show the finish-the-board explanation after the final enemy falls. Re-enables a prompt hidden with ‘don’t show again’." checked={preferences.showCleanupPrompt} onChange={() => onPreferenceChange('showCleanupPrompt', !preferences.showCleanupPrompt)} />
+            <SettingToggle label="End Turn forecasts" detail="Confirm risky turns with incoming damage, enemy actions, and unused-resource warnings" checked={preferences.showEndTurnWarnings} onChange={() => onPreferenceChange('showEndTurnWarnings', !preferences.showEndTurnWarnings)} />
+            <SettingToggle label="Confirm map choices" detail="Inspect a reachable room and its remaining route before entering" checked={preferences.confirmMapChoices} onChange={() => onPreferenceChange('confirmMapChoices', !preferences.confirmMapChoices)} />
+            <SettingToggle label="Puzzle safeguards" detail="Confirm final answers and show obvious Sudoku conflicts before submission" checked={preferences.showPuzzleSafeguards} onChange={() => onPreferenceChange('showPuzzleSafeguards', !preferences.showPuzzleSafeguards)} />
             <SettingToggle label="Reduce motion" detail="Disables shakes, floating effects, and decorative animation" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
             <SettingToggle label="Animated battle sprites" detail="Use the full character sprite sheets for enemy tokens and expanded battle details" checked={preferences.animatedBoardEnemies} onChange={() => onPreferenceChange('animatedBoardEnemies', !preferences.animatedBoardEnemies)} />
             <SettingToggle label="High contrast" detail="Brightens text, borders, and board information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
@@ -850,6 +853,9 @@ export function InGameMenu({
           <SettingToggle label="Battle previews" detail="Show the enemy lineup and combat stats before each fight" checked={preferences.showBattleBriefings} onChange={() => onPreferenceChange('showBattleBriefings', !preferences.showBattleBriefings)} />
           <SettingToggle label="Combat coach" detail="Highlight enemies, the board, cards, and End Turn in the live battle" checked={preferences.showCombatHints} onChange={() => onPreferenceChange('showCombatHints', !preferences.showCombatHints)} />
           <SettingToggle label="Board cleanup prompt" detail="Show the finish-the-board explanation after the final enemy falls" checked={preferences.showCleanupPrompt} onChange={() => onPreferenceChange('showCleanupPrompt', !preferences.showCleanupPrompt)} />
+          <SettingToggle label="End Turn forecasts" detail="Confirm risky turns and show incoming damage" checked={preferences.showEndTurnWarnings} onChange={() => onPreferenceChange('showEndTurnWarnings', !preferences.showEndTurnWarnings)} />
+          <SettingToggle label="Confirm map choices" detail="Preview reachable rooms before entering" checked={preferences.confirmMapChoices} onChange={() => onPreferenceChange('confirmMapChoices', !preferences.confirmMapChoices)} />
+          <SettingToggle label="Puzzle safeguards" detail="Confirm final puzzle submissions and reveal conflicts" checked={preferences.showPuzzleSafeguards} onChange={() => onPreferenceChange('showPuzzleSafeguards', !preferences.showPuzzleSafeguards)} />
           <SettingToggle label="Reduce motion" detail="Disable animation and screen shake" checked={preferences.reducedMotion} onChange={() => onPreferenceChange('reducedMotion', !preferences.reducedMotion)} />
           <SettingToggle label="Animated battle sprites" detail="Use full animated enemy sprites in the battle roster" checked={preferences.animatedBoardEnemies} onChange={() => onPreferenceChange('animatedBoardEnemies', !preferences.animatedBoardEnemies)} />
           <SettingToggle label="High contrast" detail="Brighter board and interface information" checked={preferences.highContrast} onChange={() => onPreferenceChange('highContrast', !preferences.highContrast)} />
@@ -1048,6 +1054,15 @@ const NODE_TYPE_LABELS = [
   ['dig', 'Dig'], ['elite', 'Elite'], ['event', 'Event'], ['shop', 'Shop'],
   ['treasure', 'Treasure'], ['camp', 'Camp'], ['boss', 'Boss'],
 ];
+const NODE_GUIDANCE = {
+  dig: 'A standard battle with card, gold, and possible Full Clear rewards.',
+  elite: 'A harder battle against an elite threat with a permanent relic reward.',
+  event: 'A story encounter with choices whose outcomes are previewed before commitment.',
+  shop: 'Spend gold on cards, relics, consumables, or permanent deck services.',
+  treasure: 'Find a reward or solve an Honest Puzzle for a permanent card upgrade.',
+  camp: 'Choose one: recover Health, upgrade a card, survey ahead, or train Picks.',
+  boss: 'A stratum-ending boss battle with unique rules and a major relic reward.',
+};
 function mapIcons(prefs) {
   const styles = mapIconStyles(prefs);
   const styleKey = styles[prefs?.mapIconStyle] ? prefs.mapIconStyle : 'marks';
@@ -1100,6 +1115,7 @@ export function MapScreen() {
   };
   const reach = reachableNodes();
   const isReach = (r, c) => reach.some(n => n.r === r && n.c === c);
+  const confirmChoice = prefs.confirmMapChoices && reach.length > 1;
 
   /* branches the descent can no longer reach are removed entirely; the trail
      you actually walked stays as history */
@@ -1113,6 +1129,9 @@ export function MapScreen() {
 
   /* hold a node to preview its futures: everything unreachable from it dims */
   const [previewKey, setPreviewKey] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const mapChoiceRef = useRef(null);
+  useDialogFocus(mapChoiceRef, () => setSelectedNode(null), Boolean(selectedNode));
   const previewSet = previewKey ? mapClosure(m, ...previewKey.split(',').map(Number)) : null;
   const hold = useRef({ t: null, fired: false, x: 0, y: 0 });
   const cancelHold = () => { clearTimeout(hold.current.t); hold.current.t = null; };
@@ -1148,6 +1167,15 @@ export function MapScreen() {
           ? `The Vein · Segment ${m.veinSegment || (run.veinSegments || 0) + 1} · Depth ${run.veinDepth || 0} · descend without end`
           : 'Tunnel map — choose your descent · hold any node to preview its paths'}
       </p>
+      <div className="map-screen-actions" aria-label="Map actions">
+        {run.coreWon && <span className="map-live-score" aria-label={`Current score ${score()}`}>
+          Score <b>{score()}</b>
+        </span>}
+        <button type="button" className="btn" onClick={openDeckModal}
+          aria-label={`View your deck, ${run.deck.length} cards`}>
+          <GameIcon name="cards" preferences={prefs} /> Deck ({run.deck.length})
+        </button>
+      </div>
       {!covered && (
         <>
           <div className="mapwrap" style={{ height: `calc(var(--map-row) * ${MAP_ROWS})`, '--map-rows': MAP_ROWS }}
@@ -1173,9 +1201,19 @@ export function MapScreen() {
                       onPointerDown={ev => startHold(ev, r, c)}
                       onPointerMove={moveHold}
                       onPointerUp={endHold} onPointerCancel={endHold} onPointerLeave={endHold}
+                      role="button" tabIndex={isReach(r, c) ? 0 : -1}
+                      aria-label={`${type} node${isReach(r, c) ? `, reachable.${confirmChoice ? ' Inspect choice.' : ''}` : ''}`}
+                      onKeyDown={event => {
+                        if (isReach(r, c) && (event.key === 'Enter' || event.key === ' ')) {
+                          event.preventDefault();
+                          if (confirmChoice) setSelectedNode({ r, c, type }); else enterNode(r, c);
+                        }
+                      }}
                       onClick={() => {
                         if (hold.current.fired) { hold.current.fired = false; return; }
-                        if (isReach(r, c)) enterNode(r, c);
+                        if (isReach(r, c)) {
+                          if (confirmChoice) setSelectedNode({ r, c, type }); else enterNode(r, c);
+                        }
                       }}>
                       <span className={`mapicon ${iconClass(type)}`} aria-hidden="true">{resolveMapIcon(icons[type], prefs)}</span>
                     </div>
@@ -1189,6 +1227,14 @@ export function MapScreen() {
               <span key={t} className="legend-item">{resolveMapIcon(icons[t], prefs)} {label.toLowerCase()}</span>
             ))}
           </p>
+          {selectedNode && <div className="map-choice-overlay" onClick={event => { if (event.target === event.currentTarget) setSelectedNode(null); }}>
+            <section ref={mapChoiceRef} tabIndex="-1" className="map-choice-preview" role="dialog" aria-modal="true" aria-labelledby="map-choice-title">
+              <div className="map-choice-icon">{resolveMapIcon(icons[selectedNode.type], prefs)}</div>
+              <div><small>Route choice</small><h2 id="map-choice-title">{NODE_TYPE_LABELS.find(([type]) => type === selectedNode.type)?.[1]}</h2><p>{NODE_GUIDANCE[selectedNode.type]}</p>
+                <span>{mapClosure(m, selectedNode.r, selectedNode.c).size - 1} later nodes remain reachable from this route.</span></div>
+              <div className="map-choice-actions"><button type="button" className="btn" onClick={() => setSelectedNode(null)}>Cancel</button><button type="button" className="btn primary" onClick={() => enterNode(selectedNode.r, selectedNode.c)}>Enter {selectedNode.type} ▸</button></div>
+            </section>
+          </div>}
         </>
       )}
     </>
@@ -1199,6 +1245,7 @@ export function MapScreen() {
 export function RewardScreen() {
   const r = run.reward;
   const prefs = loadPreferences();
+  const ownedCopies = key => run.deck.filter(card => card.key === key).length;
   return (
     <>
       <TopBar />
@@ -1260,11 +1307,12 @@ export function RewardScreen() {
         )}
         {!r.cardTaken ? (
           <>
-            <p>Choose a card (or skip):</p>
+            <p>Choose a card (or skip). Your deck will grow from {run.deck.length} to {run.deck.length + 1} cards:</p>
             <div className="cardpick card-select-grid">
-              {r.cards.map((cd, i) => (
-                <CardView key={i} card={{ id: i, key: cd.key, up: cd.up }} onClick={() => takeRewardCard(i)} />
-              ))}
+              {r.cards.map((cd, i) => <div className="reward-card-option" key={i}>
+                <div className="reward-card-context"><b>{ownedCopies(cd.key) ? `${ownedCopies(cd.key)} already in deck` : 'New to this deck'}</b><span>{CARDS[cd.key].type} · {CARDS[cd.key].rarity}</span></div>
+                <CardView card={{ id: i, key: cd.key, up: cd.up }} onClick={() => takeRewardCard(i)} />
+              </div>)}
             </div>
           </>
         ) : <p className="dim">Card added.</p>}
@@ -1277,6 +1325,9 @@ export function RewardScreen() {
 /* ---------------- camp ---------------- */
 export function CampScreen() {
   const prefs = loadPreferences();
+  const campHealing = run.challenge === 'brittle' ? Math.ceil(Math.floor(run.maxHp * 0.3) / 2) : Math.floor(run.maxHp * 0.3);
+  const restAmount = Math.min(run.maxHp - run.hp, campHealing);
+  const upgradableCount = run.deck.filter(card => (card.up || 0) < 2 && CARDS[card.key]?.cost != null).length;
   return (
     <>
       <TopBar />
@@ -1284,17 +1335,17 @@ export function CampScreen() {
         <h2><GameIcon name="camp" preferences={prefs} /> Camp</h2>
         <p className="dim">The dark is patient. Choose one.</p>
         <div className="choicelist">
-          <div className="choice camp-choice" role="button" tabIndex="0"
-            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); campHeal(); } }}
-            onClick={campHeal}><span className="camp-action-icon">{campVector('rest', prefs)}</span>
+          <div className={`choice camp-choice ${restAmount <= 0 ? 'disabled' : ''}`} role="button" tabIndex={restAmount > 0 ? 0 : -1} aria-disabled={restAmount <= 0}
+            onKeyDown={event => { if (restAmount > 0 && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); campHeal(); } }}
+            onClick={restAmount > 0 ? campHeal : undefined}><span className="camp-action-icon">{campVector('rest', prefs)}</span>
             <span className="cname">Rest</span>
-            <div className="cdesc">Heal {Math.floor(run.maxHp * 0.3)} HP (30%).</div>
+            <div className="cdesc">{restAmount > 0 ? `Heal ${restAmount} HP: ${run.hp} → ${Math.min(run.maxHp, run.hp + restAmount)} / ${run.maxHp}.` : 'Already at full Health.'}</div>
           </div>
-          <div className="choice camp-choice" role="button" tabIndex="0"
-            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); campUpgrade(); } }}
-            onClick={campUpgrade}><span className="camp-action-icon">{campVector('smith', prefs)}</span>
+          <div className={`choice camp-choice ${upgradableCount <= 0 ? 'disabled' : ''}`} role="button" tabIndex={upgradableCount > 0 ? 0 : -1} aria-disabled={upgradableCount <= 0}
+            onKeyDown={event => { if (upgradableCount > 0 && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); campUpgrade(); } }}
+            onClick={upgradableCount > 0 ? campUpgrade : undefined}><span className="camp-action-icon">{campVector('smith', prefs)}</span>
             <span className="cname">Smith</span>
-            <div className="cdesc">Upgrade a card permanently.</div>
+            <div className="cdesc">{upgradableCount > 0 ? `Preview and permanently upgrade one of ${upgradableCount} eligible cards.` : 'Every eligible card is already fully upgraded.'}</div>
           </div>
           <div className="choice camp-choice" role="button" tabIndex="0"
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); campSurvey(); } }}
@@ -1442,7 +1493,7 @@ export function ShopScreen() {
           {cardOffer ? <div className={`shop-card-feature ${cardOffer.sold ? 'sold' : ''}`}>
             <CardView card={{ id: selectedCard, key: cardOffer.key, up: cardOffer.up || 0 }} />
             <div className="shop-card-buy">
-              <div><small>Card for sale</small><b>{CARDS[cardOffer.key].name}{cardOffer.up ? '+' : ''}</b><span>{cardOffer.up ? 'Arrives already upgraded — permanent.' : 'Permanent addition to this run’s deck.'}</span></div>
+              <div><small>Card for sale · {run.deck.filter(card => card.key === cardOffer.key).length} owned</small><b>{CARDS[cardOffer.key].name}{cardOffer.up ? '+' : ''}</b><span>{cardOffer.up ? 'Arrives already upgraded — permanent.' : `Permanent addition: deck ${run.deck.length} → ${run.deck.length + 1}.`}</span></div>
               <button className="btn primary" disabled={cardOffer.sold || run.gold < cardOffer.price} onClick={buySelectedCard}>
                 {cardOffer.sold ? 'Sold' : run.gold < cardOffer.price ? `Need ${cardOffer.price - run.gold}g` : `Buy · ${cardOffer.price}g`}
               </button>
@@ -1527,6 +1578,8 @@ export function PuzzleScreen() {
   const p = run.puzzle;
   const prefs = loadPreferences();
   const type = p.type || 'mines';
+  const conflicts = logicPuzzleConflicts();
+  const answered = type === 'mines' ? 0 : p.values.filter(value => value !== 0 && value !== '').length;
   const descriptions = {
     mines: 'Reveal every safe tile. Flag adjacent mines, then tap a matching revealed number to Chord its unflagged neighbours. Misplaced flags can expose a mine. Scans identify a tile without opening it.',
     sudoku: `Fill every row, column, and outlined ${p.boxRows}×${p.boxCols} box with 1–${p.size} exactly once.`,
@@ -1542,6 +1595,10 @@ export function PuzzleScreen() {
         <h2><GameIcon name="puzzle" preferences={prefs} /> An Honest Puzzle</h2>
         <p className="dim">{descriptions[type]} No enemy and no turn limit.</p>
         {p.difficultyLabel && <p className="puzzle-difficulty">{p.difficultyLabel}</p>}
+        {type !== 'mines' && !['sequence', 'lights'].includes(type) && <div className="puzzle-progress" role="status">
+          <span>{answered}/{p.values.length} squares answered</span>
+          {conflicts.size > 0 && <b>{conflicts.size} conflicts to resolve</b>}
+        </div>}
 
         {type === 'mines' && <>
           <div style={{ display: 'flex', justifyContent: 'center' }}><BoardView mode="puzzle" /></div>
@@ -1567,7 +1624,7 @@ export function PuzzleScreen() {
                 borderBottom: row < p.size - 1 && (row + 1) % p.boxRows === 0 ? '3px solid var(--bone-dim)' : undefined,
               };
               const notes = p.notes?.[i] || [];
-              return <div key={i} style={edge} className={`sudoku-cell-wrap ${given ? 'given' : ''}`} role="gridcell">
+              return <div key={i} style={edge} className={`sudoku-cell-wrap ${given ? 'given' : ''} ${conflicts.has(i) ? 'conflict' : ''}`} role="gridcell">
                 <input data-cell={i} className="logic-cell" aria-label={`Row ${row + 1}, column ${col + 1}${notes.length ? `, candidates ${notes.join(', ')}` : ''}`}
                   inputMode="numeric" maxLength={1} readOnly={given} value={value || ''}
                   onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)}
@@ -1576,7 +1633,7 @@ export function PuzzleScreen() {
               </div>;
             })}
           </div>
-          {!p.failed && !p.solved && <button className="btn primary" onClick={checkLogicPuzzle}>Check Sudoku</button>}
+          {!p.failed && !p.solved && <button className="btn primary" onClick={requestLogicPuzzleCheck}>Check Sudoku</button>}
         </div>}
 
         {type === 'crossword' && <div className="logic-puzzle-wrap crossword-layout">
@@ -1644,14 +1701,14 @@ export function PuzzleScreen() {
               </button>)}
             </div>
           </div>
-          {!p.failed && !p.solved && <button className="btn primary" onClick={checkLogicPuzzle}>Check crossword</button>}
+          {!p.failed && !p.solved && <button className="btn primary" onClick={requestLogicPuzzleCheck}>Check crossword</button>}
         </div>}
 
         {type === 'sequence' && <div className="logic-puzzle-wrap sequence-puzzle">
           <div className="sequence-runes">{p.prompt}</div>
           <div className="sequence-choices">{p.choices.map(value => <button
             className={`btn ${p.abandoned && value === p.answer ? 'puzzle-answer' : ''}`}
-            disabled={p.failed || p.solved} key={value} onClick={() => answerSequence(value)}>{value}</button>)}</div>
+            disabled={p.failed || p.solved} key={value} onClick={() => requestSequenceAnswer(value)}>{value}</button>)}</div>
           {p.abandoned && <p className="puzzle-solution-note">Answer: <b>{p.answer}</b> — {p.method}</p>}
         </div>}
 
@@ -1676,7 +1733,7 @@ export function PuzzleScreen() {
               return <button data-cell={i} key={i} className={state} onKeyDown={e => puzzleGridKeyDown(e, i, p.size, p.values.length)} onClick={() => toggleNonogramCell(i)} aria-label={`Nonogram cell ${i + 1}, ${state}`}>{value === 2 ? '×' : ''}</button>;
             })}</div>
           </div>
-          {!p.failed && !p.solved && <button className="btn primary" onClick={checkLogicPuzzle}>Check nonogram</button>}
+          {!p.failed && !p.solved && <button className="btn primary" onClick={requestLogicPuzzleCheck}>Check nonogram</button>}
         </div>}
 
         {p.failed && (
@@ -1691,7 +1748,7 @@ export function PuzzleScreen() {
             <button className="btn primary" onClick={campUpgrade}>Upgrade a card</button>
           </>
         )}
-        {!p.failed && !p.solved && <button className="btn" onClick={abandonPuzzle}>Abandon and reveal solution</button>}
+        {!p.failed && !p.solved && <button className="btn" onClick={requestAbandonPuzzle}>Abandon and reveal solution</button>}
       </div>
     </>
   );
@@ -1699,6 +1756,9 @@ export function PuzzleScreen() {
 
 /* ---------------- game over / victory ---------------- */
 export function GameOverScreen({ won }) {
+  const progress = loadProgression();
+  const relicNames = (run.trinkets || []).map(key => TRINKETS[key]?.name || key);
+  const upgradedCards = (run.deck || []).filter(card => Number(card.up || 0) > 0).length;
   return (
     <div className="gameover">
       <h1 style={{ color: won ? 'var(--gold)' : 'var(--flag)' }}>{won ? 'THE SEAM IS SILENT' : 'BURIED'}</h1>
@@ -1712,6 +1772,21 @@ export function GameOverScreen({ won }) {
       </p>
       <p className="scoreline">TIME: {formatRunTime(run.coreClearMs ?? runElapsedMs(), true)}</p>
       <p className="scoreline" style={{ fontSize: 18, color: 'var(--gold)' }}>SCORE: {score()}</p>
+      <section className="run-recap" aria-label="Run recap">
+        <h2>Descent recap</h2>
+        {!won && <p className="run-cause"><small>Cause of burial</small><b>{run.lastDamageSource || 'The Undermine'}</b></p>}
+        <div className="run-recap-grid">
+          <span><small>Delver</small><b>{CLASSES[run.cls]?.name || run.cls}</b></span>
+          <span><small>Safe tiles</small><b>{run.safeReveals || 0}</b></span>
+          <span><small>Deck</small><b>{run.deck?.length || 0} cards</b></span>
+          <span><small>Upgraded cards</small><b>{upgradedCards}</b></span>
+          <span><small>Relics</small><b>{relicNames.length}</b></span>
+          <span><small>Events resolved</small><b>{run.eventHistory?.length || 0}</b></span>
+          <span><small>Bosses defeated</small><b>{run.bossesDefeated?.length || 0}</b></span>
+          <span><small>Lifetime deepest</small><b>{progress.deepestVein > 0 ? `Vein ${progress.deepestVein}` : `Stratum ${progress.deepestStratum || 1}`}</b></span>
+        </div>
+        {relicNames.length > 0 && <details><summary>Relics carried</summary><p>{relicNames.join(' · ')}</p></details>}
+      </section>
       <button className="btn primary" onClick={resetToTitle}>Return home ▸</button>
     </div>
   );

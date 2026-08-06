@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { CARDS, GADGETS, TRINKETS } from '../engine/data.js';
 import {
-  run, ui, cbt, board, curTarget, effCost, endTurn,
+  run, ui, cbt, board, curTarget, requestEndTurn,
   clickHandCard, cancelTargeting, selectEnemy,
   openPileModal, openMechanicModal, LAIR_COLORS,
-  ENEMY_MODIFIERS, ENEMY_EFFECTS, MAX_INSIGHT,
+  ENEMY_MODIFIERS, ENEMY_EFFECTS, MAX_INSIGHT, cardPlayability, explainCombatLog,
 } from '../engine/engine.js';
 import { TopBar } from './TopBar.jsx';
 import { enemyIcon, enemySpriteKey } from './enemyIcons.jsx';
@@ -302,6 +302,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
   const showHand = bottomPanel === 'hand';
   const [showItems, setShowItems] = useState(false);
   const [coachStep, setCoachStep] = useState(0);
+  const [coachOpen, setCoachOpen] = useState(() => Boolean(preferences.showCombatHints));
   const [mobileWindow, setMobileWindow] = useState(null);
   const combatWindowRef = useRef(null);
   useDialogFocus(combatWindowRef, () => setMobileWindow(null), Boolean(mobileWindow));
@@ -319,6 +320,10 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
   useEffect(() => {
     if (c.cleanup) setBottomPanel('stats');
   }, [c.cleanup]);
+
+  useEffect(() => {
+    if (coachOpen && preferences.showCombatHints) onPreferenceChange('showCombatHints', false);
+  }, [coachOpen, preferences.showCombatHints, onPreferenceChange]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -463,7 +468,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
             <div className="gadgetrow dim">Powers: {c.powersPlayed.map(p => CARDS[p.key].name).join(', ')}</div>
           )}
           {showLog && <div className="log" ref={logRef}>
-            {c.log.length ? c.log.map((x, i) => <div key={i} className="entry"><IconText preferences={preferences}>{x}</IconText></div>) : <div className="entry">The crypt is quiet.</div>}
+            {c.log.length ? c.log.map((x, i) => <button type="button" key={i} className="entry log-entry-explain" onClick={() => explainCombatLog(x)} aria-label={`${x}. Open explanation.`}><IconText preferences={preferences}>{x}</IconText><small>?</small></button>) : <div className="entry">The crypt is quiet.</div>}
           </div>}
         </div>
       </div>
@@ -477,7 +482,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
             onClick={() => setBottomPanel('hand')}>
             <GameIcon name="cards" preferences={preferences} /> Hand ({c.hand.length})
           </button>
-          <button type="button" className="btn primary end-turn" disabled={c.cleanup} onClick={endTurn}>End Turn ▸</button>
+          <button type="button" className="btn primary end-turn" disabled={c.cleanup} onClick={requestEndTurn}>End Turn ▸</button>
         </nav>
         {bottomPanel === 'stats' && <section className="combat-bottom-panel combat-stats-panel" aria-label="Combat statistics">
           <div className="combat-stats-grid">
@@ -496,7 +501,7 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
         {showHand && !c.cleanup && <div className="handzone"><div className="hand">
           {c.hand.map((card, i) => {
             const def = CARDS[card.key];
-            const affordable = def.cost != null && effCost(card) <= c.energy;
+            const eligibility = cardPlayability(card);
             const center = (c.hand.length - 1) / 2;
             const isNew = !seenRef.current.ids.has(card.id);
             const invalid = ui.invalidCard?.cardId === card.id;
@@ -518,7 +523,8 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
                 }}>
                 <CardView card={card} inCombat
                   selected={selected}
-                  dim={!affordable || def.unplayable}
+                  dim={!eligibility.playable}
+                  status={eligibility}
                   onClick={() => clickHandCard(i)} />
               </div>
             );
@@ -554,15 +560,15 @@ export function CombatScreen({ preferences = {}, onPreferenceChange = () => {} }
             ) : (
               <div className="log combat-window-log">
                 {c.log.length ? c.log.map((entry, index) => (
-                  <div key={index} className="entry"><IconText preferences={preferences}>{entry}</IconText></div>
+                  <button type="button" key={index} className="entry log-entry-explain" onClick={() => explainCombatLog(entry)}><IconText preferences={preferences}>{entry}</IconText><small>?</small></button>
                 )) : <div className="entry">The crypt is quiet.</div>}
               </div>
             )}
           </section>
         </div>
       )}
-      {preferences.showCombatHints && <CombatCoach step={coachStep} onStep={setCoachStep}
-        onRevealCards={() => setBottomPanel('hand')} onFinish={() => onPreferenceChange('showCombatHints', false)} />}
+      {coachOpen && <CombatCoach step={coachStep} onStep={setCoachStep}
+        onRevealCards={() => setBottomPanel('hand')} onFinish={() => setCoachOpen(false)} />}
     </>
   );
 }

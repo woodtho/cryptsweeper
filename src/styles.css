@@ -1187,6 +1187,10 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
 
 /* ================= map ================= */
 .mapwrap { --map-row: 64px; position: relative; margin: 10px auto; width: min(680px, 100%); }
+.map-screen-actions { display:flex; justify-content:center; width:min(680px,100%); margin:6px auto 2px; }
+.map-screen-actions .btn { min-height:44px; }
+.map-live-score { display:flex; align-items:center; gap:7px; min-height:44px; padding:0 12px; border:1px solid var(--etch); background:var(--stone-1); color:var(--bone-dim); font:700 10px/1 var(--mono); text-transform:uppercase; }
+.map-live-score b { color:var(--gold); font-size:15px; }
 .mapwrap > svg.map-paths { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 /* the tunnel chart flows down toward the boss: lines sweep top-to-bottom
    while each row of nodes drops in on the same schedule (75ms per row) */
@@ -1618,6 +1622,17 @@ html.large-text .topbar, html.large-text .btn, html.large-text .enemy .estats { 
   outline-offset: -2px;
   cursor: crosshair;
   animation: targetpulse 1.2s ease-in-out infinite;
+}
+.tile.target-picked {
+  outline: 3px solid var(--candle);
+  outline-offset: -3px;
+}
+.tile .target-pick-order {
+  position: absolute; z-index: 9; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  display: grid; place-items: center; width: calc(var(--tile) * .48); height: calc(var(--tile) * .48);
+  border: 2px solid var(--abyss-0); border-radius: 50%; background: var(--candle); color: var(--abyss-0);
+  box-shadow: 0 0 0 1px var(--candle), 0 2px 6px #000;
+  font: 800 calc(var(--tile) * .27)/1 var(--mono); pointer-events: none;
 }
 .tile.construct { font-size: calc(var(--tile) * .52); }
 .tile .construct-number {
@@ -3127,3 +3142,47 @@ html.full-art-open,html.full-art-open body{overflow:hidden}
 .tile-inspection span { font:9px/1.35 var(--mono); }
 .tile { appearance:none; -webkit-appearance:none; padding:0; font:inherit; color:inherit; }
 .tile:focus-visible { z-index:8; outline:3px solid var(--candle); outline-offset:1px; }
+/* Player-friendly previews and safeguards */
+.turn-forecast { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; }
+.turn-forecast>div { display:grid; gap:4px; padding:10px; border:1px solid var(--etch); background:var(--stone-1); text-align:center; }
+.turn-forecast small,.run-recap small { color:var(--bone-dim); font:8px/1.3 var(--mono); text-transform:uppercase; }
+.turn-forecast b { color:var(--bone); font:700 18px/1 var(--mono); }
+.turn-forecast.lethal { border:2px solid var(--flag); padding:5px; }
+.turn-forecast.lethal b { color:var(--blood-hi); }
+.forecast-effects { display:grid; gap:5px; margin:10px 0; padding:10px; border-left:3px solid var(--candle); background:rgba(201,151,59,.08); }
+.forecast-effects span { color:var(--bone-dim); font-size:11px; }
+.forecast-unused { color:var(--candle); }
+.card-status { margin:5px 8px 0; padding:4px 6px; border:1px solid currentColor; font:700 8px/1.25 var(--mono); text-align:center; }
+.card-status.ready { color:var(--n2); background:rgba(86,183,113,.08); }
+.card-status.blocked { color:var(--blood-hi); background:rgba(174,49,55,.09); }
+.log-entry-explain { display:flex!important; width:100%; align-items:flex-start; justify-content:space-between; gap:8px; border:0; color:inherit; text-align:left; cursor:pointer; }
+.log-entry-explain:hover,.log-entry-explain:focus-visible { color:var(--candle); outline:1px solid var(--candle); }
+.log-entry-explain small { flex:0 0 auto; border:1px solid currentColor; border-radius:50%; width:16px; height:16px; text-align:center; }
+.map-choice-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:calc(12px + var(--app-safe-top)) calc(12px + var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) calc(12px + var(--app-safe-left)); background:rgba(4,5,8,.58); backdrop-filter:blur(1px); }
+.map-choice-preview { display:grid; grid-template-columns:auto 1fr; gap:10px 14px; width:min(620px,100%); max-height:calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - 24px); overflow:auto; margin:0; padding:14px; border:2px solid var(--candle); background:rgba(13,15,18,.98); box-shadow:0 8px 30px #000; }
+.map-choice-preview h2,.map-choice-preview p { margin:2px 0 6px; }
+.map-choice-preview span { color:var(--bone-dim); font-size:10px; }
+.map-choice-icon { display:grid; place-items:center; width:52px; height:52px; color:var(--candle); font-size:28px; }
+.map-choice-actions { grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; }
+.reward-card-option { display:grid; gap:5px; justify-items:center; }
+.reward-card-context { display:flex; width:100%; justify-content:space-between; gap:8px; color:var(--bone-dim); font:8px/1.25 var(--mono); }
+.reward-card-context b { color:var(--candle); }
+.puzzle-progress { display:flex; justify-content:space-between; gap:12px; margin:8px 0; padding:8px 10px; border:1px solid var(--etch); font:9px/1.3 var(--mono); }
+.puzzle-progress b { color:var(--blood-hi); }
+.sudoku-cell-wrap.conflict { background:rgba(174,49,55,.28); box-shadow:inset 0 0 0 2px var(--blood-hi); }
+.sudoku-cell-wrap.conflict .logic-cell { color:var(--blood-hi); }
+.run-recap { width:min(680px,calc(100% - 24px)); margin:16px auto; padding:14px; border:1px solid var(--etch-hi); background:var(--stone-1); text-align:left; }
+.run-recap h2 { margin-top:0; text-align:center; }
+.run-cause { display:flex; justify-content:space-between; gap:12px; padding:9px; border-left:3px solid var(--flag); background:rgba(174,49,55,.09); }
+.run-cause b { color:var(--blood-hi); }
+.run-recap-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; }
+.run-recap-grid span { display:grid; gap:4px; min-width:0; padding:8px; border:1px solid var(--etch); }
+.run-recap-grid b { overflow-wrap:anywhere; font:700 11px/1.3 var(--mono); }
+.run-recap details { margin-top:10px; color:var(--bone-dim); }
+@media (max-width:600px) {
+  .turn-forecast { grid-template-columns:1fr; }
+  .run-recap-grid { grid-template-columns:repeat(2,1fr); }
+  .map-choice-overlay { align-items:flex-end; }
+  .map-choice-preview { width:100%; }
+  .reward-card-context { flex-direction:column; }
+}

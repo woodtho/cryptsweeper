@@ -1,5 +1,6 @@
 const KEY = 'cryptsweeper.settings.v1';
 const DELVER_ICON_DEFAULT_VERSION = 2;
+const COMBAT_COACH_DEFAULT_VERSION = 1;
 const DEFAULTS = {
   reducedMotion: false,
   highContrast: false,
@@ -7,9 +8,12 @@ const DEFAULTS = {
   largeText: false,
   leftHanded: false,
   compactCards: true,
-  showCombatHints: true,
+  showCombatHints: false,
   showBattleBriefings: true,
   showCleanupPrompt: true,
+  showEndTurnWarnings: true,
+  confirmMapChoices: true,
+  showPuzzleSafeguards: true,
   animatedBoardEnemies: false,
   enemyEmojis: {},
   enemyIconStyle: 'sprites',
@@ -27,6 +31,7 @@ const DEFAULTS = {
   notoEmoji: true,
   pixelAssetVersion: 2,
   delverIconDefaultVersion: DELVER_ICON_DEFAULT_VERSION,
+  combatCoachDefaultVersion: COMBAT_COACH_DEFAULT_VERSION,
 };
 
 export function loadPreferences() {
@@ -56,6 +61,11 @@ export function loadPreferences() {
       if (['sigils', 'atlas-marks'].includes(stored.mapIconStyle)) stored.mapIconStyle = 'marks';
       if (['sigils', 'atlas-marks'].includes(stored.interfaceIconStyle)) stored.interfaceIconStyle = 'marks';
       stored.delverIconDefaultVersion = DELVER_ICON_DEFAULT_VERSION;
+      migrated = true;
+    }
+    if ((stored.combatCoachDefaultVersion || 0) < COMBAT_COACH_DEFAULT_VERSION) {
+      stored.showCombatHints = false;
+      stored.combatCoachDefaultVersion = COMBAT_COACH_DEFAULT_VERSION;
       migrated = true;
     }
     if (migrated) localStorage.setItem(KEY, JSON.stringify({ ...DEFAULTS, ...stored }));

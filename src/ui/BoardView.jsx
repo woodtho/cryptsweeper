@@ -49,6 +49,7 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
   let content = '';
   let constructNumber = 0;
   let runeValue = null;
+  let targetPickOrder = 0;
   if (cell.void) {
     return <div className="tile void" />;
   }
@@ -125,6 +126,13 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
   }
 
   if (mode !== 'puzzle' && ui.targeting) {
+    const pickedIndex = ui.targeting.picked.findIndex((picked, index) =>
+      ui.targeting.specs[index] !== 'row' && picked === i);
+    if (pickedIndex >= 0) {
+      targetPickOrder = pickedIndex + 1;
+      cls.push('target-picked');
+      title.push(`Scan target ${targetPickOrder} selected`);
+    }
     const spec = ui.targeting.specs[ui.targeting.picked.length];
     if (spec && tileEligible(i, spec, ui.targeting.picked)) cls.push('targetable');
   }
@@ -226,6 +234,9 @@ function Tile({ i, mode, hiliteLair, inspectMode, onInspect }) {
       {relayCover ? <span className={`relay-range-mark${relayCover >= 2 ? ' overlap' : ''}`} aria-hidden="true" /> : null}
       {lairGhost ? <span className="lairghost">{lairGhost}</span> : null}
       {content}
+      {targetPickOrder > 0
+        ? <span className="target-pick-order" aria-hidden="true">{targetPickOrder}</span>
+        : null}
       {constructNumber > 0 ? <span className={`construct-number numc${constructNumber}`} aria-hidden="true">{constructNumber}</span> : null}
       {runeValue != null ? <span className="rune-value" aria-label={`Rune ${runeValue}`}>⌘{runeValue}</span> : null}
       {cell.revealed && HEAT_CONSTRUCTS.has(cell.construct?.kind)

@@ -25,7 +25,7 @@ function targetLabel(def) {
   return `Choose ${targets.map(target => TARGET_LABELS[target] || target).join(' + ')}`;
 }
 
-export function CardView({ card, onClick, inCombat = false, selected = false, dim = false }) {
+export function CardView({ card, onClick, inCombat = false, selected = false, dim = false, status = null }) {
   const def = CARDS[card.key];
   const selection = targetLabel(def);
   const level = Math.max(0, Math.min(2, Number(card.up || 0)));
@@ -52,7 +52,7 @@ export function CardView({ card, onClick, inCombat = false, selected = false, di
           onClick();
         }
       } : undefined}
-      aria-label={onClick ? `${def.name}${card.up ? `, upgrade ${card.up}` : ''}` : undefined}
+      aria-label={onClick ? `${def.name}${card.up ? `, upgrade ${card.up}` : ''}${status ? `. ${status.reason}` : ''}` : undefined}
       data-ctype={def.type} data-cclass={def.cls || 'neutral'} data-glyph={glyph}>
       <span className="brk tl" /><span className="brk tr" /><span className="brk bl" /><span className="brk br" />
       <span className="ctab" />
@@ -65,6 +65,7 @@ export function CardView({ card, onClick, inCombat = false, selected = false, di
       <div className="cname">{def.name}{card.up ? <span className="upg">{card.up >= 2 ? '++' : '+'}</span> : null}</div>
       <div className="cid">{def.cls || 'neutral'}</div>
       <div className="rules"><span className="rrun" dangerouslySetInnerHTML={{ __html: decorateMechanics(def.text(card.up || 0)) }} /></div>
+      {status ? <div className={`card-status ${status.playable ? 'ready' : 'blocked'}`}>{status.reason}</div> : null}
       {risen ? <div className="risen-rule"><b>↑ Risen{def.type === 'Attack' ? ' · +50% damage' : ''}</b><span>Exhausts after play</span></div> : null}
       {selection ? <div className="targetline">{selection}</div> : null}
       <div className="cbar">
